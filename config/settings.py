@@ -9,9 +9,14 @@ if (BASE_DIR / '.env').exists():
     for line in (BASE_DIR / '.env').read_text(encoding='utf-8').splitlines():
         if line.strip() and not line.lstrip().startswith('#') and '=' in line:
             key, value = line.split('=', 1)
-            os.environ.setdefault(key.strip(), value.strip().strip('\"').strip("'"))
+            k = key.strip()
+            v = value.strip().strip('"').strip("'")
+            if k == 'DEBUG' and os.environ.get('DEBUG', '').lower() not in ('0', '1', 'true', 'false'):
+                os.environ[k] = v
+            else:
+                os.environ.setdefault(k, v)
 
-DEBUG = os.getenv('DEBUG', '0') == '1'
+DEBUG = os.getenv('DEBUG', '0').lower() in ('1', 'true')
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 if not SECRET_KEY:
     raise ImproperlyConfigured('Set DJANGO_SECRET_KEY or run python setup_local.py.')
