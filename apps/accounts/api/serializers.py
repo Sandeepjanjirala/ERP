@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from apps.organization.models import Branch
+from apps.organization.api.serializers import BranchSerializer
 
 from ..models import User
 
@@ -22,10 +22,15 @@ class TokenPairSerializer(serializers.Serializer):
     refresh = serializers.CharField()
 
 
-class BranchSummarySerializer(serializers.ModelSerializer):
+class UserSummarySerializer(serializers.ModelSerializer):
+    """Just enough to show who someone is, for nesting in other records."""
+
+    display_name = serializers.CharField(read_only=True)
+
     class Meta:
-        model = Branch
-        fields = ["id", "name", "code", "city"]
+        model = User
+        fields = ["id", "display_name", "role"]
+        read_only_fields = fields
 
 
 class PersonSerializer(serializers.ModelSerializer):
@@ -33,7 +38,7 @@ class PersonSerializer(serializers.ModelSerializer):
 
     display_name = serializers.CharField(read_only=True)
     role_label = serializers.CharField(source="get_role_display", read_only=True)
-    branch = BranchSummarySerializer(read_only=True)
+    branch = BranchSerializer(read_only=True)
 
     class Meta:
         model = User
