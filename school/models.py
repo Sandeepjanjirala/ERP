@@ -18,7 +18,7 @@ class ValidatedModel(models.Model):
 
 class Organization(ValidatedModel):
     id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
-    name = models.CharField(max_length=120, default="Vidya Schools")
+    name = models.CharField(max_length=120, default="My school")
 
     class Meta:
         constraints = [models.CheckConstraint(condition=Q(id=1), name="single_organization")]

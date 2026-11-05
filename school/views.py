@@ -2,6 +2,7 @@ import csv
 import unicodedata
 from collections import defaultdict
 from datetime import timedelta
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import login_required
@@ -47,6 +48,7 @@ class LoginView(auth_views.LoginView):
     authentication_form = LoginForm
     template_name = "registration/login.html"
     redirect_authenticated_user = True
+    extra_context = {"title": "Sign in"}
 
     def post(self, request, *args, **kwargs):
         allowed, self.throttle_key = throttle("portal-login", request.POST.get("username", ""))
@@ -55,6 +57,7 @@ class LoginView(auth_views.LoginView):
                 request,
                 self.template_name,
                 {
+                    **self.extra_context,
                     "form": self.get_form_class()(request=request),
                     "login_error": "Too many attempts. Please wait 15 minutes before trying again.",
                 },
@@ -95,6 +98,8 @@ class PasswordResetView(auth_views.PasswordResetView):
     template_name = "registration/auth_form.html"
     email_template_name = "registration/password_reset_email.txt"
     subject_template_name = "registration/password_reset_subject.txt"
+    # Emails render without the request, so context processors don't run: pass the brand in.
+    extra_email_context = {"brand": settings.BRAND}
     extra_context = {
         "heading": "Reset your password",
         "description": "Enter your account email. If an active account exists, you will receive a reset link.",

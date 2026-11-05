@@ -7,17 +7,17 @@ jobs:
       postgres:
         image: postgres:17
         env:
-          POSTGRES_USER: vidya
+          POSTGRES_USER: edunexa
           POSTGRES_PASSWORD: ci-local-only
-          POSTGRES_DB: vidya
+          POSTGRES_DB: edunexa
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U vidya -d vidya"
+          --health-cmd "pg_isready -U edunexa -d edunexa"
           --health-interval 5s --health-timeout 5s --health-retries 15
     env:
       DEBUG: '1'
       DJANGO_SECRET_KEY: 'ci-only-test-key-never-for-a-deployed-environment-483920184'
-      DATABASE_URL: 'postgresql://vidya:ci-local-only@localhost:5432/vidya?sslmode=disable'
+      DATABASE_URL: 'postgresql://edunexa:ci-local-only@localhost:5432/edunexa?sslmode=disable'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

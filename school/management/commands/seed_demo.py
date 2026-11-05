@@ -32,7 +32,7 @@ class Command(BaseCommand):
                 "Demo seeding requires an empty database. Existing records were not changed."
             )
         password = secrets.token_urlsafe(18)
-        org = Organization.objects.create(name="Vidya Schools · Demo")
+        org = Organization.objects.create(name="Greenfield Group of Schools")
         root = User.objects.create_superuser(
             "superadmin", "superadmin@example.invalid", password, first_name="Sandeep"
         )
@@ -96,7 +96,7 @@ class Command(BaseCommand):
                     must_change_password=False,
                 )
                 student = Student.objects.create(
-                    user=user, admission_number=f"VD-{index + 1}{n:03}"
+                    user=user, admission_number=f"GF-{index + 1}{n:03}"
                 )
                 roster.append(
                     Enrollment.objects.create(

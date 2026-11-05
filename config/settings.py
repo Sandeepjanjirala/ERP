@@ -33,6 +33,9 @@ ALLOWED_HOSTS = [
 CSRF_TRUSTED_ORIGINS = [
     s.strip() for s in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if s.strip()
 ]
+# Product identity: the one name in page titles, navigation, emails and docs. A school's own
+# name is data (the Organization record) and appears only where it belongs, such as reports.
+BRAND = {"name": "EduNexa", "tagline": "School ERP"}
 INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -154,6 +157,6 @@ EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "1") == "1"
 EMAIL_TIMEOUT = 15
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "School office <noreply@example.com>")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "EduNexa <noreply@example.com>")
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 3000
 DATA_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
