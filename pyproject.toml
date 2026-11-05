@@ -23,7 +23,7 @@ select = [
 ignore = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["config", "school"]
+known-first-party = ["apps", "config"]
 
 [tool.pytest.ini_options]
 python_files = ["tests.py", "test_*.py"]
@@ -31,9 +31,9 @@ python_files = ["tests.py", "test_*.py"]
 addopts = "-ra --strict-markers --ds=config.settings.test"
 
 [tool.coverage.run]
-source = ["config", "school"]
+source = ["apps", "config"]
 branch = true
-omit = ["*/migrations/*"]
+omit = ["*/migrations/*", "*/tests/*", "apps/core/testing.py"]
 
 [tool.coverage.report]
 show_missing = true

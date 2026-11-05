@@ -75,7 +75,17 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "school",
+    # Domain apps, lowest layer first. An app may import only from apps above it in this list.
+    "apps.core",
+    "apps.organization",
+    "apps.audit",
+    "apps.accounts",
+    "apps.academics",
+    "apps.students",
+    "apps.attendance",
+    "apps.exams",
+    "apps.reports",
+    "apps.demo",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -86,7 +96,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "school.middleware.PortalMiddleware",
+    "apps.core.middleware.SecurityHeadersMiddleware",
+    "apps.accounts.middleware.ForcePasswordChangeMiddleware",
 ]
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
@@ -100,13 +111,15 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
-                "school.context.portal",
+                "apps.core.context_processors.brand",
+                "apps.organization.context_processors.workspace",
+                "apps.accounts.context_processors.role_flags",
             ]
         },
     }
 ]
 
-AUTH_USER_MODEL = "school.User"
+AUTH_USER_MODEL = "accounts.User"
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {
