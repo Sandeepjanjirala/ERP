@@ -1,6 +1,6 @@
-# Deploying the school pilot
+# Deploying EduNexa
 
-The package has not been deployed to an online Django host. Its earlier `chatgpt.site` marketing preview is separate. This document describes the runtime configuration to give your hosting provider or developer.
+EduNexa is not deployed online yet; a live demo is planned for Phase 6 of the [roadmap](DESIGN.md#14-roadmap). This document describes the runtime configuration for a hosting provider or developer.
 
 ## Runtime
 
@@ -18,7 +18,7 @@ Use the host’s environment/secret settings. Never commit production secrets or
 
 | Variable | Production value |
 |---|---|
-| `DEBUG` | `0` |
+| `DJANGO_SETTINGS_MODULE` | `config.settings.prod`. The Docker image and WSGI entry point default to it; set it on the host too so `manage.py` commands use production settings. |
 | `DJANGO_SECRET_KEY` | New random secret of at least 50 characters |
 | `DATABASE_URL` | PostgreSQL connection URL; TLS defaults to `sslmode=require` |
 | `ALLOWED_HOSTS` | Actual hostname(s), comma separated, without schemes |
@@ -39,7 +39,7 @@ The `.env` reader supports plain `KEY=value` lines and optional quotes; it does 
 
 ## Build and release
 
-Run from the folder containing `manage.py`:
+Run from the folder containing `manage.py`, with `DJANGO_SETTINGS_MODULE=config.settings.prod` set (`manage.py` defaults to development settings):
 
 ```text
 python -m pip install -r requirements/prod.txt
@@ -67,12 +67,12 @@ Use the hosting shell to run `python manage.py createsuperuser`. Complete the in
 
 These items are still deployment work; they were not verified in the build environment:
 
-1. Run the PostgreSQL test suite, including the two concurrent-write tests, against a disposable database with permission to create test databases.
+1. CI runs the full suite, including the concurrent-write tests, on PostgreSQL 17 for every push. Run it once more against the PostgreSQL version your host provides.
 2. Configure the real hostname and HTTPS proxy. Verify that redirects and secure cookies work.
 3. Test a password-reset email with a real pilot account. In local development, emails print to the server console instead.
 4. Confirm teacher assignments and branch scopes using separate real test accounts.
 5. Enable database backups, perform a restore rehearsal, and restrict database access to the application/operators.
-6. Check the portal on the phones and browsers the pilot will use. Interactive browser QA was not available during this build.
+6. Check the portal on the phones and browsers the pilot will use. Layouts were checked by screenshot at desktop and phone widths, not on real devices.
 7. Put hosting-level request-rate controls and error monitoring in place. The application’s username throttle alone does not protect infrastructure from large request volumes.
 
 Production enables secure session/CSRF cookies, HTTPS redirects, HSTS, clickjacking protection and no-store headers for authenticated pages. An unauthenticated `/health/` endpoint checks database connectivity without returning student records.

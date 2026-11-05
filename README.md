@@ -1,153 +1,136 @@
-# Vidya School Management
+# EduNexa
 
-A Django application for **one organisation with multiple branches**, a small staff/student pilot, and **one attendance register per classroom per day**.
+**School ERP for school groups with many branches, built with Django.**
 
-This is the school management application. The earlier school marketing website is a separate demonstration and does not contain these accounts or records.
+[![CI](https://github.com/Sandeepjanjirala/ERP/actions/workflows/ci.yml/badge.svg)](https://github.com/Sandeepjanjirala/ERP/actions/workflows/ci.yml)
+![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
+![Django 5.2 LTS](https://img.shields.io/badge/django-5.2%20LTS-0C4B33)
+![PostgreSQL 17](https://img.shields.io/badge/postgresql-17-336791)
 
-## Start here on Windows
+EduNexa runs the daily work of a school group: branches, classrooms and teachers, daily attendance, exams with a principal-approval workflow, student reports and performance analysis. Every role sees only what it is responsible for, and every important change is recorded in an activity log.
 
-Install Python **3.12** first (the version used to verify this package). Extract this ZIP, open the `vidya_school` folder in PowerShell, and run:
+![Overview dashboard](docs/screenshots/dashboard.png)
+
+| Exam review (principal) | Student report (dark theme) |
+|---|---|
+| ![Exam review](docs/screenshots/exam-review.png) | ![Student report in dark mode](docs/screenshots/student-report-dark.png) |
+
+## What it does
+
+- **Five roles:** super admin, branch admin, principal, teacher and student. Each sees only its own branch, classes or records.
+- **Daily attendance:** one register per class per day. Every student must be marked, corrections need a reason, and before/after values are logged.
+- **Exams and results:** teachers enter marks, then the workflow runs Draft → Submitted → Published. Only principals publish, and reopening a published exam needs a reason.
+- **Reports:** printable student reports, subject performance analysis, and CSV exports scoped to your access and protected against spreadsheet formula injection.
+- **Security:** login throttling, a forced password change on first sign-in, a strict Content-Security-Policy, HSTS and secure cookies, and signed-in pages are never cached.
+- **Interface:** light and dark themes, responsive down to phone width, and keyboard and screen-reader friendly.
+
+## Engineering highlights
+
+| What | How |
+|---|---|
+| No lost updates | Registers and mark sheets carry a version number, and writes lock the classroom row. Two people saving at once gives one save and one "reload" message, tested with real threads on PostgreSQL. |
+| Rules the database enforces | One register per class per day, scores never above the maximum, valid role/branch combinations: these are constraints in the database, not just form checks. |
+| Business logic outside views | Each domain app has `selectors` (reads already limited to the user's scope), `policies` (who may do what) and `services` (writes with transactions, locks and audit). Views only parse input and render output. |
+| Layered apps | Ten apps ordered by dependency, with no circular imports. See [ARCHITECTURE.md](docs/ARCHITECTURE.md). |
+| Production safety | Settings per environment. Production refuses to start without a secret key and PostgreSQL, and Django's `check --deploy` runs in CI. |
+| Tested | 81 tests with 89% branch coverage. CI runs them on PostgreSQL along with lint, a migration check and a Docker build. |
+
+## Run it on your computer
+
+You need **Python 3.12**. These commands are for Windows PowerShell; on macOS or Linux use `python3.12` and `.venv/bin/python`.
 
 ```powershell
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements\dev.txt
-.\.venv\Scripts\python.exe setup_local.py
-.\.venv\Scripts\python.exe manage.py seed_demo
-.\.venv\Scripts\python.exe manage.py runserver
+.\.venv\Scripts\python.exe setup_local.py        # creates .env and the local SQLite database
+.\.venv\Scripts\python.exe manage.py seed_demo   # about a minute; prints the demo password
+.\run_server.bat                                 # or: .\.venv\Scripts\python.exe manage.py runserver
 ```
 
-Open **http://127.0.0.1:8000/**. Keep the terminal open while using it. Press Ctrl+C to stop.
+Open **http://127.0.0.1:8000/** and sign in with the password that `seed_demo` printed. For a smaller dataset that seeds in seconds, use `seed_demo --size small`.
 
-`seed_demo` prints a **random demo password**. Use it with the usernames below. It runs only on an empty development database and will not overwrite existing users.
-
-| Role | Demo username |
+| Role | Username |
 |---|---|
-| Super admin | `superadmin` |
-| Madhapur branch admin | `admin.madhapur` |
-| Madhapur principal | `principal.madhapur` |
-| Mathematics teacher / class teacher | `teacher.madhapur` |
-| Science teacher | `mentor.madhapur` |
-| Student | `student1.madhapur` |
-| Second branch admin | `admin.benz-circle` |
-| Second branch principal | `principal.benz-circle` |
-| Second branch teacher | `teacher.benz-circle` |
-| Second branch student | `student1.benz-circle` |
+| Super admin (whole group) | `superadmin` |
+| Branch admin | `admin.madhapur` |
+| Principal | `principal.madhapur` |
+| Teacher (class teacher of Class 10-A, teaches Mathematics) | `teacher.madhapur` |
+| Student (in Class 10-A) | `student1.madhapur` |
+| Second branch | `admin.benz-circle`, `principal.benz-circle`, `teacher.benz-circle`, `student1.benz-circle` |
 
-The 12 student records, marks, names, and attendance are **synthetic**. Demo accounts use `example.invalid` emails and cannot receive email. Demo seeding is blocked when `DEBUG=0`. Normal accounts created in the application must change their initial password on first login.
+The demo school, *Greenfield Group of Schools*, is synthetic: 2 branches, 250 students, about three months of attendance and two terms of results. Accounts use `example.invalid` email addresses. Seeding refuses to run outside development settings or on a database that already has data. To reset the demo password, run `manage.py changepassword superadmin`.
 
-The simple local commands use SQLite, so you can inspect the application without installing a database. Use **PostgreSQL** for the staff/student pilot.
+### With Docker and PostgreSQL
 
-If you forget the generated demo password:
-
-```powershell
-.\.venv\Scripts\python.exe manage.py changepassword superadmin
-```
-
-## Start a clean pilot instead of demo data
-
-Use a separate, empty database; do not put real student data into a demo installation. After `setup_local.py`, skip `seed_demo` and run:
-
-```powershell
-.\.venv\Scripts\python.exe manage.py createsuperuser
-```
-
-Sign in and configure these in order:
-
-1. **Academic setup → Organisation name**.
-2. **Add branch** for each campus.
-3. **Add academic year**, with start and end dates.
-4. **People & access → Staff account**: create branch admins, principals, and teachers.
-5. **Academic setup → Classroom**: select its branch, year, grade, section, and daily attendance teacher.
-6. Add branch subjects, then **Assign subject teacher** for each classroom/subject pair.
-7. **Students → Add student** creates the student login, admission number, and enrollment together.
-8. Teachers record attendance and create exams. The principal approves submitted results.
-
-Student emails must be unique. There is no public self-registration. Share each initial password privately. Students do not need a ChatGPT account to use this Django application.
-
-## Included workflows
-
-- Separate super-admin, branch-admin, principal, teacher, and student accounts.
-- Server-side role checks and branch/class/subject restrictions.
-- Hashed passwords, login throttling, password changes, password reset, and account deactivation.
-- Branches, academic years, classrooms, subjects, teaching assignments, and yearly student enrollments.
-- Daily attendance with present, absent, late, and excused statuses.
-- Correction reasons, versions to reject stale edits, and an activity log.
-- Exams with configurable maximum and pass marks.
-- Draft marks → teacher submission → principal publication.
-- Locked submitted/published marks; principal reopening for corrections.
-- Student-only published report cards, printable through the browser’s Print / Save PDF function.
-- Subject and branch analysis, attendance summaries, and scoped CSV exports.
-- Staff contact-detail editing and class/subject teacher reassignment.
-- Synthetic demo data, database migrations, Docker configuration, and tests.
-
-See [docs/PERMISSIONS.md](docs/PERMISSIONS.md) for the exact access matrix and [docs/DATA_RULES.md](docs/DATA_RULES.md) for calculation rules.
-
-## Run with Docker and PostgreSQL
-
-Install and start Docker Desktop. From the project folder, generate local settings if needed with `python setup_local.py` after installing requirements. Alternatively, copy `.env.example` to `.env` and supply fresh random `DJANGO_SECRET_KEY` and `POSTGRES_PASSWORD` values.
+Install Docker Desktop, run `python setup_local.py` once to create `.env`, then:
 
 ```powershell
 docker compose up --build -d
-docker compose exec web python manage.py createsuperuser
+docker compose exec web python manage.py seed_demo
 ```
 
-Open http://127.0.0.1:8000/. The compose file is for **local development**: the web port binds only to localhost, and PostgreSQL is accessible only inside the compose network. It uses a persistent database volume. It runs migrations for this single local web service. Do not run destructive volume-removal commands if you want to keep your records.
+Compose runs PostgreSQL and the web app (gunicorn and WhiteNoise) on http://127.0.0.1:8000/. Data lives in a Docker volume. `docker compose stop` stops it; removing the volume deletes the data.
 
-For synthetic Docker data, run `docker compose exec web python manage.py seed_demo` before creating any users. The Python-local SQLite database and Docker PostgreSQL database are separate.
-
-Inspect logs or stop services:
+## Tests and code quality
 
 ```powershell
-docker compose logs web
-docker compose stop
+.\.venv\Scripts\python.exe -m pytest                 # 2 concurrency tests skip on SQLite
+.\.venv\Scripts\python.exe -m pytest --cov           # with a coverage report
+.\.venv\Scripts\ruff.exe check . ; .\.venv\Scripts\ruff.exe format --check .
+.\.venv\Scripts\pre-commit.exe install               # run ruff and file checks before each commit
 ```
 
-## Automated checks
-
-The test settings deliberately use a fast test-only password hasher and a simple static-file backend. Runtime settings retain Django’s normal password hashing and production static-file handling.
+Run the full suite, including the concurrent-write tests, against a throwaway PostgreSQL:
 
 ```powershell
+docker run -d --rm --name edunexa-test-pg -e POSTGRES_USER=edunexa -e POSTGRES_PASSWORD=test-only -e POSTGRES_DB=edunexa -p 127.0.0.1:55432:5432 postgres:17-alpine
+$env:DATABASE_URL = "postgresql://edunexa:test-only@127.0.0.1:55432/edunexa?sslmode=disable"
 .\.venv\Scripts\python.exe -m pytest
-.\.venv\Scripts\python.exe manage.py makemigrations --check --dry-run
-.\.venv\Scripts\python.exe manage.py collectstatic --noinput
+docker stop edunexa-test-pg
 ```
-
-PostgreSQL, including concurrent-write tests:
-
-```powershell
-docker compose exec web python manage.py test --settings=config.settings.test --noinput
-```
-
-`.github/workflows/tests.yml` runs these tests with a PostgreSQL service after you push the extracted project to a GitHub repository with Actions enabled. This workflow is provided but has not been run against your repository.
-
-See [docs/VERIFICATION.md](docs/VERIFICATION.md) for the checks actually completed in the build environment.
-
-## Online deployment
-
-The Django application is **not online yet**. The earlier ChatGPT Site URL serves the earlier marketing demo. A Django-capable host and PostgreSQL database are needed for this application.
-
-Follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Production refuses to start without `DJANGO_SECRET_KEY` and a PostgreSQL `DATABASE_URL`. Configure a real hostname, HTTPS, email delivery, and database backups before admitting real pilot users.
 
 ## Project structure
 
 ```text
-config/          Runtime settings, URL routes, WSGI entry point
-school/models.py Database models and validation
-school/permissions.py  Role and object-scope rules
-school/services.py     Transactional attendance and mark workflows
-school/forms.py        Validated and scoped forms
-school/views.py        Request handling, authentication and reports
-school/migrations/     Committed database schema
-school/tests.py        Access, workflow and concurrency tests
-templates/       Server-rendered pages and authentication screens
-static/school/   CSS and small progressive-enhancement JavaScript
-docs/            Permissions, calculations, deployment and verification
+apps/
+  core/          base model, security headers, pagination, template tags, health check
+  organization/  school group and branches
+  audit/         activity log: AuditEvent, audit(), events()
+  accounts/      users and roles, sign-in and throttling, account management
+  academics/     academic years, classrooms, subjects, teacher assignments
+  students/      students, enrollments, admission
+  attendance/    daily registers
+  exams/         exams, marks, result workflow
+  reports/       dashboard, student report, performance, activity log page
+  demo/          seed_demo command
+config/          settings (base, dev, prod, test), URLs, WSGI
+templates/       layout, partials and shared components
+static/          design tokens, CSS, JavaScript, SVG icons
+docs/            design, architecture, permissions, data rules, deployment, decision records
 ```
 
-## Current boundaries
+## Start a real school (without demo data)
 
-This first version is a single-organisation application. A user has one role and one branch, except the organisation-level super admin. Teachers can have several subject/class assignments inside their branch.
+Use a separate, empty database. After `setup_local.py`, skip `seed_demo` and run `manage.py createsuperuser`, then sign in and set up, in this order:
 
-Fees, parent accounts, timetable scheduling, transport, SMS, bulk student imports, AI predictions, multi-role users, and branch transfers are not implemented. There is no arbitrary role editor or public API. Daily attendance is classroom-level, not period-level. Existing enrollment departure dates and historical roster corrections currently require a supervised Django data migration; deactivating an account changes login access, not historical enrollment.
+1. **Academic setup → Organisation name**, then **Branch** for each campus.
+2. **Academic year** with its start and end dates.
+3. **People & access → Staff account:** branch admins, principals and teachers.
+4. **Academic setup → Classroom:** branch, year, grade, section and class teacher.
+5. **Subjects**, then **Assign subject teacher** for each class and subject.
+6. **Students → Add student** creates the login, admission number and enrollment together.
 
-Data is not deleted through the UI. Result corrections require principal reopening and are audited. The audit log is application-managed history; a database operator could still modify database records.
+Initial passwords must be shared privately, and everyone must change theirs at first sign-in. There is no public sign-up.
+
+## Documentation
+
+- [Design and roadmap](docs/DESIGN.md): where EduNexa is going, in six phases.
+- [Architecture](docs/ARCHITECTURE.md): how the code is organised and how a request flows.
+- [Permissions](docs/PERMISSIONS.md): the full role-by-action access matrix.
+- [Data rules](docs/DATA_RULES.md): attendance and result calculations.
+- [Deployment](docs/DEPLOYMENT.md): production settings and release steps.
+- [Decision records](docs/adr/): why the main technical choices were made.
+
+## Status
+
+Phase 1 (foundation and rebrand) is complete. Next are a REST API with Swagger docs, then background jobs and a parent portal, fees and online payments, timetables, and a live demo. See the [roadmap](docs/DESIGN.md#14-roadmap).
