@@ -13,7 +13,7 @@ from apps.core.pagination import paginate
 from .decorators import role_required
 from .forms import AccountEditForm, AccountForm, LoginForm
 from .models import LoginAttempt, User
-from .policies import can_manage_account
+from .policies import can_change_access, can_manage_account
 from .selectors import branch_accounts, people
 from .services import create_account, toggle_access, update_contact_details
 from .throttling import throttle
@@ -104,10 +104,13 @@ class PasswordResetConfirmView(auth_views.PasswordResetConfirmView):
 
 @role_required(*User.LEADERS)
 def user_list(request):
+    page_obj = paginate(request, people(request.user))
+    # The template shows actions from the same policy the services enforce.
+    for person in page_obj:
+        person.can_edit = can_manage_account(request.user, person)
+        person.can_toggle = can_change_access(request.user, person)
     return render(
-        request,
-        "accounts/user_list.html",
-        {"title": "People & access", "page_obj": paginate(request, people(request.user))},
+        request, "accounts/user_list.html", {"title": "People & access", "page_obj": page_obj}
     )
 
 

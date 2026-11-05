@@ -1,1 +1,16 @@
-{% extends 'base.html' %}{% block content %}<section class="panel narrow"><p class="form-intro">{{ description }}</p><form method="post">{% csrf_token %}{{ form.as_p }}<div class="form-actions"><button class="btn" type="submit">Save details →</button><a href="{% url 'dashboard' %}">Back to overview</a></div></form></section>{% endblock %}
+{% extends "base.html" %}
+{% load ui %}
+
+{% block content %}
+  <section class="card card-narrow">
+    {% if description %}<p class="form-intro">{{ description }}</p>{% endif %}
+    <form method="post" class="form-stack">
+      {% csrf_token %}
+      {{ form }}
+      <div class="form-actions">
+        <button class="btn" type="submit">Save details {% icon 'arrow-right' %}</button>
+        <a href="{% url 'dashboard' %}">Back to overview</a>
+      </div>
+    </form>
+  </section>
+{% endblock %}

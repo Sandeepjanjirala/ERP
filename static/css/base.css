@@ -1,0 +1,168 @@
+/* Element defaults. Colours and fonts come from tokens.css. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: 400 0.9375rem/1.55 var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: clamp(1.6rem, 1.25rem + 1vw, 2rem);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+h2 {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+
+p {
+  color: var(--color-text-muted);
+}
+
+small {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--color-primary-hover);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  min-height: 2.6rem;
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: var(--color-text-subtle);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+input:disabled,
+select:disabled {
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+/* Text inputs, dates and selects share one height so they line up in filter bars. */
+input:not([type="checkbox"], [type="radio"]),
+select {
+  height: 2.6rem;
+}
+
+/* A label used as a heading or inside a table cell takes the surrounding text style. */
+h2 > label,
+td > label {
+  display: inline;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+}
+
+input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  min-height: 0;
+  padding: 0;
+  accent-color: var(--color-primary);
+}
+
+input[type="number"] {
+  max-width: 9rem;
+}
+
+pre {
+  font-family: var(--font-mono);
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}

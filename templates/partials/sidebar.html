@@ -1,0 +1,43 @@
+{% load ui %}
+<aside class="sidebar" id="sidebar">
+  <a class="brand" href="{% url 'dashboard' %}">
+    {% include "components/logo_mark.html" %}
+    <span class="brand-text">{{ brand.name }}<small>{{ brand.tagline }}</small></span>
+  </a>
+
+  <div class="workspace">
+    <span class="workspace-dot" aria-hidden="true"></span>
+    <span>
+      <span class="workspace-name">{{ organization.name|default:"Workspace" }}</span>
+      <small>{% if user.system_admin %}All branches{% else %}{{ user.branch.name }}{% endif %}</small>
+    </span>
+  </div>
+
+  <nav class="nav" aria-label="Main navigation">
+    <p class="nav-label">Workspace</p>
+    <a href="{% url 'dashboard' %}"{% aria_current 'dashboard' %}>{% icon 'grid' %}<span>Overview</span></a>
+    {% if not user.is_student %}
+      <a href="{% url 'students' %}"{% aria_current 'students' 'student_create' 'student_report' %}>{% icon 'users' %}<span>Students</span></a>
+      <a href="{% url 'attendance' %}"{% aria_current 'attendance' %}>{% icon 'calendar-check' %}<span>Daily attendance</span></a>
+    {% endif %}
+    <a href="{% url 'exams' %}"{% aria_current 'exams' 'exam_create' 'exam_detail' %}>{% icon 'clipboard' %}<span>Exams &amp; marks</span></a>
+    {% if not user.is_student %}
+      <a href="{% url 'reports' %}"{% aria_current 'reports' %}>{% icon 'bar-chart' %}<span>Performance</span></a>
+    {% endif %}
+
+    {% if user.is_leader %}
+      <p class="nav-label">Administration</p>
+      <a href="{% url 'users' %}"{% aria_current 'users' 'user_create' 'user_edit' %}>{% icon 'user-check' %}<span>People &amp; access</span></a>
+      <a href="{% url 'setup' %}"{% aria_current 'setup' 'setup_create' 'setup_edit' 'enrollment_create' %}>{% icon 'sliders' %}<span>Academic setup</span></a>
+      <a href="{% url 'audit' %}"{% aria_current 'audit' %}>{% icon 'clock' %}<span>Activity log</span></a>
+    {% endif %}
+  </nav>
+
+  <div class="sidebar-user">
+    <span class="avatar" aria-hidden="true">{{ user.first_name|first|default:user.username|first|upper }}</span>
+    <span>
+      <strong>{{ user.display_name }}</strong>
+      <small>{{ user.get_role_display }}</small>
+    </span>
+  </div>
+</aside>

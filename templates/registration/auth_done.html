@@ -1,1 +1,19 @@
-{% extends 'base.html' %}{% block auth %}<div class="auth-box"><h2>{{ heading }}</h2><p>{{ description }}</p><a class="btn" href="{% url 'login' %}">Sign in →</a></div>{% endblock %}{% block content %}<div class="panel"><h2>{{ heading }}</h2><p>{{ description }}</p><a class="btn" href="{% url 'dashboard' %}">Open dashboard →</a></div>{% endblock %}
+{% extends "base.html" %}
+{% load ui %}
+
+{% block auth %}
+  <div class="auth-box">
+    <p class="eyebrow">Account access</p>
+    <h2>{{ heading }}</h2>
+    <p>{{ description }}</p>
+    <a class="btn" href="{% url 'login' %}">Sign in {% icon 'arrow-right' %}</a>
+  </div>
+{% endblock %}
+
+{% block content %}
+  <section class="card card-narrow">
+    <h2>{{ heading }}</h2>
+    <p class="form-intro">{{ description }}</p>
+    <a class="btn" href="{% url 'dashboard' %}">Open dashboard {% icon 'arrow-right' %}</a>
+  </section>
+{% endblock %}

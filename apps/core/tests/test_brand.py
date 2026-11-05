@@ -30,7 +30,10 @@ class BrandTests(TestCase):
         response = self.client.get(reverse("dashboard"))
         self.assertContains(response, "<title>Overview · EduNexa</title>")
         self.assertNotContains(response, "<title>Overview · Greenfield")
-        self.assertContains(response, "Greenfield Group of Schools<small>North</small>")
+        self.assertContains(
+            response, '<span class="workspace-name">Greenfield Group of Schools</span>'
+        )
+        self.assertContains(response, "<small>North</small>")
 
     def test_login_page_is_branded(self):
         response = self.client.get(reverse("login"))

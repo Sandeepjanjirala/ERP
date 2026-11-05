@@ -31,6 +31,12 @@ def exam_list(request):
             "title": "Exams & marks",
             "page_obj": paginate(request, qs),
             "status": status,
+            # Students only ever see published results, so they get no draft or review tabs.
+            "status_tabs": [
+                choice
+                for choice in Exam.Status.choices
+                if not request.user.is_student or choice[0] == Exam.Status.PUBLISHED
+            ],
             "can_create": request.user.role in EXAM_AUTHORS,
         },
     )
@@ -98,7 +104,8 @@ def exam_detail(request, pk):
             "form": form,
             "can_write": writable,
             "can_submit": writer and exam.status == Exam.Status.DRAFT,
-            "can_publish": publisher,
+            "can_publish": publisher and exam.status == Exam.Status.SUBMITTED,
+            "can_reopen": publisher and exam.status != Exam.Status.DRAFT,
             "summary": mark_summary(marks.values()),
         },
     )

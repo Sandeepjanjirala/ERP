@@ -1,4 +1,5 @@
 from django.core.exceptions import PermissionDenied
+from django.urls import reverse
 
 from apps.accounts.policies import can_change_access, can_manage_account
 from apps.accounts.services import toggle_access, update_contact_details
@@ -33,6 +34,14 @@ class AccountPolicyTests(SchoolTestCase):
         self.assertTrue(can_change_access(self.admin, self.teacher))
         self.assertFalse(can_change_access(self.root, self.root))
         self.assertFalse(can_change_access(self.admin, self.admin))
+
+    def test_people_page_offers_only_permitted_actions(self):
+        self.sign_in(self.admin)
+        response = self.client.get(reverse("users"))
+        self.assertContains(response, reverse("user_edit", args=[self.teacher.pk]))
+        self.assertContains(response, reverse("toggle_user", args=[self.teacher.pk]))
+        self.assertNotContains(response, reverse("user_edit", args=[self.principal.pk]))
+        self.assertNotContains(response, reverse("toggle_user", args=[self.admin.pk]))
 
     def test_services_recheck_permissions(self):
         # Services enforce the policy too, so a new caller (such as an API view) can't skip it.

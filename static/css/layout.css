@@ -1,0 +1,352 @@
+/* Page structure: sidebar, top bar, page header, grids, the sign-in screen and printing. */
+
+.skip-link {
+  position: fixed;
+  top: -4rem;
+  left: 1rem;
+  z-index: 100;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+}
+
+.skip-link:focus {
+  top: 1rem;
+}
+
+/* App shell */
+
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: var(--sidebar-width);
+  padding: 1.5rem 1rem 1rem;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+}
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  margin-left: var(--sidebar-width);
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  height: var(--topbar-height);
+  padding: 0 2rem;
+  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Qualified with .topbar so this beats .icon-button in components.css regardless of file order. */
+.topbar .menu-button {
+  display: none;
+}
+
+.page {
+  flex: 1;
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+}
+
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.app-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 3rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--color-border);
+  font-size: 0.8125rem;
+  color: var(--color-text-subtle);
+}
+
+/* Grids */
+
+.grid-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.grid-stats.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.grid-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.grid-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+  align-items: start;
+}
+
+/* Sign-in screen */
+
+.auth-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 100vh;
+}
+
+.auth-story {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 2.5rem;
+  padding: 3rem;
+  overflow: hidden;
+  background: var(--color-brand-panel);
+  color: var(--color-brand-panel-text);
+}
+
+.auth-story .brand,
+.auth-story .brand:hover {
+  color: var(--color-brand-panel-text);
+}
+
+.auth-story .brand-text small,
+.auth-story .eyebrow,
+.auth-story p,
+.auth-story > small {
+  color: var(--color-brand-panel-muted);
+}
+
+.auth-story h1 {
+  margin: 1rem 0 1.25rem;
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 1.4rem + 3.2vw, 4.4rem);
+  font-weight: 400;
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+}
+
+.auth-story h1 span,
+.auth-story h1 em {
+  display: block;
+}
+
+.auth-story h1 em {
+  color: #dcc387;
+}
+
+.auth-story-mark {
+  position: absolute;
+  right: -4rem;
+  bottom: -4rem;
+  width: 22rem;
+  height: 22rem;
+  opacity: 0.08;
+  transform: rotate(-12deg);
+}
+
+.auth-panel {
+  display: grid;
+  place-items: center;
+  padding: 3rem 1.5rem;
+  background: var(--color-surface);
+}
+
+.auth-box {
+  width: 100%;
+  max-width: 24rem;
+}
+
+.auth-box h2 {
+  margin: 0.5rem 0 0.6rem;
+  font-size: 1.85rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.auth-box > p {
+  margin-bottom: 1.75rem;
+}
+
+.auth-theme {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+}
+
+/* Responsive */
+
+@media (max-width: 1100px) {
+  .grid-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .grid-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+  }
+
+  .sidebar.open {
+    transform: none;
+    box-shadow: var(--shadow-overlay);
+  }
+
+  .shell {
+    margin-left: 0;
+  }
+
+  .topbar .menu-button {
+    display: inline-grid;
+  }
+
+  .topbar {
+    padding: 0 1rem;
+  }
+
+  .page {
+    padding: 1.5rem 1rem;
+  }
+
+  .grid-two {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .auth-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-story {
+    gap: 1rem;
+    padding: 1.5rem;
+  }
+
+  .auth-story h1 {
+    max-width: none;
+    margin: 0.5rem 0 0;
+    font-size: 2.1rem;
+  }
+
+  .auth-story p,
+  .auth-story .eyebrow,
+  .auth-story > small {
+    display: none;
+  }
+
+  .auth-panel {
+    position: relative;
+    align-items: start;
+    padding: 2.5rem 1.5rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .grid-stats,
+  .grid-stats.three {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .topbar-link span {
+    display: none;
+  }
+
+  .app-footer {
+    flex-direction: column;
+  }
+}
+
+/* Print (student reports): always light, without navigation or controls. */
+
+@media print {
+  :root,
+  :root[data-theme] {
+    color-scheme: light;
+    --color-bg: #ffffff;
+    --color-surface: #ffffff;
+    --color-surface-muted: #f6f6f6;
+    --color-surface-tint: #f1f4f2;
+    --color-border: #d9d9d9;
+    --color-border-strong: #c4c4c4;
+    --color-text: #111111;
+    --color-text-muted: #444444;
+    --color-text-subtle: #666666;
+    --color-primary: #24594a;
+    --shadow-sm: none;
+  }
+
+  body {
+    font-size: 11pt;
+  }
+
+  .sidebar,
+  .topbar,
+  .app-footer,
+  .page-actions,
+  .identity-filter,
+  .pagination,
+  .alert,
+  .skip-link {
+    display: none !important;
+  }
+
+  .shell {
+    margin: 0;
+  }
+
+  .page {
+    max-width: none;
+    padding: 0;
+  }
+
+  .card,
+  .stat-card {
+    break-inside: avoid;
+  }
+
+  .grid-two {
+    display: block;
+  }
+
+  a {
+    color: inherit;
+  }
+}

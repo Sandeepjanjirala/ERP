@@ -1,1 +1,18 @@
-{% extends 'base.html' %}{% block content %}<section class="panel"><h2>This record is not available.</h2><p>It may be outside your assigned branch or classroom.</p><a class="btn" href="{% url 'dashboard' %}">Return to overview</a></section>{% endblock %}
+{% extends "base.html" %}
+
+{% block auth %}
+  <div class="auth-box">
+    <p class="eyebrow">Not found</p>
+    <h2>This page is not available.</h2>
+    <p>Check the address, or sign in to continue.</p>
+    <a class="btn" href="{% url 'login' %}">Sign in</a>
+  </div>
+{% endblock %}
+
+{% block content %}
+  <section class="card card-narrow">
+    <h2>This record is not available.</h2>
+    <p class="form-intro">It may be outside your assigned branch or classroom.</p>
+    <a class="btn" href="{% url 'dashboard' %}">Return to overview</a>
+  </section>
+{% endblock %}

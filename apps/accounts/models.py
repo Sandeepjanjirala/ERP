@@ -82,6 +82,10 @@ class User(AbstractUser):
         return self.is_active and self.is_superuser and self.role == self.Role.SUPER
 
     @property
+    def is_student(self):
+        return self.role == self.Role.STUDENT
+
+    @property
     def is_manager(self):
         return self.role in self.MANAGERS
 

@@ -1,1 +1,22 @@
-{% extends 'base.html' %}{% block auth %}<div class="auth-box"><span class="eyebrow">WELCOME BACK</span><h2>Sign in to {{ brand.name }}.</h2><p>Use the account provided by your administrator.</p>{% if login_error %}<div class="errorlist" role="alert">{{ login_error }}</div>{% endif %}<form method="post">{% csrf_token %}{{ form.as_p }}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}<button class="btn wide" type="submit">Sign in <span>→</span></button></form><a class="auth-link" href="{% url 'password_reset' %}">Forgot your password?</a><div class="help-box">Need an account?<br><strong>Contact your branch administrator.</strong></div></div>{% endblock %}
+{% extends "base.html" %}
+{% load ui %}
+
+{% block auth %}
+  <button class="icon-button theme-toggle auth-theme" type="button" data-theme-toggle aria-label="Dark mode" aria-pressed="false">
+    {% icon 'moon' css='icon-moon' %}{% icon 'sun' css='icon-sun' %}
+  </button>
+  <div class="auth-box">
+    <p class="eyebrow">Welcome back</p>
+    <h2>Sign in to {{ brand.name }}.</h2>
+    <p>Use the account provided by your administrator.</p>
+    {% if login_error %}<div class="alert alert-error" role="alert">{% icon 'alert' %}<span>{{ login_error }}</span></div>{% endif %}
+    <form method="post" class="form-stack">
+      {% csrf_token %}
+      {{ form }}
+      {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+      <button class="btn btn-block" type="submit">Sign in {% icon 'arrow-right' %}</button>
+    </form>
+    <p class="footnote"><a href="{% url 'password_reset' %}">Forgot your password?</a></p>
+    <p class="footnote">Need an account? Contact your branch administrator.</p>
+  </div>
+{% endblock %}

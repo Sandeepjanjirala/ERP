@@ -1,0 +1,10 @@
+{% comment %}Branch filter for super admins. Expects `branches` and `selected_branch` in context.{% endcomment %}
+<div>
+  <label for="branch-filter">Branch</label>
+  <select id="branch-filter" name="branch">
+    <option value="">All branches</option>
+    {% for branch in branches %}
+      <option value="{{ branch.pk }}"{% if selected_branch.pk == branch.pk %} selected{% endif %}>{{ branch.name }}</option>
+    {% endfor %}
+  </select>
+</div>
