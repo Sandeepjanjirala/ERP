@@ -26,9 +26,9 @@ ignore = ["E501"]
 known-first-party = ["config", "school"]
 
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "school.test_settings"
 python_files = ["tests.py", "test_*.py"]
-addopts = "-ra --strict-markers"
+# --ds wins over a DJANGO_SETTINGS_MODULE already set in the shell or container.
+addopts = "-ra --strict-markers --ds=config.settings.test"
 
 [tool.coverage.run]
 source = ["config", "school"]

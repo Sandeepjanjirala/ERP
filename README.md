@@ -115,7 +115,7 @@ The test settings deliberately use a fast test-only password hasher and a simple
 PostgreSQL, including concurrent-write tests:
 
 ```powershell
-docker compose exec web python manage.py test --settings=school.test_settings --noinput
+docker compose exec web python manage.py test --settings=config.settings.test --noinput
 ```
 
 `.github/workflows/tests.yml` runs these tests with a PostgreSQL service after you push the extracted project to a GitHub repository with Actions enabled. This workflow is provided but has not been run against your repository.

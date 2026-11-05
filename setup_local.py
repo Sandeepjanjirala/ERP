@@ -9,7 +9,7 @@ root = Path(__file__).resolve().parent
 env = root / ".env"
 if not env.exists():
     env.write_text(
-        "DEBUG=1\nDJANGO_SECRET_KEY="
+        "DJANGO_SECRET_KEY="
         + secrets.token_urlsafe(60)
         + "\nPOSTGRES_PASSWORD="
         + secrets.token_urlsafe(36)
