@@ -4,11 +4,10 @@ from django.shortcuts import redirect, render
 
 from apps.accounts.decorators import role_required
 from apps.accounts.models import User
-from apps.students.selectors import roster
 
 from .forms import RegisterForm, RegisterSelection
-from .models import AttendanceSession
 from .policies import can_attend
+from .selectors import daily_register
 from .services import save_register
 
 
@@ -19,14 +18,13 @@ def attendance(request):
     if not selection.is_valid():
         return render(request, "attendance/register.html", context)
     classroom, day = selection.cleaned_data["classroom"], selection.cleaned_data["date"]
-    enrolled = list(roster(classroom, day))
-    session = AttendanceSession.objects.filter(classroom=classroom, date=day).first()
-    statuses = dict(session.records.values_list("enrollment_id", "status")) if session else {}
+    register = daily_register(classroom, day)
+    enrolled, session = register["roster"], register["session"]
     writable = can_attend(request.user, classroom)
     form = RegisterForm(
         request.POST if request.method == "POST" else None,
         roster=enrolled,
-        initial_statuses=statuses,
+        initial_statuses=register["statuses"],
         version=session.version if session else 0,
     )
     if request.method == "POST":
