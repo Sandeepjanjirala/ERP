@@ -1,11 +1,10 @@
 from django import forms
 from django.core.exceptions import ValidationError
 
-from apps.academics.models import Subject, TeachingAssignment
-from apps.academics.selectors import classrooms
+from apps.academics.models import TeachingAssignment
+from apps.academics.selectors import classrooms, subjects
 from apps.accounts.models import User
 from apps.core.forms import DateInput
-from apps.organization.selectors import branches
 
 from .models import Exam
 from .policies import can_create_exam
@@ -21,12 +20,12 @@ class ExamForm(forms.ModelForm):
         self.actor = actor
         super().__init__(*args, **kwargs)
         self.fields["classroom"].queryset = classrooms(actor)
-        subjects = Subject.objects.filter(branch__in=branches(actor))
+        choices = subjects(actor)
         if actor.role == User.Role.TEACHER:
-            subjects = subjects.filter(
+            choices = choices.filter(
                 pk__in=TeachingAssignment.objects.filter(teacher=actor).values("subject_id")
             )
-        self.fields["subject"].queryset = subjects
+        self.fields["subject"].queryset = choices
 
     def clean(self):
         data = super().clean()

@@ -5,7 +5,7 @@ from apps.core.forms import DateInput
 from apps.organization.selectors import branches
 
 from .models import AcademicYear, Classroom, Subject, TeachingAssignment
-from .selectors import classrooms
+from .selectors import classrooms, subjects
 
 
 class YearForm(forms.ModelForm):
@@ -53,4 +53,4 @@ class AssignmentForm(forms.ModelForm):
             branch__in=branches(actor), role=User.Role.TEACHER, is_active=True
         )
         self.fields["classroom"].queryset = classrooms(actor)
-        self.fields["subject"].queryset = Subject.objects.filter(branch__in=branches(actor))
+        self.fields["subject"].queryset = subjects(actor)

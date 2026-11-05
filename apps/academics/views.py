@@ -12,8 +12,8 @@ from apps.organization.models import Organization
 from apps.organization.selectors import branches
 
 from .forms import AssignmentForm, ClassroomForm, SubjectForm, YearForm
-from .models import AcademicYear, Subject, TeachingAssignment
-from .selectors import classrooms
+from .models import AcademicYear
+from .selectors import assignments, classrooms, subjects
 from .services import save_setup_record, update_setup_record
 
 
@@ -27,10 +27,8 @@ def setup(request):
             "branches": branches(request.user),
             "years": AcademicYear.objects.all(),
             "classrooms": classrooms(request.user).annotate(student_count=Count("enrollments")),
-            "subjects": Subject.objects.filter(branch__in=branches(request.user)),
-            "assignments": TeachingAssignment.objects.filter(
-                classroom__in=classrooms(request.user)
-            ).select_related("teacher", "classroom__branch", "classroom__year", "subject"),
+            "subjects": subjects(request.user),
+            "assignments": assignments(request.user),
         },
     )
 
@@ -78,13 +76,9 @@ def setup_create(request, kind):
 def setup_edit(request, kind, pk):
     editable = {
         "classroom": (classrooms(request.user), ClassroomForm, ("branch", "year")),
-        "subject": (
-            Subject.objects.filter(branch__in=branches(request.user)),
-            SubjectForm,
-            ("branch",),
-        ),
+        "subject": (subjects(request.user), SubjectForm, ("branch",)),
         "assignment": (
-            TeachingAssignment.objects.filter(classroom__in=classrooms(request.user)),
+            assignments(request.user),
             AssignmentForm,
             ("classroom", "subject"),
         ),

@@ -20,7 +20,9 @@ from apps.exams.models import Exam, Mark
 from apps.exams.selectors import exams, mark_summary
 from apps.organization.selectors import branches, selected_branch
 from apps.students.models import Student
-from apps.students.selectors import enrollments, students
+from apps.students.selectors import students
+
+from .selectors import student_report as student_report_data
 
 
 @login_required
@@ -77,39 +79,15 @@ def dashboard(request):
 @login_required
 def student_report(request, pk):
     student = get_object_or_404(students(request.user), pk=pk)
-    student_enrollments = enrollments(request.user).filter(student=student)
-    year_id = request.GET.get("year")
-    year = (
-        get_object_or_404(AcademicYear, pk=year_id)
-        if year_id and year_id.isdigit()
-        else AcademicYear.objects.filter(enrollment__in=student_enrollments).distinct().first()
-    )
-    if year:
-        student_enrollments = student_enrollments.filter(year=year)
-    marks = list(
-        Mark.objects.filter(
-            enrollment__in=student_enrollments,
-            exam__in=exams(request.user).filter(status=Exam.Status.PUBLISHED),
-        ).select_related("exam__subject", "exam__classroom")
-    )
-    rows = (
-        attendance_rows(request.user)
-        .filter(enrollment__in=student_enrollments)
-        .order_by("-session__date")
-    )
+    report = student_report_data(request.user, student, request.GET.get("year"))
     return render(
         request,
         "reports/student_report.html",
         {
             "title": "Student report",
             "student": student,
-            "enrollments": student_enrollments,
-            "marks": marks,
-            "summary": mark_summary(marks),
-            "attendance_summary": attendance_summary(rows),
-            "attendance_page": paginate(request, rows, 15),
-            "years": AcademicYear.objects.filter(enrollment__student=student).distinct(),
-            "selected_year": year,
+            **report,
+            "attendance_page": paginate(request, report["attendance_rows"], 15),
         },
     )
 
