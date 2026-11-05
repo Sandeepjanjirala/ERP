@@ -1,4 +1,5 @@
-from django.core.exceptions import PermissionDenied
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 
 from apps.audit.services import audit
@@ -12,10 +13,26 @@ CONTACT_FIELDS = ("first_name", "last_name", "email")
 @transaction.atomic
 def create_account(actor, user, password):
     """Save a new account with a hashed password; the person must change it at first sign-in."""
+    if not can_manage_account(actor, user):
+        raise PermissionDenied
+    validate_password(password, user=user)
     user.set_password(password)
     user.must_change_password = True
     user.save()
     audit(actor, user.branch, "account.created", user.username, {"role": user.role})
+    return user
+
+
+@transaction.atomic
+def change_password(user, current_password, new_password):
+    """The owner replaces their password, which also completes a forced first-login change."""
+    if not user.check_password(current_password):
+        raise ValidationError("Your current password was entered incorrectly.")
+    validate_password(new_password, user=user)
+    user.set_password(new_password)
+    user.must_change_password = False
+    user.save(update_fields=["password", "must_change_password"])
+    audit(user, user.branch, "account.password_changed", user.username)
     return user
 
 

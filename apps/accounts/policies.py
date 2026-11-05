@@ -18,3 +18,12 @@ def can_manage_account(actor, person):
 def can_change_access(actor, person):
     """Deactivating or reactivating follows the same rule, but never for your own account."""
     return person.pk != actor.pk and can_manage_account(actor, person)
+
+
+def staff_roles_for(actor):
+    """Staff roles the actor may create accounts for. Students are added through admission."""
+    if actor.system_admin:
+        return (User.Role.ADMIN, User.Role.PRINCIPAL, User.Role.TEACHER)
+    if actor.role == User.Role.ADMIN:
+        return (User.Role.TEACHER,)
+    return ()

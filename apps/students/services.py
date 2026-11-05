@@ -24,6 +24,7 @@ def admit_student(actor, user, password, admission_number, classroom, joined_on)
 def enroll(actor, enrollment):
     """Enroll an existing student in a classroom for the classroom's academic year."""
     Classroom.objects.select_for_update().get(pk=enrollment.classroom_id)
+    enrollment.year = enrollment.classroom.year
     enrollment.save()
     audit(actor, enrollment.classroom.branch, "setup.enrollment.saved", enrollment)
     return enrollment

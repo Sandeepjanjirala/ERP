@@ -8,7 +8,7 @@ from apps.core.exceptions import Conflict
 from apps.students.selectors import roster
 
 from .models import Exam, Mark
-from .policies import can_mark, can_publish
+from .policies import can_create_exam, can_mark, can_publish
 
 
 @transaction.atomic
@@ -111,6 +111,8 @@ def transition_exam(actor, exam, action, expected_version, reason=""):
 @transaction.atomic
 def create_exam(actor, exam):
     """Save a new exam (always a draft) and record who created it."""
+    if not can_create_exam(actor, exam.classroom, exam.subject):
+        raise PermissionDenied
     exam.save()
     audit(actor, exam.classroom.branch, "exam.created", exam)
     return exam

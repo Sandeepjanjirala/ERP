@@ -8,6 +8,7 @@ from apps.core.forms import DateInput
 from apps.organization.selectors import branches
 
 from .models import Exam
+from .policies import can_create_exam
 
 
 class ExamForm(forms.ModelForm):
@@ -30,12 +31,9 @@ class ExamForm(forms.ModelForm):
     def clean(self):
         data = super().clean()
         if (
-            self.actor.role == User.Role.TEACHER
-            and data.get("classroom")
+            data.get("classroom")
             and data.get("subject")
-            and not TeachingAssignment.objects.filter(
-                teacher=self.actor, classroom=data["classroom"], subject=data["subject"]
-            ).exists()
+            and not can_create_exam(self.actor, data["classroom"], data["subject"])
         ):
             raise ValidationError("You can create exams only for your assigned class and subject.")
         return data

@@ -10,12 +10,9 @@ from apps.students.selectors import roster
 
 from .forms import ExamForm, MarkSheetForm
 from .models import Exam
-from .policies import can_mark, can_publish
+from .policies import EXAM_AUTHORS, can_mark, can_publish
 from .selectors import exams, mark_summary
 from .services import create_exam, save_marks, transition_exam
-
-# Roles that may create exams (teachers only for their own class and subject).
-EXAM_AUTHORS = (User.Role.SUPER, User.Role.ADMIN, User.Role.TEACHER)
 
 
 @login_required
