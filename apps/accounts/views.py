@@ -10,9 +10,9 @@ from apps.audit.services import audit
 from apps.core.exceptions import error_text
 from apps.core.pagination import paginate
 
-from .decorators import LEADERS, MANAGERS, role_required
+from .decorators import role_required
 from .forms import AccountEditForm, AccountForm, LoginForm
-from .models import LoginAttempt
+from .models import LoginAttempt, User
 from .policies import can_manage_account
 from .selectors import branch_accounts, people
 from .services import create_account, toggle_access, update_contact_details
@@ -102,7 +102,7 @@ class PasswordResetConfirmView(auth_views.PasswordResetConfirmView):
         return response
 
 
-@role_required(*LEADERS)
+@role_required(*User.LEADERS)
 def user_list(request):
     return render(
         request,
@@ -111,7 +111,7 @@ def user_list(request):
     )
 
 
-@role_required(*MANAGERS)
+@role_required(*User.MANAGERS)
 def account_create(request):
     form = AccountForm(request.POST or None, actor=request.user)
     if request.method == "POST" and form.is_valid():
@@ -145,14 +145,14 @@ def account_create(request):
 
 
 @require_POST
-@role_required(*MANAGERS)
+@role_required(*User.MANAGERS)
 def toggle_user(request, pk):
     toggle_access(request.user, get_object_or_404(branch_accounts(request.user), pk=pk))
     messages.success(request, "Account access updated.")
     return redirect("users")
 
 
-@role_required(*MANAGERS)
+@role_required(*User.MANAGERS)
 def user_edit(request, pk):
     person = get_object_or_404(branch_accounts(request.user), pk=pk)
     if not can_manage_account(request.user, person):

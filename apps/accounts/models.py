@@ -10,7 +10,7 @@ from apps.organization.models import Branch
 
 class UserManager(DjangoUserManager):
     def create_superuser(self, username, email=None, password=None, **extra_fields):
-        extra_fields.update(role="superadmin", branch=None, must_change_password=False)
+        extra_fields.update(role=self.model.Role.SUPER, branch=None, must_change_password=False)
         return super().create_superuser(username, email, password, **extra_fields)
 
 
@@ -21,6 +21,11 @@ class User(AbstractUser):
         PRINCIPAL = "principal", "Principal"
         TEACHER = "teacher", "Teacher"
         STUDENT = "student", "Student"
+
+    # Role groups for access checks; docs/PERMISSIONS.md has the full matrix.
+    STAFF = (Role.SUPER, Role.ADMIN, Role.PRINCIPAL, Role.TEACHER)
+    MANAGERS = (Role.SUPER, Role.ADMIN)  # manage accounts and academic setup
+    LEADERS = (Role.SUPER, Role.ADMIN, Role.PRINCIPAL)  # also see people, setup, activity
 
     email = models.EmailField(unique=True)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.STUDENT)
@@ -76,8 +81,19 @@ class User(AbstractUser):
     def system_admin(self):
         return self.is_active and self.is_superuser and self.role == self.Role.SUPER
 
+    @property
+    def is_manager(self):
+        return self.role in self.MANAGERS
+
+    @property
+    def is_leader(self):
+        return self.role in self.LEADERS
+
 
 class LoginAttempt(models.Model):
     key = models.CharField(max_length=64, primary_key=True)
     count = models.PositiveIntegerField(default=0)
     started_at = models.DateTimeField()
+
+    def __str__(self):
+        return f"{self.count} attempts since {self.started_at:%Y-%m-%d %H:%M}"

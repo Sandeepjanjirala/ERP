@@ -3,6 +3,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import redirect, render
 
 from apps.accounts.decorators import role_required
+from apps.accounts.models import User
 from apps.students.selectors import roster
 
 from .forms import RegisterForm, RegisterSelection
@@ -11,7 +12,7 @@ from .policies import can_attend
 from .services import save_register
 
 
-@role_required("superadmin", "admin", "principal", "teacher")
+@role_required(*User.STAFF)
 def attendance(request):
     selection = RegisterSelection(request.GET or None, actor=request.user)
     context = {"title": "Daily attendance", "selection": selection}

@@ -16,9 +16,11 @@ def attendance_summary(rows):
     counts = {v: 0 for v in Attendance.Status.values}
     for status in rows.values_list("status", flat=True):
         counts[status] += 1
-    denominator = counts["P"] + counts["L"] + counts["A"]
+    # Present and late count as attended; excused days are left out of the percentage.
+    attended = counts[Attendance.Status.PRESENT] + counts[Attendance.Status.LATE]
+    denominator = attended + counts[Attendance.Status.ABSENT]
     return {
         **counts,
         "total": sum(counts.values()),
-        "rate": round(100 * (counts["P"] + counts["L"]) / denominator, 1) if denominator else None,
+        "rate": round(100 * attended / denominator, 1) if denominator else None,
     }

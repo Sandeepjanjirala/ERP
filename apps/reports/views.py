@@ -9,13 +9,14 @@ from django.utils import timezone
 
 from apps.academics.models import AcademicYear
 from apps.academics.selectors import classrooms
-from apps.accounts.decorators import LEADERS, role_required
+from apps.accounts.decorators import role_required
+from apps.accounts.models import User
 from apps.attendance.models import AttendanceSession
 from apps.attendance.selectors import attendance_rows, attendance_summary
 from apps.audit.selectors import events
 from apps.audit.services import audit
 from apps.core.pagination import paginate
-from apps.exams.models import Mark
+from apps.exams.models import Exam, Mark
 from apps.exams.selectors import exams, mark_summary
 from apps.organization.selectors import branches, selected_branch
 from apps.students.models import Student
@@ -24,7 +25,7 @@ from apps.students.selectors import enrollments, students
 
 @login_required
 def dashboard(request):
-    if request.user.role == "student":
+    if request.user.role == User.Role.STUDENT:
         profile = get_object_or_404(Student, user=request.user)
         return redirect("student_report", pk=profile.pk)
     branch = selected_branch(request.user, request.GET.get("branch"))
@@ -42,7 +43,7 @@ def dashboard(request):
     stats = {
         "students": people.filter(user__is_active=True).count(),
         "classes": classes.count(),
-        "pending": exams_qs.filter(status="submitted").count(),
+        "pending": exams_qs.filter(status=Exam.Status.SUBMITTED).count(),
         "attendance": today_attendance["rate"],
     }
     class_rows = list(
@@ -88,7 +89,7 @@ def student_report(request, pk):
     marks = list(
         Mark.objects.filter(
             enrollment__in=student_enrollments,
-            exam__in=exams(request.user).filter(status="published"),
+            exam__in=exams(request.user).filter(status=Exam.Status.PUBLISHED),
         ).select_related("exam__subject", "exam__classroom")
     )
     rows = (
@@ -118,9 +119,9 @@ def safe_csv(value):
     return "'" + text if text.startswith(("=", "+", "-", "@", "\t", "\r", "\n")) else text
 
 
-@role_required("superadmin", "admin", "principal", "teacher")
+@role_required(*User.STAFF)
 def reports(request):
-    permitted = exams(request.user).filter(status="published")
+    permitted = exams(request.user).filter(status=Exam.Status.PUBLISHED)
     year_id = request.GET.get("year")
     if year_id and year_id.isdigit():
         permitted = permitted.filter(classroom__year_id=year_id)
@@ -195,7 +196,7 @@ def reports(request):
     )
 
 
-@role_required(*LEADERS)
+@role_required(*User.LEADERS)
 def audit_log(request):
     return render(
         request,

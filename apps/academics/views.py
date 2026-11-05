@@ -4,7 +4,8 @@ from django.db import IntegrityError
 from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
 
-from apps.accounts.decorators import LEADERS, MANAGERS, role_required
+from apps.accounts.decorators import role_required
+from apps.accounts.models import User
 from apps.core.exceptions import error_text
 from apps.organization.forms import BranchForm, OrganizationForm
 from apps.organization.models import Organization
@@ -16,7 +17,7 @@ from .selectors import classrooms
 from .services import save_setup_record, update_setup_record
 
 
-@role_required(*LEADERS)
+@role_required(*User.LEADERS)
 def setup(request):
     return render(
         request,
@@ -46,7 +47,7 @@ SETUP_FORMS = {
 GROUP_LEVEL = ("organization", "branch", "year")
 
 
-@role_required(*MANAGERS)
+@role_required(*User.MANAGERS)
 def setup_create(request, kind):
     if kind not in SETUP_FORMS or (kind in GROUP_LEVEL and not request.user.system_admin):
         raise PermissionDenied
@@ -73,7 +74,7 @@ def setup_create(request, kind):
     )
 
 
-@role_required(*MANAGERS)
+@role_required(*User.MANAGERS)
 def setup_edit(request, kind, pk):
     editable = {
         "classroom": (classrooms(request.user), ClassroomForm, ("branch", "year")),

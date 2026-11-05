@@ -24,7 +24,7 @@ class ClassroomForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["branch"].queryset = branches(actor)
         self.fields["homeroom_teacher"].queryset = User.objects.filter(
-            branch__in=branches(actor), role="teacher", is_active=True
+            branch__in=branches(actor), role=User.Role.TEACHER, is_active=True
         )
         if not actor.system_admin:
             self.fields["branch"].initial = actor.branch_id
@@ -50,7 +50,7 @@ class AssignmentForm(forms.ModelForm):
     def __init__(self, *args, actor, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["teacher"].queryset = User.objects.filter(
-            branch__in=branches(actor), role="teacher", is_active=True
+            branch__in=branches(actor), role=User.Role.TEACHER, is_active=True
         )
         self.fields["classroom"].queryset = classrooms(actor)
         self.fields["subject"].queryset = Subject.objects.filter(branch__in=branches(actor))

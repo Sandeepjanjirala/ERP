@@ -3,11 +3,6 @@ from functools import wraps
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 
-MANAGERS = ("superadmin", "admin")
-
-
-LEADERS = ("superadmin", "admin", "principal")
-
 
 def role_required(*allowed):
     """View decorator: sign-in required, and the user's role must be one of `allowed` (else 403)."""

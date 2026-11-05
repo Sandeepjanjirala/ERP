@@ -4,7 +4,8 @@ from django.db import IntegrityError
 from django.db.models import Q
 from django.shortcuts import redirect, render
 
-from apps.accounts.decorators import MANAGERS, role_required
+from apps.accounts.decorators import role_required
+from apps.accounts.models import User
 from apps.core.exceptions import error_text
 from apps.core.pagination import paginate
 from apps.organization.selectors import branches, selected_branch
@@ -14,7 +15,7 @@ from .selectors import students
 from .services import admit_student, enroll
 
 
-@role_required("superadmin", "admin", "principal", "teacher")
+@role_required(*User.STAFF)
 def student_list(request):
     qs = students(request.user).order_by("user__first_name", "admission_number")
     query = request.GET.get("q", "").strip()
@@ -40,7 +41,7 @@ def student_list(request):
     )
 
 
-@role_required(*MANAGERS)
+@role_required(*User.MANAGERS)
 def student_create(request):
     form = StudentAccountForm(request.POST or None, actor=request.user)
     if request.method == "POST" and form.is_valid():
@@ -79,7 +80,7 @@ def student_create(request):
     )
 
 
-@role_required(*MANAGERS)
+@role_required(*User.MANAGERS)
 def enrollment_create(request):
     form = EnrollmentForm(request.POST or None, actor=request.user)
     if request.method == "POST" and form.is_valid():

@@ -8,6 +8,10 @@ from apps.organization.selectors import branches
 from .models import User
 
 
+def choices_for(*roles):
+    return [(role.value, role.label) for role in roles]
+
+
 class LoginForm(AuthenticationForm):
     def clean_username(self):
         return self.cleaned_data["username"].strip().lower()
@@ -37,8 +41,8 @@ class AccountForm(forms.ModelForm):
 
     def role_choices(self):
         if self.actor.system_admin:
-            return [("admin", "Branch admin"), ("principal", "Principal"), ("teacher", "Teacher")]
-        return [("teacher", "Teacher")]
+            return choices_for(User.Role.ADMIN, User.Role.PRINCIPAL, User.Role.TEACHER)
+        return choices_for(User.Role.TEACHER)
 
     def clean_username(self):
         value = self.cleaned_data["username"].strip().lower()

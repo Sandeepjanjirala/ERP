@@ -4,6 +4,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.accounts.decorators import role_required
+from apps.accounts.models import User
 from apps.core.pagination import paginate
 from apps.students.selectors import roster
 
@@ -12,6 +13,9 @@ from .models import Exam
 from .policies import can_mark, can_publish
 from .selectors import exams, mark_summary
 from .services import create_exam, save_marks, transition_exam
+
+# Roles that may create exams (teachers only for their own class and subject).
+EXAM_AUTHORS = (User.Role.SUPER, User.Role.ADMIN, User.Role.TEACHER)
 
 
 @login_required
@@ -27,7 +31,7 @@ def exam_list(request):
             "title": "Exams & marks",
             "page_obj": paginate(request, qs),
             "status": status,
-            "can_create": request.user.role in ("superadmin", "admin", "teacher"),
+            "can_create": request.user.role in EXAM_AUTHORS,
         },
     )
 
@@ -35,7 +39,7 @@ def exam_list(request):
 @login_required
 def exam_detail(request, pk):
     exam = get_object_or_404(exams(request.user), pk=pk)
-    if request.user.role == "student":
+    if request.user.role == User.Role.STUDENT:
         return redirect("student_report", pk=request.user.student_profile.pk)
     enrolled = list(roster(exam.classroom, exam.date))
     marks = {
@@ -66,7 +70,7 @@ def exam_detail(request, pk):
                 try:
                     version = int(request.POST.get("version", "0"))
                 except ValueError:
-                    raise ValidationError("Invalid form version. Reload the page.")
+                    raise ValidationError("Invalid form version. Reload the page.") from None
                 transition_exam(
                     request.user, exam, action, version, request.POST.get("reason", "")[:250]
                 )
@@ -81,7 +85,7 @@ def exam_detail(request, pk):
                 return redirect("exam_detail", pk=pk)
         except ValidationError as exc:
             form.add_error(None, "; ".join(exc.messages))
-    writable = writer and exam.status == "draft"
+    writable = writer and exam.status == Exam.Status.DRAFT
     if not writable:
         for field in form.fields.values():
             field.disabled = True
@@ -93,14 +97,14 @@ def exam_detail(request, pk):
             "exam": exam,
             "form": form,
             "can_write": writable,
-            "can_submit": writer and exam.status == "draft",
+            "can_submit": writer and exam.status == Exam.Status.DRAFT,
             "can_publish": publisher,
             "summary": mark_summary(marks.values()),
         },
     )
 
 
-@role_required("superadmin", "admin", "teacher")
+@role_required(*EXAM_AUTHORS)
 def exam_create(request):
     form = ExamForm(request.POST or None, actor=request.user)
     if request.method == "POST" and form.is_valid():

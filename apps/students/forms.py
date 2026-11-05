@@ -3,7 +3,8 @@ from django.utils import timezone
 
 from apps.academics.models import Classroom
 from apps.academics.selectors import classrooms
-from apps.accounts.forms import AccountForm
+from apps.accounts.forms import AccountForm, choices_for
+from apps.accounts.models import User
 from apps.core.forms import DateInput
 
 from .models import Enrollment, Student
@@ -22,7 +23,7 @@ class StudentAccountForm(AccountForm):
         self.fields["classroom"].queryset = classrooms(actor)
 
     def role_choices(self):
-        return [("student", "Student")]
+        return choices_for(User.Role.STUDENT)
 
     def clean(self):
         data = super().clean()

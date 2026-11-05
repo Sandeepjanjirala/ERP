@@ -29,7 +29,7 @@ class Command(BaseCommand):
             )
         password = secrets.token_urlsafe(18)
         org = Organization.objects.create(name="Greenfield Group of Schools")
-        root = User.objects.create_superuser(
+        User.objects.create_superuser(
             "superadmin", "superadmin@example.invalid", password, first_name="Sandeep"
         )
         today = timezone.localdate()

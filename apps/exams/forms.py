@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 
 from apps.academics.models import Subject, TeachingAssignment
 from apps.academics.selectors import classrooms
+from apps.accounts.models import User
 from apps.core.forms import DateInput
 from apps.organization.selectors import branches
 
@@ -20,7 +21,7 @@ class ExamForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["classroom"].queryset = classrooms(actor)
         subjects = Subject.objects.filter(branch__in=branches(actor))
-        if actor.role == "teacher":
+        if actor.role == User.Role.TEACHER:
             subjects = subjects.filter(
                 pk__in=TeachingAssignment.objects.filter(teacher=actor).values("subject_id")
             )
@@ -29,7 +30,7 @@ class ExamForm(forms.ModelForm):
     def clean(self):
         data = super().clean()
         if (
-            self.actor.role == "teacher"
+            self.actor.role == User.Role.TEACHER
             and data.get("classroom")
             and data.get("subject")
             and not TeachingAssignment.objects.filter(
@@ -65,7 +66,7 @@ class MarkSheetForm(forms.Form):
 
     def clean(self):
         d = super().clean()
-        for enrollment, score, absent in self.rows:
+        for _enrollment, score, absent in self.rows:
             if d.get(absent.name) and d.get(score.name) is not None:
                 self.add_error(score.name, "Use either a score or absent, not both.")
         return d

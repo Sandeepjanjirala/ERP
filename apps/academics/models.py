@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import F, Q
 
+from apps.accounts.models import User
 from apps.core.models import ValidatedModel
 from apps.organization.models import Branch
 
@@ -47,7 +48,7 @@ class Classroom(ValidatedModel):
 
     def clean(self):
         if self.homeroom_teacher_id and (
-            self.homeroom_teacher.role != "teacher"
+            self.homeroom_teacher.role != User.Role.TEACHER
             or self.homeroom_teacher.branch_id != self.branch_id
         ):
             raise ValidationError({"homeroom_teacher": "Choose a teacher from this branch."})
@@ -90,7 +91,8 @@ class TeachingAssignment(ValidatedModel):
             self.teacher_id
             and self.classroom_id
             and (
-                self.teacher.role != "teacher" or self.teacher.branch_id != self.classroom.branch_id
+                self.teacher.role != User.Role.TEACHER
+                or self.teacher.branch_id != self.classroom.branch_id
             )
         ):
             raise ValidationError("The teacher must belong to the classroom branch.")

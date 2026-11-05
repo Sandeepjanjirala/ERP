@@ -19,7 +19,7 @@ def save_marks(actor, exam, entries, expected_version):
         raise PermissionDenied
     if exam.version != expected_version:
         raise Conflict("This mark sheet changed. Reload before saving.")
-    if exam.status != "draft":
+    if exam.status != Exam.Status.DRAFT:
         raise ValidationError(
             "Marks are locked after submission. Ask the principal to reopen this exam."
         )
@@ -67,21 +67,21 @@ def transition_exam(actor, exam, action, expected_version, reason=""):
     if action == "submit":
         if not can_mark(actor, exam):
             raise PermissionDenied
-        if exam.status != "draft":
+        if exam.status != Exam.Status.DRAFT:
             raise ValidationError("Only draft exams can be submitted.")
-        target = "submitted"
+        target = Exam.Status.SUBMITTED
     elif action == "publish":
         if not can_publish(actor, exam):
             raise PermissionDenied
-        if exam.status != "submitted":
+        if exam.status != Exam.Status.SUBMITTED:
             raise ValidationError("Submit the exam for review before publishing.")
-        target = "published"
+        target = Exam.Status.PUBLISHED
     elif action == "reopen":
         if not can_publish(actor, exam):
             raise PermissionDenied
-        if exam.status == "draft" or not reason.strip():
+        if exam.status == Exam.Status.DRAFT or not reason.strip():
             raise ValidationError("Reopening requires a locked exam and a correction reason.")
-        target = "draft"
+        target = Exam.Status.DRAFT
     else:
         raise ValidationError("Unknown exam action.")
     if action in ("submit", "publish"):

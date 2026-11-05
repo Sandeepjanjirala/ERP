@@ -6,6 +6,7 @@ from django.db.models import Q
 
 from apps.academics.models import TeachingAssignment
 from apps.academics.selectors import classrooms
+from apps.accounts.models import User
 
 from .models import Exam
 
@@ -14,9 +15,11 @@ def exams(user):
     qs = Exam.objects.filter(classroom__in=classrooms(user)).select_related(
         "classroom__branch", "classroom__year", "subject", "published_by"
     )
-    if user.role == "student":
-        return qs.filter(status="published", marks__enrollment__student__user=user).distinct()
-    if user.role == "teacher":
+    if user.role == User.Role.STUDENT:
+        return qs.filter(
+            status=Exam.Status.PUBLISHED, marks__enrollment__student__user=user
+        ).distinct()
+    if user.role == User.Role.TEACHER:
         assigned = TeachingAssignment.objects.filter(teacher=user).values(
             "classroom_id", "subject_id"
         )

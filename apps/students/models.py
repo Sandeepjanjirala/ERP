@@ -4,6 +4,7 @@ from django.db import models
 from django.db.models import F, Q
 
 from apps.academics.models import AcademicYear, Classroom
+from apps.accounts.models import User
 from apps.core.models import ValidatedModel
 
 
@@ -14,7 +15,7 @@ class Student(ValidatedModel):
     admission_number = models.CharField(max_length=30, unique=True)
 
     def clean(self):
-        if self.user_id and self.user.role != "student":
+        if self.user_id and self.user.role != User.Role.STUDENT:
             raise ValidationError("A student profile requires a student account.")
 
     def __str__(self):
@@ -57,6 +58,7 @@ class Enrollment(ValidatedModel):
                 if (
                     self.classroom.attendance_sessions.filter(date__gte=self.joined_on).exists()
                     or self.classroom.exams.filter(date__gte=self.joined_on)
+                    # "draft" is Exam.Status.DRAFT; exams sits above students, so not imported.
                     .exclude(status="draft")
                     .exists()
                 ):

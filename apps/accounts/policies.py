@@ -1,15 +1,18 @@
 """Who may change which accounts."""
 
-from .decorators import MANAGERS
+from .models import User
 
 
 def can_manage_account(actor, person):
     """Super admins manage every branch account; branch admins manage their teachers and students."""
-    if actor.role not in MANAGERS or person.role == "superadmin":
+    if not actor.is_manager or person.role == User.Role.SUPER:
         return False
     if actor.system_admin:
         return True
-    return person.branch_id == actor.branch_id and person.role in ("teacher", "student")
+    return person.branch_id == actor.branch_id and person.role in (
+        User.Role.TEACHER,
+        User.Role.STUDENT,
+    )
 
 
 def can_change_access(actor, person):
