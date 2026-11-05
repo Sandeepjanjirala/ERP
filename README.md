@@ -33,7 +33,7 @@ EduNexa runs the daily work of a school group: branches, classrooms and teachers
 | Business logic outside views | Each domain app has `selectors` (reads already limited to the user's scope), `policies` (who may do what) and `services` (writes with transactions, locks and audit). Views only parse input and render output. |
 | Layered apps | Ten apps ordered by dependency, with no circular imports. See [ARCHITECTURE.md](docs/ARCHITECTURE.md). |
 | Production safety | Settings per environment. Production refuses to start without a secret key and PostgreSQL, and Django's `check --deploy` runs in CI. |
-| Tested | 83 tests with 89% branch coverage. CI runs them on PostgreSQL along with lint, a migration check and a Docker build. |
+| Tested | 85 tests with 89% branch coverage. CI runs them on PostgreSQL along with lint, a migration check and a Docker build. |
 
 ## Run it on your computer
 

@@ -35,7 +35,8 @@ class Exam(ValidatedModel):
     published_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        ordering = ["-date", "title"]
+        # pk breaks ties (titles repeat across classes) so pagination is stable.
+        ordering = ["-date", "title", "pk"]
         constraints = [
             models.CheckConstraint(
                 condition=Q(max_marks__gte=1, pass_marks__gte=0, pass_marks__lte=F("max_marks")),

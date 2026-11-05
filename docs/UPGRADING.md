@@ -34,15 +34,25 @@ The models' fields did not change, so the data moves with Django's own fixture t
 
 ## What was verified
 
-Rehearsed on 5 November 2026 with the real pre-Phase-1 development database. It was exported by the old code, then converted and loaded into PostgreSQL 17 by the new code.
+Rehearsed on 5 November 2026 with the real pre-Phase-1 development database. It was exported by the old code, then converted and loaded into PostgreSQL 17 by the new code. Three independent comparisons:
 
-- All 179 records arrived, with their IDs.
-- Accounts signed in with their original passwords.
-- A scripted walkthrough of 101 checks passed on the upgraded data:
-  - every page for every role
-  - attendance correction and stale-tab rejection
-  - publish, reopen and resubmit of results
-  - account creation with a forced password change
-  - admission, CSV export, and branch and student isolation
+| Check | Result |
+|---|---|
+| **Records:** the upgraded database re-exported and compared with the old export | 179 of 179 records. All 943 field values are identical, including 374 foreign-key and relation values, timestamps and audit-log details. |
+| **Permissions:** for each of the 21 users, the old code on the old database versus the new code on the upgraded database | No differences in visible branches, classrooms, students, enrollments, exams, attendance, people and activity log; in which registers they may record and which exams they may mark or publish; or in which accounts they may edit or deactivate |
+| **Validation:** `full_clean()` on every loaded row, because `loaddata` skips model validation while loading | 179 of 179 valid |
 
-`apps/core/tests/test_legacy_upgrade.py` keeps the conversion covered in CI.
+A scripted walkthrough of 101 checks then passed on the upgraded data:
+
+- every page for every role
+- attendance correction and stale-tab rejection
+- publish, reopen and resubmit of results
+- account creation with a forced password change
+- admission, CSV export, and branch and student isolation
+
+The rehearsal found two small bugs, both present before Phase 1 and both fixed without touching stored data (the migrations are database no-ops):
+
+- **Unstable list order.** The people list, exam list and activity log ordered rows only by columns that can tie, so a page could repeat or skip a row. Each ordering now ends with a unique column.
+- **Empty audit details.** Audit events with empty `details` failed validation because the field didn't allow blank values.
+
+`apps/core/tests/test_legacy_upgrade.py` and `test_stable_ordering.py` keep both covered in CI.
