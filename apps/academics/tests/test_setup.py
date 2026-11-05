@@ -1,7 +1,8 @@
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 
-from apps.academics.models import Classroom, TeachingAssignment
+from apps.academics.models import Classroom, Subject, TeachingAssignment
+from apps.audit.models import AuditEvent
 from apps.core.testing import SchoolTestCase
 from apps.exams.policies import can_mark
 
@@ -58,4 +59,24 @@ class AcademicSetupTests(SchoolTestCase):
             with self.subTest(kind=kind):
                 self.assertEqual(
                     self.client.get(reverse("setup_create", args=[kind])).status_code, 200
+                )
+
+    def test_admin_creates_subject_through_setup(self):
+        self.sign_in(self.admin)
+        response = self.client.post(
+            reverse("setup_create", args=["subject"]),
+            {"branch": self.a.pk, "name": "History", "code": "history"},
+        )
+        self.assertRedirects(response, reverse("setup"), fetch_redirect_response=False)
+        self.assertTrue(Subject.objects.filter(branch=self.a, code="history").exists())
+        self.assertTrue(
+            AuditEvent.objects.filter(action="setup.subject.saved", branch=self.a).exists()
+        )
+
+    def test_group_level_setup_is_for_super_admins_only(self):
+        self.sign_in(self.admin)
+        for kind in ("organization", "branch", "year"):
+            with self.subTest(kind=kind):
+                self.assertEqual(
+                    self.client.get(reverse("setup_create", args=[kind])).status_code, 403
                 )

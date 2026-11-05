@@ -4,9 +4,10 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.urls import reverse
 
 from apps.academics.selectors import classrooms
+from apps.audit.models import AuditEvent
 from apps.core.exceptions import Conflict
 from apps.core.testing import SchoolTestCase
-from apps.exams.models import Mark
+from apps.exams.models import Exam, Mark
 from apps.exams.selectors import exams
 from apps.exams.services import save_marks, transition_exam
 
@@ -127,3 +128,35 @@ class ResultWorkflowTests(SchoolTestCase):
         mark = Mark.objects.create(exam=self.exam, enrollment=self.e1, absent=True)
         self.assertFalse(mark.passed)
         self.assertEqual(mark.percentage, 0)
+
+    def test_teacher_creates_exam_and_saves_marks_through_pages(self):
+        self.sign_in(self.teacher)
+        response = self.client.post(
+            reverse("exam_create"),
+            {
+                "classroom": self.c.pk,
+                "subject": self.math.pk,
+                "title": "Weekly quiz",
+                "date": self.today.isoformat(),
+                "max_marks": "20",
+                "pass_marks": "8",
+            },
+        )
+        exam = Exam.objects.get(title="Weekly quiz")
+        self.assertRedirects(
+            response, reverse("exam_detail", args=[exam.pk]), fetch_redirect_response=False
+        )
+        self.assertTrue(AuditEvent.objects.filter(action="exam.created").exists())
+        response = self.client.post(
+            reverse("exam_detail", args=[exam.pk]),
+            {
+                "action": "save",
+                "version": exam.version,
+                f"score_{self.e1.pk}": "15",
+                f"absent_{self.e2.pk}": "on",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        marks = {mark.enrollment_id: mark for mark in Mark.objects.filter(exam=exam)}
+        self.assertEqual(marks[self.e1.pk].score, Decimal("15"))
+        self.assertTrue(marks[self.e2.pk].absent)

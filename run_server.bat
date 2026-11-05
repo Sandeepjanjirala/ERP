@@ -6,4 +6,3 @@ echo Press Ctrl+C to stop.
 echo.
 .\.venv\Scripts\python.exe manage.py runserver
 pause
-

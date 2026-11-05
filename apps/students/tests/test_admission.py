@@ -54,3 +54,15 @@ class AdmissionTests(SchoolTestCase):
         )
         self.assertContains(response, "Choose a classroom in the selected branch.")
         self.assertFalse(User.objects.filter(username="newstudent").exists())
+
+    def test_second_enrollment_in_the_same_year_is_rejected(self):
+        self.sign_in(self.admin)
+        response = self.client.post(
+            reverse("enrollment_create"),
+            {
+                "student": self.e1.student.pk,
+                "classroom": self.c.pk,
+                "joined_on": self.today.isoformat(),
+            },
+        )
+        self.assertContains(response, "This student already has an enrollment for that year.")
