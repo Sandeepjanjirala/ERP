@@ -6,3 +6,8 @@ db.sqlite3*
 staticfiles/
 demo-accounts.txt
 *.log
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml

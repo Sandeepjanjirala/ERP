@@ -10,7 +10,7 @@ Install Python **3.12** first (the version used to verify this package). Extract
 
 ```powershell
 py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements\dev.txt
 .\.venv\Scripts\python.exe setup_local.py
 .\.venv\Scripts\python.exe manage.py seed_demo
 .\.venv\Scripts\python.exe manage.py runserver
@@ -107,7 +107,7 @@ docker compose stop
 The test settings deliberately use a fast test-only password hasher and a simple static-file backend. Runtime settings retain Django’s normal password hashing and production static-file handling.
 
 ```powershell
-.\.venv\Scripts\python.exe manage.py test --settings=school.test_settings --noinput
+.\.venv\Scripts\python.exe -m pytest
 .\.venv\Scripts\python.exe manage.py makemigrations --check --dry-run
 .\.venv\Scripts\python.exe manage.py collectstatic --noinput
 ```

@@ -42,7 +42,7 @@ The `.env` reader supports plain `KEY=value` lines and optional quotes; it does 
 Run from the folder containing `manage.py`:
 
 ```text
-python -m pip install -r requirements.txt
+python -m pip install -r requirements/prod.txt
 python manage.py collectstatic --noinput
 ```
 

@@ -1,0 +1,40 @@
+[project]
+name = "edunexa"
+version = "0.1.0"
+description = "School ERP for school groups with many branches, built with Django."
+readme = "README.md"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["**/migrations/*.py"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",  # pycodestyle
+    "F",       # pyflakes: unused imports, undefined names
+    "I",       # import sorting
+    "B",       # likely bugs
+    "UP",      # modern Python syntax
+    "DJ",      # Django conventions
+]
+# The formatter wraps code; long user-facing message strings are allowed.
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["config", "school"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "school.test_settings"
+python_files = ["tests.py", "test_*.py"]
+addopts = "-ra --strict-markers"
+
+[tool.coverage.run]
+source = ["config", "school"]
+branch = true
+omit = ["*/migrations/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
