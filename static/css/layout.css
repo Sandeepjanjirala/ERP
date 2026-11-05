@@ -135,7 +135,7 @@
   gap: 2.5rem;
   padding: 3rem;
   overflow: hidden;
-  background: var(--color-brand-panel);
+  background: linear-gradient(150deg, var(--color-brand-panel), var(--color-brand-panel-end));
   color: var(--color-brand-panel-text);
 }
 
@@ -154,10 +154,10 @@
 .auth-story h1 {
   margin: 1rem 0 1.25rem;
   font-family: var(--font-display);
-  font-size: clamp(2.5rem, 1.4rem + 3.2vw, 4.4rem);
-  font-weight: 400;
+  font-size: clamp(2.4rem, 1.4rem + 3vw, 4rem);
+  font-weight: 700;
   line-height: 1.08;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.035em;
 }
 
 .auth-story h1 span,
@@ -166,7 +166,7 @@
 }
 
 .auth-story h1 em {
-  color: #dcc387;
+  color: #67e8f9;
 }
 
 .auth-story-mark {
@@ -302,14 +302,14 @@
     color-scheme: light;
     --color-bg: #ffffff;
     --color-surface: #ffffff;
-    --color-surface-muted: #f6f6f6;
-    --color-surface-tint: #f1f4f2;
+    --color-surface-muted: #f8fafc;
+    --color-surface-tint: #eef2ff;
     --color-border: #d9d9d9;
     --color-border-strong: #c4c4c4;
     --color-text: #111111;
     --color-text-muted: #444444;
     --color-text-subtle: #666666;
-    --color-primary: #24594a;
+    --color-primary: #4f46e5;
     --shadow-sm: none;
   }
 

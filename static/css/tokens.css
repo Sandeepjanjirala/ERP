@@ -1,121 +1,121 @@
 /* Design tokens: every colour, font, radius and shadow used by EduNexa.
    Dark mode redefines only these values, so components never need their own dark rules.
-   The theme follows the operating system unless the person picks one (html[data-theme]). */
+   The theme follows the operating system unless the person picks one (html[data-theme]).
+   Palette: indigo for actions, slate neutrals, a cyan accent. */
 
 :root {
   color-scheme: light;
 
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --font-display: var(--font-sans);
   --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
   --radius-lg: 16px;
   --radius-pill: 999px;
   --sidebar-width: 260px;
   --topbar-height: 64px;
 
-  --color-bg: #f4f6f4;
+  --color-bg: #f5f6fa;
   --color-surface: #ffffff;
-  --color-surface-muted: #f8faf8;
-  --color-surface-tint: #edf3ef;
-  --color-border: #e1e8e3;
-  --color-border-strong: #cdd8d0;
-  --color-text: #17342c;
-  --color-text-muted: #56675f;
-  --color-text-subtle: #7b8a82;
+  --color-surface-muted: #f8fafc;
+  --color-surface-tint: #eef2ff;
+  --color-border: #e5e7eb;
+  --color-border-strong: #d1d5db;
+  --color-text: #0f172a;
+  --color-text-muted: #475569;
+  --color-text-subtle: #64748b;
 
-  --color-primary: #24594a;
-  --color-primary-hover: #1a4639;
-  --color-primary-soft: #e2eee7;
+  --color-primary: #4f46e5;
+  --color-primary-hover: #4338ca;
+  --color-primary-soft: #eef2ff;
   --color-on-primary: #ffffff;
-  --color-accent: #c9a65a;
-  --color-accent-soft: #f5eedb;
-  --color-accent-strong: #7a5c1c;
-  --color-focus: #b0852a;
+  --color-accent: #06b6d4;
+  --color-accent-soft: #ecfeff;
+  --color-accent-strong: #0e7490;
+  --color-focus: #6366f1;
 
-  --color-success: #2c6a42;
-  --color-success-soft: #e6f3ea;
-  --color-warning: #85600f;
-  --color-warning-soft: #fbf1dc;
-  --color-danger: #a6382a;
-  --color-danger-soft: #fdece8;
-  --color-info: #3d5a82;
-  --color-info-soft: #e9eff8;
+  --color-success: #15803d;
+  --color-success-soft: #dcfce7;
+  --color-warning: #b45309;
+  --color-warning-soft: #fef3c7;
+  --color-danger: #b91c1c;
+  --color-danger-soft: #fee2e2;
+  --color-info: #1d4ed8;
+  --color-info-soft: #dbeafe;
 
-  /* The sign-in story panel keeps the brand green in both themes. */
-  --color-brand-panel: #1d493b;
-  --color-brand-panel-text: #f3f6ee;
-  --color-brand-panel-muted: #b6cab9;
+  /* The sign-in story panel keeps the deep indigo brand colour in both themes. */
+  --color-brand-panel: #1e1b4b;
+  --color-brand-panel-end: #312e81;
+  --color-brand-panel-text: #eef2ff;
+  --color-brand-panel-muted: #c7d2fe;
 
-  --shadow-sm: 0 1px 2px rgb(16 40 32 / 0.05);
-  --shadow-md: 0 10px 30px rgb(16 40 32 / 0.08);
-  --shadow-overlay: 0 24px 64px rgb(10 30 24 / 0.28);
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.06);
+  --shadow-md: 0 10px 30px rgb(15 23 42 / 0.08);
+  --shadow-overlay: 0 24px 64px rgb(15 23 42 / 0.28);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --color-bg: #0d1512;
-    --color-surface: #131e1a;
-    --color-surface-muted: #17231f;
-    --color-surface-tint: #1a2b24;
-    --color-border: #24342d;
-    --color-border-strong: #33463c;
-    --color-text: #e3ece7;
-    --color-text-muted: #a3b3aa;
-    --color-text-subtle: #7f9087;
-    --color-primary: #74c49f;
-    --color-primary-hover: #93d4b4;
-    --color-primary-soft: #1c3a2f;
-    --color-on-primary: #0a1a13;
-    --color-accent: #d9bc77;
-    --color-accent-soft: #352e1d;
-    --color-accent-strong: #ecd49c;
-    --color-focus: #e3c57f;
-    --color-success: #82d3a1;
-    --color-success-soft: #163225;
-    --color-warning: #e8c46d;
-    --color-warning-soft: #372d15;
-    --color-danger: #f29482;
-    --color-danger-soft: #3b1c17;
-    --color-info: #a0bbe4;
-    --color-info-soft: #1b2637;
-    --color-brand-panel: #13322a;
-    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.35);
-    --shadow-md: 0 10px 30px rgb(0 0 0 / 0.4);
+    --color-bg: #0b0f19;
+    --color-surface: #111827;
+    --color-surface-muted: #161e2e;
+    --color-surface-tint: #1c2140;
+    --color-border: #1f2937;
+    --color-border-strong: #374151;
+    --color-text: #f1f5f9;
+    --color-text-muted: #94a3b8;
+    --color-text-subtle: #64748b;
+    --color-primary: #818cf8;
+    --color-primary-hover: #a5b4fc;
+    --color-primary-soft: #232659;
+    --color-on-primary: #0b0f19;
+    --color-accent: #22d3ee;
+    --color-accent-soft: #083344;
+    --color-accent-strong: #67e8f9;
+    --color-focus: #a5b4fc;
+    --color-success: #4ade80;
+    --color-success-soft: #052e16;
+    --color-warning: #fbbf24;
+    --color-warning-soft: #422006;
+    --color-danger: #f87171;
+    --color-danger-soft: #450a0a;
+    --color-info: #60a5fa;
+    --color-info-soft: #172554;
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-md: 0 10px 30px rgb(0 0 0 / 0.45);
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --color-bg: #0d1512;
-  --color-surface: #131e1a;
-  --color-surface-muted: #17231f;
-  --color-surface-tint: #1a2b24;
-  --color-border: #24342d;
-  --color-border-strong: #33463c;
-  --color-text: #e3ece7;
-  --color-text-muted: #a3b3aa;
-  --color-text-subtle: #7f9087;
-  --color-primary: #74c49f;
-  --color-primary-hover: #93d4b4;
-  --color-primary-soft: #1c3a2f;
-  --color-on-primary: #0a1a13;
-  --color-accent: #d9bc77;
-  --color-accent-soft: #352e1d;
-  --color-accent-strong: #ecd49c;
-  --color-focus: #e3c57f;
-  --color-success: #82d3a1;
-  --color-success-soft: #163225;
-  --color-warning: #e8c46d;
-  --color-warning-soft: #372d15;
-  --color-danger: #f29482;
-  --color-danger-soft: #3b1c17;
-  --color-info: #a0bbe4;
-  --color-info-soft: #1b2637;
-  --color-brand-panel: #13322a;
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.35);
-  --shadow-md: 0 10px 30px rgb(0 0 0 / 0.4);
+  --color-bg: #0b0f19;
+  --color-surface: #111827;
+  --color-surface-muted: #161e2e;
+  --color-surface-tint: #1c2140;
+  --color-border: #1f2937;
+  --color-border-strong: #374151;
+  --color-text: #f1f5f9;
+  --color-text-muted: #94a3b8;
+  --color-text-subtle: #64748b;
+  --color-primary: #818cf8;
+  --color-primary-hover: #a5b4fc;
+  --color-primary-soft: #232659;
+  --color-on-primary: #0b0f19;
+  --color-accent: #22d3ee;
+  --color-accent-soft: #083344;
+  --color-accent-strong: #67e8f9;
+  --color-focus: #a5b4fc;
+  --color-success: #4ade80;
+  --color-success-soft: #052e16;
+  --color-warning: #fbbf24;
+  --color-warning-soft: #422006;
+  --color-danger: #f87171;
+  --color-danger-soft: #450a0a;
+  --color-info: #60a5fa;
+  --color-info-soft: #172554;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 10px 30px rgb(0 0 0 / 0.45);
 }

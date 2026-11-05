@@ -75,9 +75,9 @@
 }
 
 .auth-story .brand-mark {
-  --brand-mark-bg: #d4b879;
-  --brand-mark-fg: #1d493b;
-  --brand-mark-accent: #1d493b;
+  --brand-mark-bg: #ffffff;
+  --brand-mark-fg: #312e81;
+  --brand-mark-accent: #06b6d4;
 }
 
 /* Sidebar */
@@ -177,7 +177,8 @@
   background: var(--color-accent-soft);
   color: var(--color-accent-strong);
   font-family: var(--font-display);
-  font-size: 1rem;
+  font-size: 0.95rem;
+  font-weight: 700;
 }
 
 .avatar-large {
@@ -857,9 +858,9 @@ a.list-item:hover strong {
 .welcome h2 {
   margin: 0.15rem 0 0.4rem;
   font-family: var(--font-display);
-  font-size: clamp(1.6rem, 1.2rem + 1vw, 2.15rem);
-  font-weight: 400;
-  letter-spacing: -0.01em;
+  font-size: clamp(1.5rem, 1.2rem + 0.9vw, 1.95rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
 
 .welcome p {

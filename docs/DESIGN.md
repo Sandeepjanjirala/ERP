@@ -264,7 +264,7 @@ Cash and UPI paid at the school counter go through the same service, so receipts
 | Parent | Child switcher, attendance, latest results, fees due with **Pay now**, announcements |
 | Student | Timetable, attendance, results, report cards, announcements |
 
-**Design system.** The current green-and-gold look becomes the EduNexa identity, rebuilt as readable CSS:
+**Design system.** An indigo, slate and cyan palette with a system sans-serif font, rebuilt as readable CSS:
 - Design tokens (colours, spacing, radius, type), with light and dark themes.
 - Reusable components: stat card, data table with sorting, filters and pagination, status badge, modal, toast, empty state, form field.
 - An SVG logo and icons in place of the current text symbols.
