@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load l10n ui %}
+
+{% block actions %}
+  <a class="btn btn-secondary" href="{% querystring format='csv' %}">{% icon 'download' %}Download results CSV</a>
+{% endblock %}
+
+{% block content %}
+  <form method="get" class="filter-bar">
+    <div>
+      <label for="year-filter">Academic year</label>
+      <select id="year-filter" name="year">
+        <option value="">All years</option>
+        {% for year in years %}
+          <option value="{{ year.pk }}"{% if year_id == year.pk|stringformat:"s" %} selected{% endif %}>{{ year.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% if user.system_admin %}{% include "components/branch_select.html" %}{% endif %}
+    <button class="btn" type="submit">{% icon 'filter' %}Apply filters</button>
+  </form>
+
+  <div class="grid-stats three">
+    {% include "components/stat_card.html" with label="Student assessment records" value=summary.count hint="Published results only" only %}
+    {% include "components/stat_card.html" with label="Weighted performance" value=summary.percentage unit="%" hint="Earned marks ÷ possible marks" only %}
+    {% include "components/stat_card.html" with label="Passing records" value=summary.passed total=summary.count hint="Each exam’s configured pass mark" only %}
+  </div>
+
+  <section class="card">
+    <div class="card-header">
+      <div>
+        <h2>Subject performance</h2>
+        <p>Compare published results within your permitted scope.</p>
+      </div>
+    </div>
+    {% for subject in subjects %}
+      <div class="performance-row">
+        <div>
+          <strong>{{ subject.name }}</strong>
+          <small>{{ subject.branch }} · {{ subject.count }} records</small>
+        </div>
+        <div class="bar" role="meter" aria-label="{{ subject.name }} at {{ subject.branch }}" aria-valuenow="{{ subject.percentage|unlocalize }}" aria-valuemin="0" aria-valuemax="100">
+          <span style="width: {{ subject.percentage|unlocalize }}%"></span>
+        </div>
+        <strong>{{ subject.percentage }}%</strong>
+        <small>{{ subject.passed }} passed</small>
+      </div>
+    {% empty %}
+      <p class="empty">Publish an assessment to see performance analysis.</p>
+    {% endfor %}
+  </section>
+
+  <p class="footnote">These are descriptive results, not predictions. Absent attempts count as zero; unpublished drafts are excluded.</p>
+{% endblock %}

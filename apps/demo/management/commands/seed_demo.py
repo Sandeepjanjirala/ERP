@@ -1,0 +1,306 @@
+"""Seed an empty development database with a realistic, synthetic school group.
+
+All records are created through the same services real users go through (create_exam,
+save_marks, transition_exam, save_register), so the demo data obeys every business rule and
+fills the activity log. A fixed random seed makes names and scores the same on every run.
+"""
+
+import random
+import secrets
+from dataclasses import dataclass
+from datetime import date, timedelta
+from decimal import Decimal
+
+from django.conf import settings
+from django.contrib.auth.hashers import make_password
+from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
+from django.utils import timezone
+
+from apps.academics.models import AcademicYear, Classroom, Subject, TeachingAssignment
+from apps.accounts.models import User
+from apps.attendance.models import Attendance
+from apps.attendance.services import save_register
+from apps.exams.models import Exam
+from apps.exams.services import create_exam, save_marks, transition_exam
+from apps.organization.models import Branch, Organization
+from apps.students.models import Enrollment, Student
+
+
+@dataclass(frozen=True)
+class Size:
+    classes: int
+    students_per_class: int
+    subjects: int
+    history_days: int
+
+
+SIZES = {
+    "full": Size(classes=5, students_per_class=25, subjects=5, history_days=91),
+    "small": Size(classes=2, students_per_class=4, subjects=2, history_days=7),
+}
+
+GROUP_NAME = "Greenfield Group of Schools"
+GRADES = ["Class 10", "Class 9", "Class 8", "Class 7", "Class 6"]
+SUBJECTS = ["Mathematics", "Science", "English", "Social Studies", "Telugu"]
+BRANCHES = [
+    {
+        "code": "madhapur",
+        "name": "Madhapur",
+        "city": "Hyderabad",
+        "admin": ("Kiran", "Rao"),
+        "principal": ("Lakshmi", "Devi"),
+        # Teacher n teaches SUBJECTS[n] in every class and is class teacher of GRADES[n].
+        "teachers": [
+            ("teacher", "Priya", "Sharma"),
+            ("ravi", "Ravi", "Kumar"),
+            ("anita", "Anita", "Desai"),
+            ("farhan", "Farhan", "Ali"),
+            ("sravani", "Sravani", "Reddy"),
+        ],
+    },
+    {
+        "code": "benz-circle",
+        "name": "Benz Circle",
+        "city": "Vijayawada",
+        "admin": ("Suresh", "Babu"),
+        "principal": ("Padma", "Rani"),
+        "teachers": [
+            ("teacher", "Venkat", "Rao"),
+            ("divya", "Divya", "Menon"),
+            ("arjun", "Arjun", "Varma"),
+            ("nazia", "Nazia", "Begum"),
+            ("mohan", "Mohan", "Krishna"),
+        ],
+    },
+]
+FIRST_NAMES = [
+    "Aarav", "Ananya", "Ishaan", "Meera", "Rohan", "Saanvi", "Vihaan", "Diya", "Arjun", "Kavya",
+    "Aditya", "Isha", "Karthik", "Lakshmi", "Nikhil", "Pooja", "Rahul", "Sneha", "Tarun", "Varsha",
+    "Abhinav", "Bhavya", "Charan", "Deepika", "Gautam", "Harini", "Imran", "Jahnavi", "Kiran",
+    "Lavanya", "Manish", "Nandini", "Omkar", "Pranavi", "Rithvik", "Sahithi", "Teja", "Usha",
+    "Vamsi", "Yamini", "Zoya", "Akhil", "Bindu", "Dhruv", "Esha", "Farhan", "Gayatri", "Hemant",
+    "Ira", "Jayant", "Keerthi", "Madhav", "Neha", "Pavan", "Ritu", "Sai", "Tanvi", "Uday", "Vidya",
+]  # fmt: skip
+LAST_NAMES = [
+    "Sharma", "Rao", "Reddy", "Nair", "Kumar", "Patel", "Iyer", "Gupta", "Menon", "Varma",
+    "Naidu", "Chowdary", "Pillai", "Joshi", "Das", "Khan", "Mehta", "Bose", "Shetty", "Kulkarni",
+    "Agarwal", "Desai", "Hegde", "Prasad", "Murthy", "Sastry", "Goud", "Babu", "Singh", "Ali",
+]  # fmt: skip
+# Exam title, maximum marks, pass marks, position in the history window (0 to 1).
+EXAMS = [
+    ("Unit Test 1", 25, 9, 0.25),
+    ("Unit Test 2", 25, 9, 0.55),
+    ("Quarterly Exam", 100, 35, 0.9),
+]
+
+
+def school_days(start, end):
+    """Monday to Saturday, as most Indian schools work."""
+    days = (start + timedelta(days=n) for n in range((end - start).days + 1))
+    return [day for day in days if day.weekday() != 6]
+
+
+class Command(BaseCommand):
+    help = "Seed an empty development database with a synthetic school group."
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--size",
+            choices=sorted(SIZES),
+            default="full",
+            help="full: 250 students and about three months of history (default); small: for tests.",
+        )
+
+    @transaction.atomic
+    def handle(self, *args, size, **options):
+        if not settings.DEBUG:
+            raise CommandError("Demo seeding is disabled outside development mode.")
+        if User.objects.exists() or Branch.objects.exists():
+            raise CommandError(
+                "Demo seeding requires an empty database. Existing records were not changed."
+            )
+        self.size = SIZES[size]
+        self.rng = random.Random(2026)
+        self.password = secrets.token_urlsafe(18)
+        # Password hashing is slow on purpose (PBKDF2). All demo accounts share one password, so
+        # hash it once instead of 265 times; the seed then takes seconds instead of minutes.
+        self.password_hash = make_password(self.password)
+        self.today = timezone.localdate()
+
+        org = Organization.objects.create(name=GROUP_NAME)
+        User.objects.create_superuser(
+            "superadmin", "superadmin@example.invalid", self.password, first_name="Sandeep"
+        )
+        start = self.today.year if self.today.month >= 4 else self.today.year - 1
+        self.year = AcademicYear.objects.create(
+            name=f"{start}–{start + 1}", starts_on=date(start, 4, 1), ends_on=date(start + 1, 3, 31)
+        )
+        self.history_start = max(
+            self.year.starts_on, self.today - timedelta(days=self.size.history_days)
+        )
+        # Every row goes through the real services and model validation, so the full size takes
+        # about a minute: slower than bulk inserts, but the data can never break a business rule.
+        self.stdout.write("Creating a synthetic school group; the full size takes about a minute.")
+        for index, spec in enumerate(BRANCHES, start=1):
+            self.seed_branch(org, index, spec)
+
+        self.stdout.write(
+            self.style.SUCCESS("Synthetic demo data created (all names are fictional).")
+        )
+        self.stdout.write(
+            f"{Student.objects.count()} students, {Classroom.objects.count()} classrooms, "
+            f"{Exam.objects.count()} exams, {Attendance.objects.count()} attendance records."
+        )
+        self.stdout.write("Demo password for all accounts: " + self.password)
+        self.stdout.write(
+            "Logins: superadmin, admin.madhapur, principal.madhapur, teacher.madhapur, "
+            "student1.madhapur"
+        )
+        self.stdout.write(
+            "Second branch: admin.benz-circle, principal.benz-circle, teacher.benz-circle, "
+            "student1.benz-circle"
+        )
+        self.stdout.write(
+            "The password is generated for this installation; it is not stored in project files."
+        )
+
+    def account(self, username, first, last, role, branch):
+        user = User(
+            username=username,
+            email=f"{username}@example.invalid",
+            first_name=first,
+            last_name=last,
+            role=role,
+            branch=branch,
+            password=self.password_hash,
+            must_change_password=False,
+        )
+        user.save()
+        return user
+
+    def seed_branch(self, org, index, spec):
+        code, size = spec["code"], self.size
+        branch = Branch.objects.create(
+            organization=org, name=spec["name"], code=code, city=spec["city"]
+        )
+        self.account(f"admin.{code}", *spec["admin"], User.Role.ADMIN, branch)
+        principal = self.account(
+            f"principal.{code}", *spec["principal"], User.Role.PRINCIPAL, branch
+        )
+        teachers = [
+            self.account(f"{key}.{code}", first, last, User.Role.TEACHER, branch)
+            for key, first, last in spec["teachers"][: size.subjects]
+        ]
+        subjects = [
+            Subject.objects.create(branch=branch, name=name, code=name.lower().replace(" ", "-"))
+            for name in SUBJECTS[: size.subjects]
+        ]
+        classrooms = [
+            Classroom.objects.create(
+                branch=branch,
+                year=self.year,
+                grade=grade,
+                section="A",
+                homeroom_teacher=teachers[n % len(teachers)],
+            )
+            for n, grade in enumerate(GRADES[: size.classes])
+        ]
+        for classroom in classrooms:
+            for teacher, subject in zip(teachers, subjects, strict=True):
+                TeachingAssignment.objects.create(
+                    teacher=teacher, classroom=classroom, subject=subject
+                )
+
+        # Each student gets a steady attendance habit and an underlying ability; about 6% are
+        # "at risk" with attendance below 75%.
+        number = 0
+        roster = {}
+        for classroom in classrooms:
+            roster[classroom] = []
+            for _ in range(size.students_per_class):
+                number += 1
+                user = self.account(
+                    f"student{number}.{code}",
+                    self.rng.choice(FIRST_NAMES),
+                    self.rng.choice(LAST_NAMES),
+                    User.Role.STUDENT,
+                    branch,
+                )
+                student = Student.objects.create(
+                    user=user, admission_number=f"GF-{index}{number:03}"
+                )
+                enrollment = Enrollment.objects.create(
+                    student=student,
+                    classroom=classroom,
+                    year=self.year,
+                    joined_on=self.year.starts_on,
+                )
+                at_risk = self.rng.random() < 0.06
+                enrollment.attendance_rate = (
+                    self.rng.uniform(0.62, 0.74) if at_risk else self.rng.uniform(0.88, 0.99)
+                )
+                enrollment.ability = min(max(self.rng.gauss(0.68, 0.13), 0.2), 0.98)
+                roster[classroom].append(enrollment)
+
+        self.progress(f"{spec['name']}: {number} students in {len(classrooms)} classes")
+        self.seed_exams(classrooms, teachers, subjects, roster, principal)
+        self.progress(f"{spec['name']}: exams, marks and results")
+        self.seed_attendance(classrooms, roster)
+        self.progress(f"{spec['name']}: daily registers since {self.history_start:%d %b}")
+
+    def progress(self, message):
+        self.stdout.write(f"  {message}")
+        self.stdout.flush()
+
+    def seed_exams(self, classrooms, teachers, subjects, roster, principal):
+        span = (self.today - self.history_start).days
+        for classroom in classrooms:
+            for position, (teacher, subject) in enumerate(zip(teachers, subjects, strict=True)):
+                difficulty = self.rng.uniform(-0.06, 0.06)
+                for title, max_marks, pass_marks, at in EXAMS:
+                    exam = create_exam(
+                        teacher,
+                        Exam(
+                            classroom=classroom,
+                            subject=subject,
+                            title=title,
+                            date=self.history_start + timedelta(days=round(span * at)),
+                            max_marks=max_marks,
+                            pass_marks=pass_marks,
+                        ),
+                    )
+                    entries = {}
+                    for enrollment in roster[classroom]:
+                        if self.rng.random() < 0.02:
+                            entries[enrollment.pk] = (None, True)
+                            continue
+                        share = enrollment.ability + difficulty + self.rng.gauss(0, 0.07)
+                        score = round(max_marks * min(max(share, 0), 1))
+                        entries[enrollment.pk] = (Decimal(score), False)
+                    save_marks(teacher, exam, entries, exam.version)
+                    exam.refresh_from_db()
+                    # Unit tests are published. The quarterly exam is mid-workflow: every other
+                    # subject awaits the principal's approval, the rest are still drafts.
+                    if title == "Quarterly Exam" and position % 2:
+                        continue
+                    transition_exam(teacher, exam, "submit", exam.version)
+                    if title != "Quarterly Exam":
+                        exam.refresh_from_db()
+                        transition_exam(principal, exam, "publish", exam.version)
+
+    def seed_attendance(self, classrooms, roster):
+        for classroom in classrooms:
+            for day in school_days(self.history_start, self.today):
+                statuses = {}
+                for enrollment in roster[classroom]:
+                    roll = self.rng.random()
+                    if roll > enrollment.attendance_rate:
+                        statuses[enrollment.pk] = Attendance.Status.ABSENT
+                    elif roll > enrollment.attendance_rate - 0.03:
+                        statuses[enrollment.pk] = Attendance.Status.LATE
+                    elif roll > enrollment.attendance_rate - 0.04:
+                        statuses[enrollment.pk] = Attendance.Status.EXCUSED
+                    else:
+                        statuses[enrollment.pk] = Attendance.Status.PRESENT
+                save_register(classroom.homeroom_teacher, classroom, day, statuses, 0)

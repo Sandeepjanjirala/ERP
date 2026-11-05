@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block content %}
+  <div class="callout">
+    {% icon 'lock' %}
+    <div>
+      <strong>An append-only record.</strong>
+      <p>Account access, attendance corrections, mark changes, publications and exports. Records cannot be edited here.</p>
+    </div>
+  </div>
+
+  <section class="card">
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr><th>When</th><th>Who</th><th>Action</th><th>Record</th><th>Details</th></tr>
+        </thead>
+        <tbody>
+          {% for event in page_obj %}
+            <tr>
+              <td>{{ event.created_at|date:"d M Y H:i" }}</td>
+              <td>
+                <strong>{{ event.actor.display_name }}</strong>
+                <small>{{ event.branch.name|default:"Organisation" }}</small>
+              </td>
+              <td><span class="badge">{{ event.action }}</span></td>
+              <td>{{ event.target }}</td>
+              <td>
+                {% if event.details %}
+                  <details>
+                    <summary>View</summary>
+                    <pre class="json">{{ event.details|pretty_json }}</pre>
+                  </details>
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5" class="empty">Activity will appear here as people use {{ brand.name }}.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "components/pagination.html" %}
+  </section>
+{% endblock %}

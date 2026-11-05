@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block content %}
+  <div class="toolbar">
+    {% if user.system_admin %}
+      <a class="btn btn-secondary" href="{% url 'setup_create' 'organization' %}">{% icon 'edit' %}Organisation name</a>
+      <a class="btn btn-secondary" href="{% url 'setup_create' 'branch' %}">{% icon 'plus' %}Branch</a>
+      <a class="btn btn-secondary" href="{% url 'setup_create' 'year' %}">{% icon 'plus' %}Academic year</a>
+    {% endif %}
+    {% if user.is_manager %}
+      <a class="btn" href="{% url 'setup_create' 'classroom' %}">{% icon 'plus' %}Classroom</a>
+      <a class="btn btn-secondary" href="{% url 'setup_create' 'subject' %}">{% icon 'plus' %}Subject</a>
+      <a class="btn btn-secondary" href="{% url 'setup_create' 'assignment' %}">{% icon 'user-check' %}Assign subject teacher</a>
+      <a class="btn btn-secondary" href="{% url 'enrollment_create' %}">{% icon 'users' %}Enrol existing student</a>
+    {% endif %}
+  </div>
+
+  <section class="card">
+    <div class="card-header">
+      <div>
+        <h2>Classrooms</h2>
+        <p>Each classroom belongs to one branch and academic year.</p>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr><th>Class</th><th>Branch</th><th>Academic year</th><th>Daily attendance teacher</th><th class="num">Enrolments</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for classroom in classrooms %}
+            <tr>
+              <td><strong>{{ classroom.grade }}–{{ classroom.section }}</strong></td>
+              <td>{{ classroom.branch.name }}</td>
+              <td>{{ classroom.year.name }}</td>
+              <td>{{ classroom.homeroom_teacher.display_name|default:"Unassigned" }}</td>
+              <td class="num">{{ classroom.student_count }}</td>
+              <td>{% if user.is_manager %}<a href="{% url 'setup_edit' 'classroom' classroom.pk %}">Edit</a>{% endif %}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="empty">Start with a branch, academic year, teacher account and classroom.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="grid-two">
+    <section class="card">
+      <h2>Subject assignments</h2>
+      <div class="list">
+        {% for assignment in assignments %}
+          <div class="list-item">
+            <span class="subject-icon" aria-hidden="true">{{ assignment.subject.name|first }}</span>
+            <div class="list-item-body">
+              <strong>{{ assignment.subject.name }} · {{ assignment.classroom.grade }}–{{ assignment.classroom.section }}</strong>
+              <p>{{ assignment.teacher.display_name }} · {{ assignment.classroom.branch.name }} · {{ assignment.classroom.year.name }}</p>
+            </div>
+            {% if user.is_manager %}<a href="{% url 'setup_edit' 'assignment' assignment.pk %}">Change teacher</a>{% endif %}
+          </div>
+        {% empty %}
+          <p class="empty">Assign teachers to a classroom and subject to enable mark entry.</p>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Academic years</h2>
+      <div class="list">
+        {% for year in years %}
+          <div class="list-item">
+            <div class="list-item-body">
+              <strong>{{ year.name }}</strong>
+              <p>{{ year.starts_on|date:"d M Y" }} — {{ year.ends_on|date:"d M Y" }}</p>
+            </div>
+          </div>
+        {% empty %}
+          <p class="empty">No academic years yet.</p>
+        {% endfor %}
+      </div>
+
+      <h2 class="section-title">Subjects</h2>
+      <div class="chips">
+        {% for subject in subjects %}
+          <span class="chip">
+            {{ subject.name }} · {{ subject.branch.name }}
+            {% if user.is_manager %}<a href="{% url 'setup_edit' 'subject' subject.pk %}">Edit</a>{% endif %}
+          </span>
+        {% empty %}
+          <p>Add branch subjects to get started.</p>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+{% endblock %}

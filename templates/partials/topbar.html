@@ -1,0 +1,21 @@
+{% load ui %}
+<header class="topbar">
+  <button class="icon-button menu-button" id="menu-toggle" type="button" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">
+    {% icon 'menu' %}
+  </button>
+  <nav class="breadcrumb" aria-label="Breadcrumb">
+    <span>{{ organization.name|default:"Workspace" }}</span>
+    {% icon 'chevron-right' %}
+    <span aria-current="page">{{ title }}</span>
+  </nav>
+  <div class="topbar-actions">
+    <button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="Dark mode" aria-pressed="false">
+      {% icon 'moon' css='icon-moon' %}{% icon 'sun' css='icon-sun' %}
+    </button>
+    <a class="topbar-link" href="{% url 'password_change' %}">{% icon 'key' %}<span>Password</span></a>
+    <form action="{% url 'logout' %}" method="post">
+      {% csrf_token %}
+      <button class="topbar-link" type="submit">{% icon 'log-out' %}<span>Sign out</span></button>
+    </form>
+  </div>
+</header>

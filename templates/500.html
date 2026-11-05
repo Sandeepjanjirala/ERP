@@ -1,0 +1,23 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Something went wrong · EduNexa</title>
+  {% comment %}Rendered without context or database access, so it relies on nothing but static files.{% endcomment %}
+  <link rel="stylesheet" href="{% static 'css/tokens.css' %}">
+  <link rel="stylesheet" href="{% static 'css/base.css' %}">
+  <link rel="stylesheet" href="{% static 'css/layout.css' %}">
+  <link rel="stylesheet" href="{% static 'css/components.css' %}">
+</head>
+<body>
+  <main class="auth-panel" style="min-height: 100vh">
+    <div class="auth-box">
+      <p class="eyebrow">EduNexa</p>
+      <h2>Something went wrong.</h2>
+      <p>The error has been logged. Please try again in a moment.</p>
+      <a class="btn" href="/">Return to EduNexa</a>
+    </div>
+  </main>
+</body>
+</html>

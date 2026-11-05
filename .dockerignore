@@ -6,3 +6,7 @@ db.sqlite3*
 staticfiles
 demo-accounts.txt
 *.zip
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov

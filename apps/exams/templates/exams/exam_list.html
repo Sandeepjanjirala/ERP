@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block actions %}
+  {% if can_create %}
+    <a class="btn" href="{% url 'exam_create' %}">{% icon 'plus' %}Create exam</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  <nav class="tabs" aria-label="Filter exams by status">
+    <a href="{% url 'exams' %}"{% if not status %} aria-current="page"{% endif %}>All exams</a>
+    {% for value, label in status_tabs %}
+      <a href="?status={{ value }}"{% if status == value %} aria-current="page"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </nav>
+
+  <section class="card">
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr><th>Assessment</th><th>Classroom</th><th>Date</th><th class="num">Marks</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for exam in page_obj %}
+            <tr>
+              <td><strong>{{ exam.title }}</strong><small>{{ exam.subject.name }}</small></td>
+              <td>
+                {{ exam.classroom.grade }}–{{ exam.classroom.section }}
+                <small>{{ exam.classroom.branch.name }} · {{ exam.classroom.year.name }}</small>
+              </td>
+              <td>{{ exam.date|date:"d M Y" }}</td>
+              <td class="num">{{ exam.max_marks }}<small>Pass: {{ exam.pass_marks }}</small></td>
+              <td><span class="badge badge-{{ exam.status }}">{{ exam.get_status_display }}</span></td>
+              <td><a href="{% url 'exam_detail' exam.pk %}">Open {% icon 'arrow-right' %}</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="empty">No assessments available in this view.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "components/pagination.html" %}
+  </section>
+{% endblock %}

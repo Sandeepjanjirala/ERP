@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block actions %}
+  <span class="badge badge-{{ exam.status }}">{{ exam.get_status_display }}</span>
+{% endblock %}
+
+{% block content %}
+  <div class="meta-line">
+    <span>{% icon 'book' %}{{ exam.subject.name }} · {{ exam.classroom.grade }}–{{ exam.classroom.section }}</span>
+    <span>{% icon 'map-pin' %}{{ exam.classroom.branch.name }}</span>
+    <span>{% icon 'calendar' %}{{ exam.date|date:"d M Y" }}</span>
+    <span>{% icon 'award' %}Maximum {{ exam.max_marks }} · Pass mark {{ exam.pass_marks }}</span>
+  </div>
+
+  <section class="card">
+    <div class="card-header">
+      <div>
+        <h2>Student mark sheet</h2>
+        <p>{{ summary.count }} marks recorded. Save your marks before submitting the exam.</p>
+      </div>
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save">
+      {{ form.version }}
+      {{ form.non_field_errors }}
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr><th>Student</th><th>Admission no.</th><th>Score / {{ exam.max_marks }}</th><th>Absent</th></tr>
+          </thead>
+          <tbody>
+            {% for enrollment, score, absent in form.rows %}
+              <tr>
+                <td><label for="{{ score.id_for_label }}">{{ enrollment.student.user.display_name }}</label></td>
+                <td>{{ enrollment.student.admission_number }}</td>
+                <td>{{ score }}{{ score.errors }}</td>
+                <td><label class="checkbox">{{ absent }}<span>Absent</span></label></td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4" class="empty">No students enrolled on the exam date.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if can_write %}
+        <div class="form-footer">
+          <p class="footnote">Leave a blank score for unfinished entries. Use Absent only when the student did not take the exam.</p>
+          <button class="btn" type="submit">Save draft marks</button>
+        </div>
+      {% endif %}
+    </form>
+  </section>
+
+  {% if can_submit or can_publish or can_reopen %}
+    <div class="workflow">
+      {% if can_submit %}
+        <form method="post" class="card" data-confirm="Submit these saved marks for principal review?">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="submit">
+          <input type="hidden" name="version" value="{{ exam.version }}">
+          <h2>Submit for review</h2>
+          <p>Submitted marks are locked until the principal publishes them or reopens the exam.</p>
+          <button class="btn" type="submit">{% icon 'send' %}Submit saved marks for review</button>
+        </form>
+      {% endif %}
+      {% if can_publish %}
+        <form method="post" class="card" data-confirm="Publish these results to students?">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="publish">
+          <input type="hidden" name="version" value="{{ exam.version }}">
+          <h2>Approve and publish</h2>
+          <p>Students see their own results as soon as you publish.</p>
+          <button class="btn" type="submit">{% icon 'award' %}Approve &amp; publish results</button>
+        </form>
+      {% endif %}
+      {% if can_reopen %}
+        <form method="post" class="card">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="reopen">
+          <input type="hidden" name="version" value="{{ exam.version }}">
+          <h2><label for="reason">Reopen for correction</label></h2>
+          <p>Reopening hides results from students until they are reviewed and published again.</p>
+          <div class="form-stack">
+            <div><input id="reason" name="reason" required maxlength="250" placeholder="Why does this assessment need correction?"></div>
+          </div>
+          <button class="btn btn-secondary" type="submit">{% icon 'rotate' %}Reopen exam</button>
+        </form>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endblock %}

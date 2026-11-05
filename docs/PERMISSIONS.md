@@ -33,8 +33,10 @@ After eight login attempts for the same normalized username in a 15-minute windo
 
 ## Implementation references
 
-- `school/permissions.py`: branch, class, student, exam and attendance scopes.
-- `school/services.py`: checks again before changing records; database transactions and row locks.
-- `school/forms.py`: only permitted branches and objects are valid choices.
-- `school/tests.py`: forged requests, scope isolation, locked marks, sessions, and concurrent-write tests.
+- `apps/*/selectors.py`: branch, classroom, student, enrollment, exam and attendance scopes.
+- `apps/*/policies.py`: `can_attend`, `can_mark`, `can_publish`, `can_manage_account`, `can_change_access`.
+- `apps/accounts/decorators.py`: `role_required`, with role groups `User.STAFF`, `User.MANAGERS` and `User.LEADERS`.
+- `apps/*/services.py`: check the policy again before changing records; database transactions and row locks.
+- `apps/*/forms.py`: only permitted branches and objects are valid choices.
+- `apps/*/tests/`: forged requests, scope isolation, the account permission matrix (`apps/accounts/tests/test_policies.py`), locked marks, sessions, and concurrent-write tests on PostgreSQL.
 - Django authentication documentation: https://docs.djangoproject.com/en/5.2/topics/auth/default/

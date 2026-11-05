@@ -1,0 +1,44 @@
+[project]
+name = "edunexa"
+version = "0.1.0"
+description = "School ERP for school groups with many branches, built with Django."
+readme = "README.md"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["**/migrations/*.py"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",  # pycodestyle
+    "F",       # pyflakes: unused imports, undefined names
+    "I",       # import sorting
+    "B",       # likely bugs
+    "UP",      # modern Python syntax
+    "DJ",      # Django conventions
+]
+# The formatter wraps code; long user-facing message strings are allowed.
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Environment settings modules build on base.py with a star import by design.
+"config/settings/*.py" = ["F403", "F405"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["apps", "config"]
+
+[tool.pytest.ini_options]
+python_files = ["tests.py", "test_*.py"]
+# --ds wins over a DJANGO_SETTINGS_MODULE already set in the shell or container.
+addopts = "-ra --strict-markers --ds=config.settings.test"
+
+[tool.coverage.run]
+source = ["apps", "config"]
+branch = true
+omit = ["*/migrations/*", "*/tests/*", "apps/core/testing.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

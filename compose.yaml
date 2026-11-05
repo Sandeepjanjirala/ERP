@@ -2,13 +2,13 @@ services:
   db:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: vidya
-      POSTGRES_USER: vidya
+      POSTGRES_DB: edunexa
+      POSTGRES_USER: edunexa
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run setup_local.py or configure .env first}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U vidya -d vidya"]
+      test: ["CMD-SHELL", "pg_isready -U edunexa -d edunexa"]
       interval: 5s
       timeout: 5s
       retries: 15
@@ -16,7 +16,8 @@ services:
     build: .
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://vidya:${POSTGRES_PASSWORD}@db:5432/vidya?sslmode=disable
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      DATABASE_URL: postgresql://edunexa:${POSTGRES_PASSWORD}@db:5432/edunexa?sslmode=disable
     depends_on:
       db:
         condition: service_healthy

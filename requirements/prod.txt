@@ -1,0 +1,3 @@
+# Production image: runtime dependencies plus the application server.
+-r base.txt
+gunicorn==25.3.0; sys_platform != 'win32'

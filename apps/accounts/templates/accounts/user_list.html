@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block actions %}
+  {% if user.is_manager %}
+    <a class="btn" href="{% url 'user_create' %}">{% icon 'plus' %}Staff account</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  <div class="callout">
+    {% icon 'user-check' %}
+    <div>
+      <strong>Access follows responsibility.</strong>
+      <p>Branch admins manage teachers and students in their branch. Only super admins create principal and branch-admin accounts.</p>
+    </div>
+  </div>
+
+  <section class="card">
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr><th>Name</th><th>Role</th><th>Branch</th><th>Status</th><th>Access</th></tr>
+        </thead>
+        <tbody>
+          {% for person in page_obj %}
+            <tr>
+              <td>
+                <strong>{{ person.display_name }}</strong>
+                <small>{{ person.username }}</small>
+              </td>
+              <td>{{ person.get_role_display }}</td>
+              <td>{{ person.branch.name|default:"Organisation" }}</td>
+              <td>
+                {% if person.is_active %}
+                  <span class="badge badge-success">Active</span>
+                {% else %}
+                  <span class="badge">Inactive</span>
+                {% endif %}
+              </td>
+              <td>
+                <div class="row-actions">
+                  {% if person.can_edit %}
+                    <a href="{% url 'user_edit' person.pk %}">{% icon 'edit' %} Edit details</a>
+                  {% endif %}
+                  {% if person.can_toggle %}
+                    <form method="post" action="{% url 'toggle_user' person.pk %}" data-confirm="Change this account’s access?">
+                      {% csrf_token %}
+                      <button class="link-button" type="submit">{% if person.is_active %}Deactivate{% else %}Reactivate{% endif %}</button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5" class="empty">No branch accounts yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "components/pagination.html" %}
+  </section>
+{% endblock %}
