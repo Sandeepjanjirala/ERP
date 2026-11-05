@@ -7,6 +7,7 @@ from django.db.models import Q
 from apps.academics.models import TeachingAssignment
 from apps.academics.selectors import classrooms
 from apps.accounts.models import User
+from apps.students.selectors import roster
 
 from .models import Exam
 
@@ -28,6 +29,17 @@ def exams(user):
             condition |= Q(classroom_id=row["classroom_id"], subject_id=row["subject_id"])
         return qs.filter(condition).distinct()
     return qs
+
+
+def mark_sheet(exam):
+    """The students on the class list on the exam date, and their saved marks by enrollment id."""
+    return {
+        "roster": list(roster(exam.classroom, exam.date)),
+        "marks": {
+            m.enrollment_id: m
+            for m in exam.marks.select_related("enrollment__student__user", "exam")
+        },
+    }
 
 
 def mark_summary(marks):

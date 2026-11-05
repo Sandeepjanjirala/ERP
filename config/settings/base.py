@@ -230,6 +230,11 @@ SPECTACULAR_SETTINGS = {
     "SWAGGER_UI_DIST": "SIDECAR",
     "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
     "REDOC_DIST": "SIDECAR",
+    # Two models have a "status" field; give each set of choices its own name in the docs.
+    "ENUM_NAME_OVERRIDES": {
+        "AttendanceStatusEnum": "apps.attendance.models.Attendance.Status",
+        "ExamStatusEnum": "apps.exams.models.Exam.Status",
+    },
 }
 
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 3000
