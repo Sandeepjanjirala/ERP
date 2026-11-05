@@ -19,5 +19,7 @@ STORAGES = {
 # Serve static files without requiring collectstatic first.
 WHITENOISE_AUTOREFRESH = True
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+# The API accepts JSON only, so DRF's test client sends JSON unless told otherwise.
+REST_FRAMEWORK = {**REST_FRAMEWORK, "TEST_REQUEST_DEFAULT_FORMAT": "json"}
 # A fast hash for test accounts only. Real environments keep Django's default PBKDF2.
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]

@@ -27,8 +27,13 @@ def create_account(actor, user, password):
 def change_password(user, current_password, new_password):
     """The owner replaces their password, which also completes a forced first-login change."""
     if not user.check_password(current_password):
-        raise ValidationError("Your current password was entered incorrectly.")
-    validate_password(new_password, user=user)
+        raise ValidationError(
+            {"current_password": "Your current password was entered incorrectly."}
+        )
+    try:
+        validate_password(new_password, user=user)
+    except ValidationError as exc:
+        raise ValidationError({"new_password": exc.messages}) from None
     user.set_password(new_password)
     user.must_change_password = False
     user.save(update_fields=["password", "must_change_password"])

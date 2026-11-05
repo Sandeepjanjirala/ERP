@@ -9,6 +9,7 @@ Values come from environment variables. A local .env file fills in any that are 
 """
 
 import os
+from datetime import timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -75,6 +76,11 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django_filters",
+    "drf_spectacular",
+    "drf_spectacular_sidecar",
+    "rest_framework",
+    "rest_framework_simplejwt.token_blacklist",
     # Domain apps, lowest layer first. An app may import only from apps above it in this list.
     "apps.core",
     "apps.organization",
@@ -173,6 +179,58 @@ EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "1") == "1"
 EMAIL_TIMEOUT = 15
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "EduNexa <noreply@example.com>")
+
+# REST API (/api/v1/). Apps and scripts send a JWT; the browsable API in development uses the
+# normal sign-in session. Errors share one JSON shape (apps/core/api/exceptions.py).
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": ["apps.core.api.permissions.IsSignedIn"],
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+    "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
+    "DEFAULT_PAGINATION_CLASS": "apps.core.api.pagination.PageNumberPagination",
+    "DEFAULT_FILTER_BACKENDS": [
+        "django_filters.rest_framework.DjangoFilterBackend",
+        "rest_framework.filters.SearchFilter",
+        "rest_framework.filters.OrderingFilter",
+    ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "EXCEPTION_HANDLER": "apps.core.api.exceptions.exception_handler",
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {"anon": "60/minute", "user": "600/minute"},
+}
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    # Each refresh returns a new refresh token and blacklists the old one, so a stolen refresh
+    # token stops working as soon as the real app uses it.
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    # Tokens carry a fingerprint of the password hash: changing a password revokes them all.
+    "CHECK_REVOKE_TOKEN": True,
+    "UPDATE_LAST_LOGIN": True,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
+SPECTACULAR_SETTINGS = {
+    "TITLE": f"{BRAND['name']} API",
+    "DESCRIPTION": (
+        "REST API for the EduNexa school ERP. Sign in with `POST /api/v1/auth/token/`, then send "
+        "`Authorization: Bearer <access token>`. Every list is limited to the records the signed-in "
+        "user may see; records outside that scope return 404."
+    ),
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SCHEMA_PATH_PREFIX": "/api/v1",
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SWAGGER_UI_DIST": "SIDECAR",
+    "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
+    "REDOC_DIST": "SIDECAR",
+}
 
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 3000
 DATA_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024

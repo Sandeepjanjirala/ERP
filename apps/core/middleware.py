@@ -15,6 +15,8 @@ class SecurityHeadersMiddleware:
         response["Content-Security-Policy"] = self.CONTENT_SECURITY_POLICY
         response["Referrer-Policy"] = "same-origin"
         response["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-        if request.user.is_authenticated:
+        # API callers authenticate with a token the middleware can't see, so API responses
+        # (which may contain tokens or private records) are never cached either.
+        if request.user.is_authenticated or request.path.startswith("/api/"):
             response["Cache-Control"] = "no-store, private"
         return response

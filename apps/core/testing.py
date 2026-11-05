@@ -6,9 +6,11 @@ from decimal import Decimal
 from threading import Barrier
 from unittest import skipUnless
 
+from django.core.cache import cache
 from django.db import close_old_connections, connection, connections
 from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
+from rest_framework.test import APIClient
 
 from apps.academics.models import AcademicYear, Classroom, Subject, TeachingAssignment
 from apps.accounts.models import User
@@ -137,6 +139,31 @@ class SchoolTestCase(TestCase):
         transition_exam(self.principal, exam, "publish", exam.version)
         exam.refresh_from_db()
         return exam
+
+
+class ApiTestCase(SchoolTestCase):
+    """SchoolTestCase with DRF's test client, which sends and parses JSON."""
+
+    client_class = APIClient
+
+    def setUp(self):
+        super().setUp()
+        cache.clear()  # DRF's rate limits count requests in the cache
+
+    def as_user(self, user):
+        """Authenticate every following request as `user`, skipping the token round trip."""
+        self.client.force_authenticate(user)
+
+    def sign_in_api(self, user, password=PASSWORD):
+        """Real sign-in through POST /api/v1/auth/token/; returns the token pair."""
+        response = self.client.post(
+            "/api/v1/auth/token/", {"username": user.username, "password": password}
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        return response.json()
+
+    def bearer(self, access):
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
 
 
 @skipUnless(
