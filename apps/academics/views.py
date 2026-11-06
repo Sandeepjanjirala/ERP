@@ -13,6 +13,7 @@ from apps.organization.selectors import branches
 
 from .forms import AssignmentForm, ClassroomForm, SubjectForm, YearForm
 from .models import AcademicYear
+from .policies import GROUP_LEVEL, can_manage_setup
 from .selectors import assignments, classrooms, subjects
 from .services import save_setup_record, update_setup_record
 
@@ -41,13 +42,14 @@ SETUP_FORMS = {
     "subject": SubjectForm,
     "assignment": AssignmentForm,
 }
-# Records that belong to the whole school group, not one branch: super admins only.
-GROUP_LEVEL = ("organization", "branch", "year")
 
 
 @role_required(*User.MANAGERS)
 def setup_create(request, kind):
-    if kind not in SETUP_FORMS or (kind in GROUP_LEVEL and not request.user.system_admin):
+    # Branch records are checked again in the service, once the form says which branch.
+    if kind not in SETUP_FORMS or (
+        kind in GROUP_LEVEL and not can_manage_setup(request.user, kind)
+    ):
         raise PermissionDenied
     options = {} if kind in GROUP_LEVEL else {"actor": request.user}
     if kind == "organization":

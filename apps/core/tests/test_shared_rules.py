@@ -8,6 +8,8 @@ from datetime import timedelta
 
 from django.core.exceptions import PermissionDenied, ValidationError
 
+from apps.academics.models import AcademicYear, Subject, TeachingAssignment
+from apps.academics.services import save_setup_record, update_setup_record
 from apps.accounts.models import User
 from apps.accounts.policies import staff_roles_for
 from apps.accounts.services import change_password, create_account
@@ -16,6 +18,7 @@ from apps.core.testing import PASSWORD, SchoolTestCase
 from apps.exams.models import Exam
 from apps.exams.policies import can_create_exam
 from apps.exams.services import create_exam
+from apps.organization.models import Branch
 from apps.students.models import Enrollment, Student
 from apps.students.services import admit_student, enroll
 
@@ -98,6 +101,49 @@ class AttendanceDateRuleTests(SchoolTestCase):
         self.assertIn(
             "academic year", register_date_error(self.c, self.year.starts_on - timedelta(days=1))
         )
+
+
+class SetupRuleTests(SchoolTestCase):
+    def test_who_may_save_setup_records(self):
+        cases = [
+            # (actor, kind, record, allowed)
+            (
+                self.root,
+                "year",
+                AcademicYear(
+                    name="Y2", starts_on=self.today, ends_on=self.today + timedelta(days=200)
+                ),
+                True,
+            ),
+            (
+                self.admin,
+                "year",
+                AcademicYear(
+                    name="Y3", starts_on=self.today, ends_on=self.today + timedelta(days=200)
+                ),
+                False,
+            ),
+            (self.admin, "branch", Branch(name="East", code="east", city="Guntur"), False),
+            (self.admin, "subject", Subject(branch=self.a, name="History", code="history"), True),
+            (self.admin, "subject", Subject(branch=self.b, name="History", code="history"), False),
+            (self.principal, "subject", Subject(branch=self.a, name="Art", code="art"), False),
+            (self.root, "subject", Subject(branch=self.b, name="Art", code="art"), True),
+        ]
+        for actor, kind, record, allowed in cases:
+            with self.subTest(actor=actor.username, kind=kind, record=str(record)):
+                if allowed:
+                    save_setup_record(actor, kind, record)
+                    self.assertIsNotNone(record.pk)
+                else:
+                    with self.assertRaises(PermissionDenied):
+                        save_setup_record(actor, kind, record)
+                    self.assertIsNone(record.pk)
+
+    def test_edits_are_checked_against_the_records_branch(self):
+        assignment = TeachingAssignment.objects.get(subject=self.foreign_subject)
+        assignment.teacher = self.foreign_teacher
+        with self.assertRaises(PermissionDenied):
+            update_setup_record(self.admin, "assignment", assignment, str(assignment), ["teacher"])
 
 
 class EnrollmentRuleTests(SchoolTestCase):

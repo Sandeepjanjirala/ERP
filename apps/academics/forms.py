@@ -1,6 +1,6 @@
 from django import forms
 
-from apps.accounts.models import User
+from apps.accounts.selectors import teachers
 from apps.core.forms import DateInput
 from apps.organization.selectors import branches
 
@@ -23,9 +23,7 @@ class ClassroomForm(forms.ModelForm):
     def __init__(self, *args, actor, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["branch"].queryset = branches(actor)
-        self.fields["homeroom_teacher"].queryset = User.objects.filter(
-            branch__in=branches(actor), role=User.Role.TEACHER, is_active=True
-        )
+        self.fields["homeroom_teacher"].queryset = teachers(actor)
         if not actor.system_admin:
             self.fields["branch"].initial = actor.branch_id
 
@@ -49,8 +47,6 @@ class AssignmentForm(forms.ModelForm):
 
     def __init__(self, *args, actor, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["teacher"].queryset = User.objects.filter(
-            branch__in=branches(actor), role=User.Role.TEACHER, is_active=True
-        )
+        self.fields["teacher"].queryset = teachers(actor)
         self.fields["classroom"].queryset = classrooms(actor)
         self.fields["subject"].queryset = subjects(actor)
