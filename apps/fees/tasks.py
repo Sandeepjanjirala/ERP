@@ -1,5 +1,8 @@
+from datetime import date
+
 from celery import shared_task
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.communication.models import Notification
@@ -9,6 +12,7 @@ from apps.students.selectors import family
 
 from .models import Invoice, Payment, rupees
 from .pdf import receipt_filename, render_receipt
+from .selectors import overdue
 
 
 @shared_task
@@ -23,6 +27,31 @@ def notify_invoices_issued(invoice_ids):
             f"New fee invoice: {invoice.title}",
             f"{rupees(invoice.total_paise)} for {invoice.student.user.display_name}, "
             f"due {invoice.due_on:%d %b %Y}.",
+            url=reverse("invoice_detail", args=[invoice.pk]),
+            email=True,
+        )
+    return sent
+
+
+@shared_task
+def remind_overdue_invoices(today=None):
+    """Daily: remind families of invoices past their due date, at most once a week each.
+
+    The key names the invoice and the ISO week, so running it again (or every day) sends nothing
+    more until the next week. `today` (YYYY-MM-DD) is for tests and catch-up runs.
+    """
+    today = date.fromisoformat(today) if today else timezone.localdate()
+    iso_year, week, _ = today.isocalendar()
+    sent = 0
+    late = overdue(Invoice.objects.select_related("student__user"), today).order_by("pk")
+    for invoice in late.iterator():
+        sent += notify(
+            family(Student.objects.filter(pk=invoice.student_id)),
+            Notification.Kind.FEES,
+            f"reminder:{invoice.pk}:{iso_year}-W{week:02d}",
+            f"Fee overdue: {invoice.title}",
+            f"{rupees(invoice.balance_paise)} is still owed for "
+            f"{invoice.student.user.display_name}. It was due {invoice.due_on:%d %b %Y}.",
             url=reverse("invoice_detail", args=[invoice.pk]),
             email=True,
         )

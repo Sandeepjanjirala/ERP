@@ -171,6 +171,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.accounts.tasks.flush_expired_tokens",
         "schedule": crontab(hour=3, minute=15),
     },
+    "remind-overdue-fees": {
+        "task": "apps.fees.tasks.remind_overdue_invoices",
+        "schedule": crontab(hour=9, minute=0),
+    },
 }
 # Online fee payments. Razorpay runs in test mode only; without its keys the built-in Sandbox
 # gateway takes payments, so tests and the demo never depend on Razorpay or on real money.
