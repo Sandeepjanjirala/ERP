@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block actions %}
+  {% if can_post %}
+    <a class="btn" href="{% url 'announcement_create' %}">{% icon 'plus' %}New announcement</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  {% for announcement in page_obj %}
+    <article class="card announcement" id="announcement-{{ announcement.pk }}">
+      <div class="card-header">
+        <div>
+          <h2>{{ announcement.title }}</h2>
+          <p>
+            {{ announcement.created_at|date:"d M Y, H:i" }} · {{ announcement.author.display_name }} ·
+            {% if announcement.classroom %}{{ announcement.classroom.grade }}–{{ announcement.classroom.section }}{% else %}{{ announcement.get_audience_display }}{% endif %}
+            · {{ announcement.branch.name|default:"Every branch" }}
+          </p>
+        </div>
+      </div>
+      <p class="announcement-body">{{ announcement.body|linebreaksbr }}</p>
+    </article>
+  {% empty %}
+    <section class="card"><p class="empty">No announcements yet.</p></section>
+  {% endfor %}
+  {% include "components/pagination.html" %}
+{% endblock %}

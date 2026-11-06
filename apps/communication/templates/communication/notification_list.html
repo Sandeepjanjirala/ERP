@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block actions %}
+  {% if unread_notifications %}
+    <form method="post">
+      {% csrf_token %}
+      <button class="btn btn-secondary" type="submit">{% icon 'check' %}Mark all as read</button>
+    </form>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <ul class="notification-list">
+      {% for notification in page_obj %}
+        <li class="{% if not notification.read_at %}is-unread{% endif %}">
+          <form method="post" action="{% url 'notification_open' notification.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="notification">
+              <span class="badge">{{ notification.get_kind_display }}</span>
+              <strong>{{ notification.title }}</strong>
+              {% if notification.body %}<span>{{ notification.body|truncatechars:160 }}</span>{% endif %}
+              <small>{{ notification.created_at|timesince }} ago{% if not notification.read_at %} · <span class="unread-dot">New</span>{% endif %}</small>
+            </button>
+          </form>
+        </li>
+      {% empty %}
+        <li><p class="empty">Nothing here yet. Absence alerts, results and announcements appear here.</p></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% include "components/pagination.html" %}
+{% endblock %}

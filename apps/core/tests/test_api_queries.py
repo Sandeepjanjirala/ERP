@@ -19,6 +19,8 @@ from apps.academics.tests.factories import (
 from apps.accounts.models import User
 from apps.accounts.tests.factories import UserFactory
 from apps.audit.services import audit
+from apps.communication.models import Announcement
+from apps.communication.services import notify
 from apps.exams.tests.factories import ExamFactory
 from apps.students.tests.factories import EnrollmentFactory
 
@@ -95,6 +97,24 @@ class QueryCountTests(TestCase):
                 audit(self.admin, self.branch, "test.event", f"event {i}")
 
         self.assert_constant("/api/v1/activity/?page_size=100", events)
+
+    def test_announcements_and_notifications(self):
+        def posts(n):
+            for i in range(n):
+                Announcement.objects.create(
+                    branch=self.branch,
+                    audience="everyone",
+                    title=f"News {i}",
+                    body="x",
+                    author=self.admin,
+                )
+
+        def bells(n):
+            for i in range(n):
+                notify([self.admin], "results", f"results:{self.admin.pk}:{i}:{n}", f"Result {i}")
+
+        self.assert_constant("/api/v1/announcements/?page_size=100", posts)
+        self.assert_constant("/api/v1/notifications/?page_size=100", bells)
 
     def test_dashboard(self):
         # The dashboard lists up to 12 classes: 1 + 2 + 8 = 11 stays under that cap.

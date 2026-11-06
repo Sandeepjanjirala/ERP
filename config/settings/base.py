@@ -70,6 +70,8 @@ CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
 # Product identity: the one name in page titles, navigation, emails and docs. A school's own
 # name is data (the Organization record) and appears only where it belongs, such as reports.
 BRAND = {"name": "EduNexa", "tagline": "School ERP"}
+# The address people use to open EduNexa, for links in emails (no trailing slash).
+SITE_URL = os.getenv("SITE_URL", "http://localhost:8000").rstrip("/")
 
 INSTALLED_APPS = [
     "django.contrib.auth",
@@ -89,6 +91,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.academics",
     "apps.students",
+    "apps.communication",
     "apps.attendance",
     "apps.exams",
     "apps.reports",
@@ -120,6 +123,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "apps.core.context_processors.brand",
                 "apps.organization.context_processors.workspace",
+                "apps.communication.context_processors.notifications",
             ]
         },
     }

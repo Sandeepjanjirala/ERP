@@ -38,6 +38,9 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("/api/v1/years/", ALL),
             ("/api/v1/classrooms/", ALL),
             ("/api/v1/exams/", ALL),
+            ("/api/v1/announcements/", ALL),
+            ("/api/v1/notifications/", ALL),
+            ("/api/v1/notifications/unread-count/", ALL),
             (f"/api/v1/students/{self.e1.student.pk}/report/", ALL),
             ("/api/v1/subjects/", STAFF),
             ("/api/v1/students/", STAFF),
@@ -67,6 +70,8 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("post", "/api/v1/years/", WRITE_MANAGERS),
             ("patch", "/api/v1/organization/", (200, 403, 403, 403, 403, 403)),
             ("post", "/api/v1/exams/", (400, 400, 403, 400, 403, 403)),
+            ("post", "/api/v1/announcements/", (400, 400, 400, 400, 403, 403)),
+            ("post", "/api/v1/notifications/read-all/", (200, 200, 200, 200, 200, 200)),
             (
                 "put",
                 f"/api/v1/classrooms/{self.c.pk}/register/",
