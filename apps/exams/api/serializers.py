@@ -3,20 +3,10 @@ from rest_framework import serializers
 from apps.academics.api.serializers import ClassroomSummarySerializer, SubjectSerializer
 from apps.academics.selectors import classrooms, subjects
 from apps.accounts.api.serializers import UserSummarySerializer
+from apps.core.api.fields import ScopedPrimaryKeyField
 
 from ..models import Exam
 from ..policies import exam_actions
-
-
-class ScopedPrimaryKeyField(serializers.PrimaryKeyRelatedField):
-    """An id that must be one of the caller's records, from a selector (else "does not exist")."""
-
-    def __init__(self, selector, **kwargs):
-        self.selector = selector
-        super().__init__(**kwargs)
-
-    def get_queryset(self):
-        return self.selector(self.context["request"].user)
 
 
 class ExamSerializer(serializers.ModelSerializer):
