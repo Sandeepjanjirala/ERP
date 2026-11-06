@@ -1,7 +1,7 @@
 """Announcements reach exactly their audience; notifications are delivered once; the bell works."""
 
 from django.core import mail
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.urls import reverse
 
 from apps.accounts.models import User
@@ -207,3 +207,19 @@ class LateAccountTests(SchoolTestCase):
             publish_announcement(self.principal, announcement)
         User.objects.create_user("late", "late@example.com", PASSWORD, role="parent", branch=self.a)
         self.assertEqual(recipients(announcement), {"parent"})
+
+
+class AnnouncementRuleTests(SchoolTestCase):
+    def test_class_and_classroom_go_together_within_the_branch(self):
+        cases = [
+            ({"audience": "class"}, "Choose the class"),
+            ({"audience": "parents", "classroom": self.c}, "only chosen for a class"),
+            ({"audience": "class", "classroom": self.foreign_class}, "in this branch"),
+        ]
+        for fields, message in cases:
+            with self.subTest(fields=fields):
+                announcement = Announcement(
+                    branch=self.a, title="x", body="y", author=self.root, **fields
+                )
+                with self.assertRaisesMessage(ValidationError, message):
+                    announcement.full_clean()

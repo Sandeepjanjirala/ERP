@@ -233,3 +233,34 @@ class SessionLockTests(LeaveTestCase):
             )
         self.assertEqual(Attendance.objects.get(session=session, enrollment=self.e1).status, "E")
         self.assertEqual(AttendanceSession.objects.get(pk=session.pk).version, 2)
+
+
+class LeaveWebErrorTests(LeaveTestCase):
+    def test_errors_are_shown_not_raised(self):
+        self.ask()  # today and tomorrow
+        self.client.force_login(self.parent)
+        overlap = self.client.post(
+            reverse("leave_create"),
+            {
+                "student": self.e1.student.pk,
+                "starts_on": self.today.isoformat(),
+                "ends_on": self.today.isoformat(),
+                "reason": "Again",
+            },
+        )
+        self.assertContains(overlap, "overlap another request")
+
+        leave = LeaveRequest.objects.get()
+        self.client.force_login(self.teacher)
+        url = reverse("leave_decide", args=[leave.pk])
+        no_reason = self.client.post(url, {"decision": "reject", "note": ""}, follow=True)
+        self.assertContains(no_reason, "Say why the request is not approved")
+        nonsense = self.client.post(url, {"decision": "maybe"}, follow=True)
+        self.assertContains(nonsense, "Choose approve or not approve")
+        leave.refresh_from_db()
+        self.assertEqual(leave.status, "pending")
+
+        pending = self.client.get(reverse("leave_requests") + "?status=pending")
+        self.assertEqual(list(pending.context["page_obj"]), [leave])
+        approved = self.client.get(reverse("leave_requests") + "?status=approved")
+        self.assertEqual(list(approved.context["page_obj"]), [])
