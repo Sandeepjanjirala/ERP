@@ -19,7 +19,7 @@ Use the host’s environment/secret settings. Never commit production secrets or
 | Variable | Production value |
 |---|---|
 | `DJANGO_SETTINGS_MODULE` | `config.settings.prod`. The Docker image and WSGI entry point default to it; set it on the host too so `manage.py` commands use production settings. |
-| `DJANGO_SECRET_KEY` | New random secret of at least 50 characters |
+| `DJANGO_SECRET_KEY` | New random secret of at least 50 characters. It also signs API tokens, so changing it signs every API client out. |
 | `DATABASE_URL` | PostgreSQL connection URL; TLS defaults to `sslmode=require` |
 | `ALLOWED_HOSTS` | Actual hostname(s), comma separated, without schemes |
 | `CSRF_TRUSTED_ORIGINS` | Actual origins such as `https://school.example.com` |
@@ -62,6 +62,14 @@ gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 60
 For a host that supplies a `PORT` environment variable, configure its start command with that port instead of 8000. The Dockerfile already collects static files at startup; migrations remain a separate production release step. The provided compose file is a local setup and intentionally runs local migrations at startup.
 
 Use the hosting shell to run `python manage.py createsuperuser`. Complete the initial setup steps in README. Do not seed demo accounts on the production database.
+
+Each API token refresh adds a row to the token blacklist. Remove expired rows now and then, for example daily (Phase 3 will schedule this with Celery beat):
+
+```text
+python manage.py flushexpiredtokens
+```
+
+The API documentation at `/api/docs/`, `/api/redoc/` and `/api/schema/` is public, like most API references: it lists endpoints and fields, never data. Every data endpoint requires a token.
 
 ## Before admitting pilot users
 

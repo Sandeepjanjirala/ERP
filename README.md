@@ -7,7 +7,7 @@
 ![Django 5.2 LTS](https://img.shields.io/badge/django-5.2%20LTS-0C4B33)
 ![PostgreSQL 17](https://img.shields.io/badge/postgresql-17-336791)
 
-EduNexa runs the daily work of a school group: branches, classrooms and teachers, daily attendance, exams with a principal-approval workflow, student reports and performance analysis. Every role sees only what it is responsible for, and every important change is recorded in an activity log.
+EduNexa runs the daily work of a school group: branches, classrooms and teachers, daily attendance, exams with a principal-approval workflow, student reports and performance analysis. Every role sees only what it is responsible for, and every important change is recorded in an activity log. Everything is also available through a documented REST API.
 
 ![Overview dashboard](docs/screenshots/dashboard.png)
 
@@ -23,6 +23,7 @@ EduNexa runs the daily work of a school group: branches, classrooms and teachers
 - **Reports:** printable student reports, subject performance analysis, and CSV exports scoped to your access and protected against spreadsheet formula injection.
 - **Security:** login throttling, a forced password change on first sign-in, a strict Content-Security-Policy, HSTS and secure cookies, and signed-in pages are never cached.
 - **Interface:** light and dark themes, responsive down to phone width, and keyboard and screen-reader friendly.
+- **REST API:** every feature under `/api/v1/` (password reset by email stays a web flow), with JWT sign-in, Swagger UI at `/api/docs/` and ReDoc at `/api/redoc/`. See [API.md](docs/API.md).
 
 ## Engineering highlights
 
@@ -31,9 +32,12 @@ EduNexa runs the daily work of a school group: branches, classrooms and teachers
 | No lost updates | Registers and mark sheets carry a version number, and writes lock the classroom row. Two people saving at once gives one save and one "reload" message, tested with real threads on PostgreSQL. |
 | Rules the database enforces | One register per class per day, scores never above the maximum, valid role/branch combinations: these are constraints in the database, not just form checks. |
 | Business logic outside views | Each domain app has `selectors` (reads already limited to the user's scope), `policies` (who may do what) and `services` (writes with transactions, locks and audit). Views only parse input and render output. |
+| One set of rules for web and API | The web pages and the REST API call the same selectors, policies and services, and every service checks its own policy, so the two can't disagree. See [ADR 0006](docs/adr/0006-rest-api.md). |
+| Careful API security | 15-minute access tokens; refresh tokens that rotate and are blacklisted after use; a password change or deactivation revokes tokens; one sign-in limit shared with the web; out-of-scope records are 404. |
+| No N+1 queries | A test measures each API list's SQL queries with few rows and with many; the count must not change. |
 | Layered apps | Ten apps ordered by dependency, with no circular imports. See [ARCHITECTURE.md](docs/ARCHITECTURE.md). |
 | Production safety | Settings per environment. Production refuses to start without a secret key and PostgreSQL, and Django's `check --deploy` runs in CI. |
-| Tested | 85 tests with 89% branch coverage. CI runs them on PostgreSQL along with lint, a migration check and a Docker build. |
+| Tested | 209 tests (plus 381 table-driven cases, such as every API endpoint for every role) with 94% branch coverage. CI runs them on PostgreSQL along with lint, a migration check, an OpenAPI schema check and a Docker build. |
 
 ## Run it on your computer
 
@@ -93,7 +97,7 @@ docker stop edunexa-test-pg
 
 ```text
 apps/
-  core/          base model, security headers, pagination, template tags, health check
+  core/          base model, security headers, pagination, template tags, health check, shared API code
   organization/  school group and branches
   audit/         activity log: AuditEvent, audit(), events()
   accounts/      users and roles, sign-in and throttling, account management
@@ -103,7 +107,8 @@ apps/
   exams/         exams, marks, result workflow
   reports/       dashboard, student report, performance, activity log page
   demo/          seed_demo command
-config/          settings (base, dev, prod, test), URLs, WSGI
+                 each domain app: selectors, policies, services, web views, api/, tests/ with factories
+config/          settings (base, dev, prod, test), URLs, API URLs, WSGI
 templates/       layout, partials and shared components
 static/          design tokens, CSS, JavaScript, SVG icons
 docs/            design, architecture, permissions, data rules, deployment, decision records
@@ -126,6 +131,7 @@ Initial passwords must be shared privately, and everyone must change theirs at f
 
 - [Design and roadmap](docs/DESIGN.md): where EduNexa is going, in six phases.
 - [Architecture](docs/ARCHITECTURE.md): how the code is organised and how a request flows.
+- [REST API](docs/API.md): signing in, conventions, errors and every endpoint.
 - [Permissions](docs/PERMISSIONS.md): the full role-by-action access matrix.
 - [Data rules](docs/DATA_RULES.md): attendance and result calculations.
 - [Deployment](docs/DEPLOYMENT.md): production settings and release steps.
@@ -134,4 +140,4 @@ Initial passwords must be shared privately, and everyone must change theirs at f
 
 ## Status
 
-Phase 1 (foundation and rebrand) is complete. Next are a REST API with Swagger docs, then background jobs and a parent portal, fees and online payments, timetables, and a live demo. See the [roadmap](docs/DESIGN.md#14-roadmap).
+Phase 1 (foundation and rebrand) and Phase 2 (REST API) are complete. Next are background jobs and a parent portal, then fees and online payments, timetables, and a live demo. See the [roadmap](docs/DESIGN.md#14-roadmap).
