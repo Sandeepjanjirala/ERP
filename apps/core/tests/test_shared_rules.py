@@ -17,7 +17,7 @@ from apps.exams.models import Exam
 from apps.exams.policies import can_create_exam
 from apps.exams.services import create_exam
 from apps.students.models import Enrollment, Student
-from apps.students.services import enroll
+from apps.students.services import admit_student, enroll
 
 
 class AccountRuleTests(SchoolTestCase):
@@ -113,3 +113,16 @@ class EnrollmentRuleTests(SchoolTestCase):
             Enrollment(student=student, classroom=self.c, joined_on=self.today),
         )
         self.assertEqual(enrollment.year, self.c.year)
+
+    def test_only_managers_of_the_branch_may_enroll_or_admit(self):
+        student = self.e1.student
+        for actor in (self.principal, self.teacher, self.foreign_teacher):
+            with self.subTest(actor=actor.username):
+                with self.assertRaises(PermissionDenied):
+                    enroll(
+                        actor, Enrollment(student=student, classroom=self.c, joined_on=self.today)
+                    )
+        new_user = User(username="eve", email="eve@example.com", role="student", branch=self.b)
+        with self.assertRaises(PermissionDenied):  # a branch admin, but not of South
+            admit_student(self.admin, new_user, PASSWORD, "EVE", self.foreign_class, self.today)
+        self.assertFalse(User.objects.filter(username="eve").exists())
