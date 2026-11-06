@@ -125,6 +125,11 @@ class SchoolTestCase(TestCase):
             pass_marks=35,
         )
 
+    def setUp(self):
+        super().setUp()
+        # The cache outlives each test's rolled-back database, so start every test empty.
+        cache.clear()
+
     def sign_in(self, user):
         self.client.force_login(user)
 
@@ -153,10 +158,6 @@ class ApiTestCase(SchoolTestCase):
     """SchoolTestCase with DRF's test client, which sends and parses JSON."""
 
     client_class = APIClient
-
-    def setUp(self):
-        super().setUp()
-        cache.clear()  # DRF's rate limits count requests in the cache
 
     def as_user(self, user):
         """Authenticate every following request as `user`, skipping the token round trip."""

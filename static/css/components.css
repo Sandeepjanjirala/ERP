@@ -1124,3 +1124,10 @@ details summary {
   min-height: 2rem;
   padding: 0.25rem 0.5rem;
 }
+
+/* Dashboard charts: the canvas needs a sized box to draw into. */
+
+.chart {
+  position: relative;
+  height: 15rem;
+}

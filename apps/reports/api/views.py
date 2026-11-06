@@ -15,7 +15,14 @@ from apps.organization.selectors import selected_branch
 from apps.students.selectors import students
 
 from ..pdf import render_report_card, report_card_filename, school_name
-from ..selectors import overview, published_marks, student_report, subject_performance
+from ..selectors import (
+    attendance_trend,
+    low_attendance,
+    overview,
+    published_marks,
+    student_report,
+    subject_performance,
+)
 from ..services import export_results_csv
 from .serializers import (
     AuditEventSerializer,
@@ -59,7 +66,12 @@ class DashboardView(generics.GenericAPIView):
     )
     def get(self, request):
         branch = selected_branch(request.user, request.query_params.get("branch"))
-        return Response(self.get_serializer(overview(request.user, branch)).data)
+        data = {
+            **overview(request.user, branch),
+            "attendance_trend": attendance_trend(request.user, branch),
+            "low_attendance": low_attendance(request.user, branch),
+        }
+        return Response(self.get_serializer(data).data)
 
 
 def report_filters(request):

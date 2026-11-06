@@ -81,11 +81,26 @@ class DashboardClassSerializer(ClassroomSummarySerializer):
         ]
 
 
+class TrendPointSerializer(serializers.Serializer):
+    date = serializers.DateField()
+    rate = serializers.FloatField(allow_null=True)
+
+
+class LowAttendanceSerializer(serializers.Serializer):
+    student_id = serializers.IntegerField()
+    name = serializers.CharField()
+    admission_number = serializers.CharField()
+    classroom = serializers.CharField()
+    rate = serializers.FloatField()
+
+
 class DashboardSerializer(serializers.Serializer):
     today = serializers.DateField()
     stats = DashboardStatsSerializer()
     classes = DashboardClassSerializer(many=True, source="class_rows")
     recent_exams = ExamSerializer(many=True)
+    attendance_trend = TrendPointSerializer(many=True, help_text="Daily rate, last 30 days")
+    low_attendance = LowAttendanceSerializer(many=True, help_text="Below 75%, lowest first")
 
 
 class SubjectPerformanceSerializer(MarkSummarySerializer):

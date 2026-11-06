@@ -1,6 +1,8 @@
+from datetime import date
+
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, render
 
 from apps.academics.models import AcademicYear
 from apps.accounts.decorators import role_required
@@ -9,34 +11,66 @@ from apps.audit.selectors import events
 from apps.core.pagination import paginate
 from apps.exams.selectors import mark_summary
 from apps.organization.selectors import branches, selected_branch
-from apps.students.models import Student
 from apps.students.selectors import guardian_links, students
 
 from .pdf import render_report_card, report_card_filename, school_name
-from .selectors import overview, published_marks, subject_performance
+from .selectors import (
+    attendance_trend,
+    branch_comparison,
+    family_overview,
+    low_attendance,
+    overview,
+    published_marks,
+    subject_performance,
+    to_do,
+)
 from .selectors import student_report as student_report_data
 from .services import export_results_csv
 
 
 @login_required
 def dashboard(request):
-    if request.user.role == User.Role.STUDENT:
-        profile = get_object_or_404(Student, user=request.user)
-        return redirect("student_report", pk=profile.pk)
-    if request.user.is_parent:
-        child = students(request.user).order_by("user__first_name", "pk").first()
-        if child:
-            return redirect("student_report", pk=child.pk)
-        return render(request, "reports/no_children.html", {"title": "Overview"})
+    if request.user.is_family:
+        return family_dashboard(request)
     branch = selected_branch(request.user, request.GET.get("branch"))
+    trend = attendance_trend(request.user, branch)
     return render(
         request,
         "reports/dashboard.html",
         {
             "title": "Overview",
             **overview(request.user, branch),
+            "to_do": to_do(request.user),
+            "low_attendance": low_attendance(request.user, branch),
             "branches": branches(request.user),
             "selected_branch": branch,
+            "has_trend": bool(trend),
+            "charts": {
+                "trend": [
+                    {"label": date.fromisoformat(p["date"]).strftime("%d %b"), "rate": p["rate"]}
+                    for p in trend
+                ],
+                "branches": branch_comparison(request.user),
+            },
+        },
+    )
+
+
+def family_dashboard(request):
+    """Students see themselves; parents pick one of their children with ?child=."""
+    children = list(students(request.user).order_by("user__first_name", "pk"))
+    if not children:
+        return render(request, "reports/no_children.html", {"title": "Overview"})
+    chosen = request.GET.get("child")
+    child = get_object_or_404(students(request.user), pk=chosen) if chosen else children[0]
+    return render(
+        request,
+        "reports/family_dashboard.html",
+        {
+            "title": "Overview",
+            "children": children,
+            "student": child,
+            **family_overview(request.user, child),
         },
     )
 

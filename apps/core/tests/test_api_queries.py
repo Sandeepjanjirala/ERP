@@ -49,6 +49,9 @@ class QueryCountTests(TestCase):
         self.client.force_authenticate(self.admin)
 
     def queries(self, url):
+        # Measure the uncached path every time: a cache hit on the second call would hide a
+        # query that runs once per row.
+        cache.clear()
         with CaptureQueriesContext(connection) as context:
             response = self.client.get(url)
         self.assertEqual(response.status_code, 200, response.content)

@@ -42,9 +42,12 @@ class ParentWebTests(ApiTestCase):
         self.publish()
         self.client.force_login(self.parent)
 
-    def test_overview_opens_the_childs_report(self):
+    def test_overview_is_the_childs_dashboard(self):
         response = self.client.get(reverse("dashboard"))
-        self.assertRedirects(response, reverse("student_report", args=[self.e1.student.pk]))
+        self.assertTemplateUsed(response, "reports/family_dashboard.html")
+        self.assertEqual(response.context["student"], self.e1.student)
+        classmate = self.client.get(reverse("dashboard") + f"?child={self.e2.student.pk}")
+        self.assertEqual(classmate.status_code, 404)
 
     def test_child_report_yes_classmate_no(self):
         self.assertEqual(
