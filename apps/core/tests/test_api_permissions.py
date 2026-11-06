@@ -6,7 +6,11 @@ may not use the endpoint at all. Record-level rules (which classroom, which exam
 per endpoint in each app's test_api_*.py.
 """
 
+from datetime import timedelta
+
 from apps.core.testing import ApiTestCase
+from apps.fees.models import FeeHead, FeePlan
+from apps.fees.services import issue_invoices, record_counter_payment, save_fee_plan
 
 ROLES = ("root", "admin", "principal", "teacher", "student", "parent", "accountant")
 ALL, ACADEMIC, STAFF, LEADERS, MANAGERS = (
@@ -16,11 +20,26 @@ ALL, ACADEMIC, STAFF, LEADERS, MANAGERS = (
     (200, 200, 200, 403, 403, 403, 403),
     (200, 200, 403, 403, 403, 403, 403),
 )
+FEES = (200, 200, 403, 403, 403, 200, 200)  # finance staff, and parents for their children
+FINANCE = (200, 200, 403, 403, 403, 403, 200)
 # For writes with an empty body.
 WRITE_MANAGERS = (400, 400, 403, 403, 403, 403, 403)
+WRITE_FINANCE = (400, 400, 403, 403, 403, 403, 400)
 
 
 class ApiPermissionMatrixTests(ApiTestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        # Alice's invoice, part paid, so the fee endpoints have a record to act on.
+        head = FeeHead.objects.create(branch=cls.a, name="Tuition", code="tuition")
+        cls.plan = save_fee_plan(
+            cls.admin, FeePlan(branch=cls.a, year=cls.year, grade="9"), {head: 100000}
+        )
+        created, _ = issue_invoices(cls.admin, cls.plan, "Term 1", cls.today + timedelta(days=30))
+        cls.invoice = next(i for i in created if i.student_id == cls.e1.student_id)
+        cls.receipt = record_counter_payment(cls.admin, cls.invoice, 1000, "cash").receipt
+
     def users(self):
         return {
             "root": self.root,
@@ -57,6 +76,13 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("/api/v1/assignments/", LEADERS),
             ("/api/v1/people/", LEADERS),
             ("/api/v1/activity/", LEADERS),
+            ("/api/v1/invoices/", FEES),
+            (f"/api/v1/invoices/{self.invoice.pk}/", FEES),
+            ("/api/v1/payments/", FEES),
+            ("/api/v1/payment-orders/", FEES),
+            (f"/api/v1/receipts/{self.receipt.pk}/pdf/", FEES),
+            ("/api/v1/fee-heads/", FINANCE),
+            ("/api/v1/fee-plans/", FINANCE),
         ]
 
     def writes(self):
@@ -92,6 +118,16 @@ class ApiPermissionMatrixTests(ApiTestCase):
                 "post",
                 f"/api/v1/people/{self.teacher.pk}/toggle-access/",
                 (200, 200, 403, 403, 403, 403, 403),
+            ),
+            ("post", f"/api/v1/invoices/{self.invoice.pk}/payment/", WRITE_FINANCE),
+            ("post", f"/api/v1/invoices/{self.invoice.pk}/concession/", WRITE_MANAGERS),
+            ("post", f"/api/v1/invoices/{self.invoice.pk}/cancel/", WRITE_MANAGERS),
+            ("post", f"/api/v1/fee-plans/{self.plan.pk}/issue/", WRITE_FINANCE),
+            # Only a parent starts an online payment (no body needed: it is the balance).
+            (
+                "post",
+                f"/api/v1/invoices/{self.invoice.pk}/pay-online/",
+                (403, 403, 403, 403, 403, 201, 403),
             ),
         ]
 
@@ -130,3 +166,5 @@ class ApiPermissionMatrixTests(ApiTestCase):
         for url in ("/api/v1/auth/token/", "/api/v1/auth/token/refresh/", "/api/v1/auth/logout/"):
             with self.subTest(url=url):
                 self.assertEqual(self.client.post(url, {}).status_code, 400)  # needs a body
+        # Payment providers call this; only a valid signature makes it do anything.
+        self.assertEqual(self.client.post("/api/v1/payments/webhook/sandbox/", {}).status_code, 400)

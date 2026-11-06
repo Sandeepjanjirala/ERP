@@ -10,6 +10,7 @@ from apps.accounts.models import User
 from apps.audit.models import AuditEvent
 from apps.audit.selectors import events
 from apps.core.api.permissions import role_in
+from apps.core.api.renderers import CSVRenderer, PDFRenderer
 from apps.exams.selectors import mark_summary
 from apps.organization.selectors import school_name, selected_branch
 from apps.students.selectors import students
@@ -97,19 +98,6 @@ class PerformanceView(generics.GenericAPIView):
         return Response(self.get_serializer(data).data)
 
 
-class FileRenderer(renderers.BaseRenderer):
-    """Lets clients ask for a file type. Success responses are already the file; errors (dicts)
-    become their plain-text message."""
-
-    def render(self, data, accepted_media_type=None, renderer_context=None):
-        return str(data.get("detail", data) if isinstance(data, dict) else data).encode()
-
-
-class CSVRenderer(FileRenderer):
-    media_type = "text/csv"
-    format = "csv"
-
-
 class PerformanceExportView(generics.GenericAPIView):
     """Download the published results as CSV, the same file as the web export. Audited."""
 
@@ -152,11 +140,6 @@ class ActivityViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         return events(self.request.user)
-
-
-class PDFRenderer(FileRenderer):
-    media_type = "application/pdf"
-    format = "pdf"
 
 
 class ReportCardView(generics.GenericAPIView):

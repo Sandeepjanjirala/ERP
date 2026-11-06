@@ -280,6 +280,8 @@ SPECTACULAR_SETTINGS = {
     "ENUM_NAME_OVERRIDES": {
         "AttendanceStatusEnum": "apps.attendance.models.Attendance.Status",
         "ExamStatusEnum": "apps.exams.models.Exam.Status",
+        "InvoiceStatusEnum": "apps.fees.models.Invoice.Status",
+        "PaymentOrderStatusEnum": "apps.fees.models.PaymentOrder.Status",
     },
 }
 
