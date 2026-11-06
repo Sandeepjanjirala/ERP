@@ -2,24 +2,31 @@
 
 Permissions are enforced in Django views, filtered querysets, and write services. Hiding a navigation link is not the access control. The REST API enforces exactly the same rules with the same code; see [The API](#the-api) below.
 
-| Capability | Super admin | Branch admin | Principal | Teacher | Student |
-|---|---|---|---|---|---|
-| Branch scope | All branches | Own branch | Own branch | Own assigned classes | Own records |
-| Create branches / academic years | Yes | No | No | No | No |
-| Create principal / admin accounts | Yes | No | No | No | No |
-| Create teachers and students | Yes | Own branch | No | No | No |
-| Edit user contact details / deactivate | Branch users | Own teachers/students | No | No | No |
-| Create classrooms / subjects / assignments | Yes | Own branch | Read only | No | No |
-| Record daily attendance | All | Own branch | Read only | Assigned homeroom only | No |
-| View student reports | All | Own branch | Own branch | Assigned scope | Self only |
-| Create exams | All | Own branch | No | Assigned class+subject | No |
-| Enter draft marks | All | No | No | Assigned class+subject | No |
-| Submit exams | All | No | No | Assigned class+subject | No |
-| Publish / reopen results | All | No | Own branch | No | No |
-| CSV reports | All | Own branch | Own branch | Assigned scope | No |
-| Activity log | All | Own branch | Own branch | No | No |
+| Capability | Super admin | Branch admin | Principal | Teacher | Student | Parent |
+|---|---|---|---|---|---|---|
+| Branch scope | All branches | Own branch | Own branch | Own assigned classes | Own records | Own children |
+| Create branches / academic years | Yes | No | No | No | No | No |
+| Create principal / admin accounts | Yes | No | No | No | No | No |
+| Create teachers and students | Yes | Own branch | No | No | No | No |
+| Add parents / set the primary contact | Yes | Own branch | No | No | No | No |
+| Edit contact details / deactivate | Branch users | Own teachers, students, parents | No | No | No | No |
+| Create classrooms / subjects / assignments | Yes | Own branch | Read only | No | No | No |
+| Record daily attendance | All | Own branch | Read only | Assigned homeroom only | No | No |
+| Apply for leave | No | No | No | No | No | Own children |
+| Approve / refuse leave | All | Own branch | No | Own homeroom | No | No |
+| View student reports and report cards | All | Own branch | Own branch | Assigned scope | Self only | Own children |
+| Create exams | All | Own branch | No | Assigned class+subject | No | No |
+| Enter draft marks | All | No | No | Assigned class+subject | No | No |
+| Submit exams | All | No | No | Assigned class+subject | No | No |
+| Publish / reopen results | All | No | Own branch | No | No | No |
+| Post announcements | Any branch, or all | Own branch | Own branch | Classes they teach | No | No |
+| Read announcements | All | Own branch | Own branch | Own branch | Those for students or their class | Those for parents or their child's class |
+| CSV reports | All | Own branch | Own branch | Assigned scope | No | No |
+| Activity log | All | Own branch | Own branch | No | No | No |
 
 A homeroom teacher can view all subject assessments in their homeroom class but can edit only subjects explicitly assigned to them. Other teachers see only assessments for their assigned classroom/subject pairs.
+
+Parents see only their own children: their classes, published results, attendance, report cards and leave requests, never a classmate's. A parent account belongs to one branch, and its children must be in that branch. Every selector has an explicit parent rule, and `apps/students/tests/test_parent_scope.py` fails if one is removed.
 
 Students can access only their own published results and attendance. Drafts and submitted exams are absent from student queries and aggregates. A student changing a URL to another student’s ID receives a 404. Forbidden actions generally return 403; out-of-scope records return 404.
 

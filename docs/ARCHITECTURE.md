@@ -17,6 +17,8 @@ flowchart TB
     api --> selectors
     api --> services
     services --> policies
+    services -. "after commit, via Redis" .-> jobs["tasks.py · Celery worker<br/>notifications · email"]
+    jobs --> models
     selectors --> models["models.py<br/>tables · database constraints · validation"]
     services --> models
     models --> db[("PostgreSQL<br/>SQLite for quick local runs")]
@@ -30,9 +32,9 @@ flowchart TB
 |---|---|---|
 | 0 | `core` | Base model, security headers, pagination, template tags, health check; shared API code (errors, permissions, pagination, sorting) |
 | 1 | `organization`, `audit`, `accounts` | School group and branches; the activity log; users, roles and sign-in |
-| 2 | `academics`, `students` | Years, classrooms, subjects, teacher assignments; students and enrollments |
-| 3 | `attendance`, `exams` | Daily registers; exams, marks and the result workflow |
-| 4 | `reports`, `demo` | Pages that read from everything; sample data |
+| 2 | `academics`, `students` | Years, classrooms, subjects, teacher assignments; students, enrollments and guardians |
+| 3 | `communication`, `attendance`, `exams` | Announcements and notifications; daily registers and leave; exams, marks and the result workflow |
+| 4 | `reports`, `demo` | Dashboards, reports and report-card PDFs that read from everything; sample data |
 
 Two places needed care to keep this rule:
 
@@ -50,6 +52,7 @@ Every domain app has the same shape:
 | `selectors.py` | Read queries already filtered to the user's scope | `exams(user)`, `mark_summary(marks)` |
 | `policies.py` | Yes/no permission checks | `can_mark(user, exam)`, `can_create_exam(user, classroom, subject)` |
 | `services.py` | Every write, checking its own policy | `save_marks(...)`, `transition_exam(...)` |
+| `tasks.py` | Background jobs (Celery) the services queue | `announce_results(exam_id, version)` |
 | `forms.py`, `views.py`, `urls.py`, `templates/` | The web layer | |
 | `api/` | The REST API: `serializers.py`, `views.py`, `urls.py`, `filters.py` | `ExamViewSet`, `RegisterView` |
 | `tests/` | Tests for that app, and `factories.py` (factory_boy) | `test_results.py`, `test_api_exams.py` |
@@ -82,6 +85,21 @@ Daily registers (`attendance.services.save_register`) follow the same pattern.
 4. The view calls the same `save_marks()` service as the web page: same locks, policy check, version check, roster check and audit event.
 5. If the service raises `Conflict`, the API's exception handler turns it into `409 conflict`; a `ValidationError` becomes a 400 and `PermissionDenied` a 403.
 
+## Background jobs
+
+Slow or external work (email, notifying a whole audience) runs in a Celery worker, fed through Redis.
+
+- **Queued after commit.** Services call `apps.core.jobs.run_after_commit(task, ...)`, never `task.delay()`. A job never runs for a save that was rolled back, and never starts before the worker can see the new rows.
+- **Safe to run twice.** Jobs are acknowledged only when they finish, so a crashed worker's job is retried. Every notification carries a key (`absence:41:2026-11-06`, `results:12:3`) that is unique per recipient, so a retry notifies and emails nobody twice.
+- **They re-check the facts.** An absence alert skips a student corrected to present in the meantime; a results announcement skips an exam reopened in the meantime.
+- **No Redis, no worker.** Without `REDIS_URL` (the quick Windows run), jobs run inside the request right after the commit. Same code, no extra process.
+- **Bulk loads pause them.** `jobs_paused()` lets the demo seed record three months of history without alerting anyone.
+- `celery beat` runs scheduled jobs (nightly clean-up of expired API tokens). `manage.py check_jobs` sends a job through Redis and waits for a worker's answer; CI runs it against a real worker.
+
+## Caching
+
+Dashboard aggregates over every attendance row (the 30-day trend, students below 75%, branches compared) are cached in Redis. Each key includes a fingerprint of the registers in scope: how many there are, plus the sum of their version numbers. Every save, correction or leave approval changes it, so a changed register means a new key: the cache never serves stale numbers and nothing has to delete keys. The fingerprint comes from the small registers table, so checking it is far cheaper than recomputing.
+
 ## Security layers
 
 - **Middleware:** `SecurityHeadersMiddleware` adds a strict Content-Security-Policy, referrer and permissions policies, and `no-store` for signed-in pages and every API response. `ForcePasswordChangeMiddleware` holds new accounts on the password page.
@@ -113,5 +131,7 @@ Server-rendered Django templates with no build step:
 ## Tests
 
 Each app's tests live in its `tests/` folder and share a small school fixture (`apps/core/testing.py`: two branches, every role, two students, three exams). `ApiTestCase` adds DRF's test client. The concurrency tests use real threads and real transactions and run on PostgreSQL in CI.
+
+Background jobs run inside the test (`CELERY_TASK_ALWAYS_EAGER`), and tests that check them wrap the save in `captureOnCommitCallbacks(execute=True)`, the same after-commit path as production. Every test starts with an empty cache.
 
 Each app's `tests/factories.py` holds factory_boy factories that build valid records with as many rows as a test needs. The query-count tests use them to prove that no API list runs a query per row. One table-driven test checks every API endpoint for every role.

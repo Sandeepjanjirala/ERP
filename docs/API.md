@@ -44,7 +44,7 @@ In Swagger UI, sign in with `POST /api/v1/auth/token/`, press **Authorize**, and
 | `POST /api/v1/auth/token/` | Username and password in; `access`, `refresh` and `must_change_password` out |
 | `POST /api/v1/auth/token/refresh/` | A refresh token in; a new access token **and a new refresh token** out |
 | `POST /api/v1/auth/logout/` | Blacklists a refresh token |
-| `GET /api/v1/me/` | Who you are: role, branch, and your `student_id` if you are a student |
+| `GET /api/v1/me/` | Who you are: role, branch, phone, your `student_id` if you are a student, and your `children` if you are a parent |
 | `POST /api/v1/me/password/` | Change your password; returns a fresh token pair |
 
 How the tokens behave:
@@ -94,7 +94,7 @@ Password reset by email stays a web flow (`/accounts/password/reset/`), because 
 
 ## Endpoints
 
-Roles: **S** super admin, **A** branch admin, **P** principal, **T** teacher, **St** student. Within a role, every list and record is limited to that person's scope, the same as the web pages: their branch, their classes, or (for students) themselves.
+Roles: **S** super admin, **A** branch admin, **P** principal, **T** teacher, **St** student, **Pa** parent. Within a role, every list and record is limited to that person's scope, the same as the web pages: their branch, their classes, themselves (students) or their children (parents).
 
 | Endpoint | Methods | Who |
 |---|---|---|
@@ -108,16 +108,23 @@ Roles: **S** super admin, **A** branch admin, **P** principal, **T** teacher, **
 | `/api/v1/people/` | GET · POST, PATCH | S A P · S A |
 | `/api/v1/people/{id}/toggle-access/` | POST | S A |
 | `/api/v1/students/` | GET · POST (admit) | S A P T · S A |
-| `/api/v1/students/{id}/report/` | GET | Everyone (students: their own) |
+| `/api/v1/students/{id}/report/` | GET | Everyone (students: their own; parents: their children) |
+| `/api/v1/students/{id}/report-card/` | GET (PDF) | Same as the report |
+| `/api/v1/students/{id}/guardians/` | GET · POST (new parent account) | S A P T · S A |
+| `/api/v1/students/{id}/guardians/link/`, `.../{link}/make-primary/` | POST | S A |
 | `/api/v1/enrollments/` | GET · POST | S A P T · S A |
 | `/api/v1/classrooms/{id}/register/?date=` | GET · PUT | S A P T · S A, homeroom teacher |
 | `/api/v1/exams/` | GET · POST | Everyone (students: published only) · S A T |
 | `/api/v1/exams/{id}/marks/` | GET · PUT | S A P T · S, subject teacher |
 | `/api/v1/exams/{id}/submit/` | POST | S, subject teacher |
 | `/api/v1/exams/{id}/publish/`, `.../reopen/` | POST | S P |
-| `/api/v1/dashboard/` | GET | S A P T |
+| `/api/v1/dashboard/` (with the 30-day trend and students below 75%) | GET | S A P T |
 | `/api/v1/reports/performance/`, `.../export/` | GET | S A P T |
 | `/api/v1/activity/` | GET | S A P |
+| `/api/v1/leave-requests/` | GET · POST | Everyone in scope · Pa (own children) |
+| `/api/v1/leave-requests/{id}/approve/`, `.../reject/` | POST | S, A, the class teacher |
+| `/api/v1/announcements/` | GET · POST | Everyone (those meant for them) · S A P, T (their classes) |
+| `/api/v1/notifications/` (`?unread=true`), `unread-count/`, `{id}/read/`, `read-all/` | GET, POST | Everyone (their own) |
 
 The full matrix is a test: [`apps/core/tests/test_api_permissions.py`](../apps/core/tests/test_api_permissions.py). [PERMISSIONS.md](PERMISSIONS.md) explains the rules behind it.
 
