@@ -10,17 +10,19 @@ from apps.audit.services import audit
 from apps.core.jobs import run_after_commit
 from apps.students.models import Student
 
+from .gateways import get_gateway, parse_event
 from .models import (
     Concession,
     FeePlanItem,
     Invoice,
     InvoiceLine,
     Payment,
+    PaymentOrder,
     Receipt,
     ReceiptCounter,
     rupees,
 )
-from .policies import can_collect_fees, can_set_up_fees
+from .policies import can_collect_fees, can_pay_online, can_set_up_fees
 from .tasks import notify_invoices_issued, send_receipt
 
 
@@ -287,3 +289,142 @@ def record_counter_payment(actor, invoice, amount_paise, method, reference=""):
         },
     )
     return payment
+
+
+# Online payments ---------------------------------------------------------------------------
+
+
+class InvalidSignature(Exception):
+    """A webhook that wasn't signed with the provider's secret: ignored, never trusted."""
+
+
+def start_online_payment(actor, invoice):
+    """Ask the provider for a checkout order for the invoice's current balance.
+
+    Deliberately outside a transaction: no database lock is held during the network call.
+    """
+    invoice = Invoice.objects.get(pk=invoice.pk)
+    if not can_pay_online(actor, invoice):
+        raise PermissionDenied
+    if invoice.balance_paise <= 0:
+        raise ValidationError("This invoice has nothing left to pay.")
+    gateway = get_gateway()
+    order = PaymentOrder.objects.create(
+        invoice=invoice,
+        gateway=gateway.name,
+        gateway_order_id=gateway.create_order(
+            invoice.balance_paise, "INR", receipt=f"invoice-{invoice.pk}"
+        ),
+        amount_paise=invoice.balance_paise,
+        currency="INR",
+        created_by=actor,
+    )
+    audit(
+        actor,
+        invoice.branch,
+        "fees.online.started",
+        invoice,
+        {
+            "gateway": gateway.name,
+            "order": order.gateway_order_id,
+            "amount_paise": order.amount_paise,
+        },
+    )
+    return order
+
+
+@transaction.atomic
+def confirm_online_payment(gateway_name, event):
+    """Apply a provider's payment event. Safe to receive any number of times.
+
+    Returns what happened: "recorded", "review", "duplicate", "failed", "ignored" or
+    "unknown_order". Captured money is never thrown away: it is recorded (as excess if it is
+    more than the balance), or, when it can't be counted as rupees, kept on the order for a
+    person to resolve.
+    """
+    # Lock the order first: a repeated webhook arriving at the same moment waits here.
+    order = (
+        PaymentOrder.objects.select_for_update()
+        .filter(gateway=gateway_name, gateway_order_id=event.order_id)
+        .first()
+    )
+    if order is None:
+        return "unknown_order"  # not an order EduNexa created
+    if event.kind == "failed":
+        if order.status == PaymentOrder.Status.CREATED:
+            order.status = PaymentOrder.Status.FAILED
+            order.save(update_fields=["status", "updated_at"])
+        return "failed"
+    if event.kind != "captured" or event.status != "captured":
+        return "ignored"
+    if (
+        Payment.objects.filter(gateway=gateway_name, gateway_payment_id=event.payment_id).exists()
+        or order.gateway_payment_id == event.payment_id
+    ):
+        return "duplicate"
+
+    invoice = Invoice.objects.select_for_update().get(pk=order.invoice_id)
+    already_paid = Payment.objects.filter(order=order).exists()
+    problems = []
+    if event.currency != order.currency:
+        problems.append(f"captured in {event.currency}, the order was in {order.currency}")
+    if event.amount_paise != order.amount_paise:
+        problems.append(
+            f"captured {rupees(event.amount_paise)}, the order was for {rupees(order.amount_paise)}"
+        )
+    if already_paid:
+        problems.append("a second payment for an order that was already paid")
+    order.gateway_payment_id = event.payment_id
+    order.captured_amount_paise = event.amount_paise
+    order.captured_currency = event.currency
+    order.problem = "; ".join(problems)
+    details = {
+        "gateway": gateway_name,
+        "payment": event.payment_id,
+        "amount_paise": event.amount_paise,
+        "currency": event.currency,
+    }
+    if event.currency != order.currency:
+        # Money in another currency can't be counted as rupees: keep every detail for review.
+        order.status = PaymentOrder.Status.REVIEW
+        order.save()
+        audit(
+            order.created_by,
+            invoice.branch,
+            "fees.online.review",
+            invoice,
+            {**details, "problem": order.problem},
+        )
+        return "review"
+    payment = _apply(
+        invoice,
+        event.amount_paise,
+        method=Payment.Method.ONLINE,
+        gateway=gateway_name,
+        gateway_payment_id=event.payment_id,
+        order=None if already_paid else order,
+        paid_at=timezone.now(),
+    )
+    order.status = PaymentOrder.Status.REVIEW if problems else PaymentOrder.Status.PAID
+    order.save()
+    audit(
+        order.created_by,
+        invoice.branch,
+        "fees.online.captured",
+        invoice,
+        {
+            **details,
+            "receipt": payment.receipt.number,
+            "excess_paise": payment.excess_paise,
+            "problem": order.problem,
+        },
+    )
+    return "review" if problems else "recorded"
+
+
+def receive_webhook(gateway_name, body, signature):
+    """Check a provider's webhook and apply it. InvalidSignature if it wasn't signed by them."""
+    gateway = get_gateway(gateway_name)
+    if not gateway.verify(body, signature):
+        raise InvalidSignature
+    return confirm_online_payment(gateway_name, parse_event(body))

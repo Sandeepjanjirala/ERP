@@ -172,6 +172,17 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=3, minute=15),
     },
 }
+# Online fee payments. Razorpay runs in test mode only; without its keys the built-in Sandbox
+# gateway takes payments, so tests and the demo never depend on Razorpay or on real money.
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "")
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
+RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
+if RAZORPAY_KEY_ID and not RAZORPAY_KEY_ID.startswith("rzp_test_"):
+    raise ImproperlyConfigured(
+        "EduNexa runs Razorpay in test mode only: RAZORPAY_KEY_ID must start with rzp_test_."
+    )
+PAYMENT_GATEWAY = "razorpay" if RAZORPAY_KEY_ID else "sandbox"
+
 CACHES = {
     "default": (
         {"BACKEND": "django.core.cache.backends.redis.RedisCache", "LOCATION": REDIS_URL}
