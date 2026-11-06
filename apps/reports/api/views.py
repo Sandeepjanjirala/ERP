@@ -14,10 +14,11 @@ from apps.exams.selectors import mark_summary
 from apps.organization.selectors import selected_branch
 from apps.students.selectors import students
 
-from ..selectors import published_marks, student_report, subject_performance
+from ..selectors import overview, published_marks, student_report, subject_performance
 from ..services import export_results_csv
 from .serializers import (
     AuditEventSerializer,
+    DashboardSerializer,
     PerformanceQuerySerializer,
     PerformanceSerializer,
     StudentReportSerializer,
@@ -40,6 +41,24 @@ class StudentReportView(generics.GenericAPIView):
         student = get_object_or_404(students(request.user), pk=pk)
         report = student_report(request.user, student, request.query_params.get("year"))
         return Response(self.get_serializer({"student": student, **report}).data)
+
+
+class DashboardView(generics.GenericAPIView):
+    """The staff dashboard: headline numbers, classes with today's register, recent exams.
+
+    `?branch=` narrows it to one branch (404 outside your scope). Students have no dashboard;
+    they read their own report (see `student_id` in /me/).
+    """
+
+    serializer_class = DashboardSerializer
+    permission_classes = [role_in(*User.STAFF)]
+
+    @extend_schema(
+        parameters=[OpenApiParameter("branch", OpenApiTypes.INT, description="Branch id")]
+    )
+    def get(self, request):
+        branch = selected_branch(request.user, request.query_params.get("branch"))
+        return Response(self.get_serializer(overview(request.user, branch)).data)
 
 
 def report_filters(request):

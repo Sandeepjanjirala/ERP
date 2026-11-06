@@ -3,6 +3,7 @@ from rest_framework import serializers
 from apps.academics.api.serializers import AcademicYearSerializer, ClassroomSummarySerializer
 from apps.accounts.api.serializers import UserSummarySerializer
 from apps.audit.models import AuditEvent
+from apps.exams.api.serializers import ExamSerializer
 from apps.exams.models import Mark
 from apps.students.api.serializers import EnrollmentSerializer, StudentSerializer
 
@@ -50,6 +51,40 @@ class AttendanceSummarySerializer(serializers.Serializer):
     excused = serializers.IntegerField(source="E")
     total = serializers.IntegerField()
     rate = serializers.FloatField(allow_null=True, help_text="Present and late, out of days")
+
+
+class DashboardStatsSerializer(serializers.Serializer):
+    students = serializers.IntegerField(help_text="Active students")
+    classes = serializers.IntegerField()
+    pending = serializers.IntegerField(help_text="Results waiting for principal approval")
+    attendance = serializers.FloatField(allow_null=True, help_text="Today's attendance rate, %")
+
+
+class DashboardRegisterSerializer(serializers.Serializer):
+    version = serializers.IntegerField()
+    recorded_by = UserSummarySerializer()
+    updated_at = serializers.DateTimeField()
+
+
+class DashboardClassSerializer(ClassroomSummarySerializer):
+    student_count = serializers.IntegerField()
+    homeroom_teacher = UserSummarySerializer(allow_null=True)
+    register = DashboardRegisterSerializer(allow_null=True, help_text="Today's, if taken")
+
+    class Meta(ClassroomSummarySerializer.Meta):
+        fields = [
+            *ClassroomSummarySerializer.Meta.fields,
+            "student_count",
+            "homeroom_teacher",
+            "register",
+        ]
+
+
+class DashboardSerializer(serializers.Serializer):
+    today = serializers.DateField()
+    stats = DashboardStatsSerializer()
+    classes = DashboardClassSerializer(many=True, source="class_rows")
+    recent_exams = ExamSerializer(many=True)
 
 
 class SubjectPerformanceSerializer(MarkSummarySerializer):

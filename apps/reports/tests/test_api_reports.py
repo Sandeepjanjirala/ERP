@@ -3,8 +3,39 @@
 import csv
 import io
 
+from apps.attendance.services import save_register
 from apps.audit.models import AuditEvent
 from apps.core.testing import ApiTestCase
+from apps.exams.services import transition_exam
+
+
+class DashboardTests(ApiTestCase):
+    def test_numbers_match_the_scope(self):
+        exam = self.fill()
+        transition_exam(self.teacher, exam, "submit", exam.version)  # one result to approve
+        save_register(self.teacher, self.c, self.today, {self.e1.pk: "P", self.e2.pk: "A"}, 0)
+        self.as_user(self.principal)
+        body = self.client.get("/api/v1/dashboard/").json()
+        self.assertEqual(body["today"], self.today.isoformat())
+        self.assertEqual(
+            body["stats"], {"students": 2, "classes": 1, "pending": 1, "attendance": 50.0}
+        )
+        [row] = body["classes"]
+        self.assertEqual((row["label"], row["student_count"]), ("9-A", 2))
+        self.assertEqual(row["register"]["recorded_by"]["id"], self.teacher.pk)
+        self.assertEqual(
+            sorted(e["title"] for e in body["recent_exams"]), ["Midterm", "Science test"]
+        )
+
+    def test_branch_filter_and_roles(self):
+        self.as_user(self.root)
+        south = self.client.get(f"/api/v1/dashboard/?branch={self.b.pk}").json()
+        self.assertEqual([c["id"] for c in south["classes"]], [self.foreign_class.pk])
+        self.assertIsNone(south["classes"][0]["register"])
+        self.as_user(self.admin)
+        self.assertEqual(self.client.get(f"/api/v1/dashboard/?branch={self.b.pk}").status_code, 404)
+        self.as_user(self.e1.student.user)
+        self.assertEqual(self.client.get("/api/v1/dashboard/").status_code, 403)
 
 
 class PerformanceTests(ApiTestCase):
