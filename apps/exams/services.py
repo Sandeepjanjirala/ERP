@@ -5,10 +5,12 @@ from django.utils import timezone
 from apps.academics.models import Classroom
 from apps.audit.services import audit
 from apps.core.exceptions import Conflict
+from apps.core.jobs import run_after_commit
 from apps.students.selectors import roster
 
 from .models import Exam, Mark
 from .policies import can_create_exam, can_mark, can_publish
+from .tasks import announce_results
 
 
 @transaction.atomic
@@ -105,6 +107,8 @@ def transition_exam(actor, exam, action, expected_version, reason=""):
         exam,
         {"from": old, "to": target, "reason": reason},
     )
+    if action == "publish":
+        run_after_commit(announce_results, exam.pk, exam.version)
     return exam
 
 

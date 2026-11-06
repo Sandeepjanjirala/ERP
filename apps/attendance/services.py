@@ -5,10 +5,12 @@ from django.utils import timezone
 from apps.academics.models import Classroom
 from apps.audit.services import audit
 from apps.core.exceptions import Conflict
+from apps.core.jobs import run_after_commit
 from apps.students.selectors import roster
 
 from .models import Attendance, AttendanceSession
 from .policies import can_attend
+from .tasks import alert_absent_families
 
 
 def register_date_error(classroom, day):
@@ -61,4 +63,12 @@ def save_register(actor, classroom, day, statuses, expected_version, reason=""):
         f"{classroom} · {day}",
         {"before": old, "after": {str(k): v for k, v in statuses.items()}, "reason": reason},
     )
+    # Families hear about today's absences only: a correction to an old register sends nothing.
+    newly_absent = sorted(
+        enrollment_id
+        for enrollment_id, status in statuses.items()
+        if status == Attendance.Status.ABSENT and old.get(str(enrollment_id)) != status
+    )
+    if day == timezone.localdate() and newly_absent:
+        run_after_commit(alert_absent_families, session.pk, newly_absent)
     return session

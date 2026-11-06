@@ -41,6 +41,14 @@ def guardian_links(user):
     )
 
 
+def family(pupils):
+    """The active accounts of these students and of their guardians: who hears about them."""
+    return User.objects.filter(
+        Q(student_profile__in=pupils) | Q(guardian_profile__child_links__student__in=pupils),
+        is_active=True,
+    ).distinct()
+
+
 def roster(classroom, day):
     return (
         classroom.enrollments.filter(joined_on__lte=day)

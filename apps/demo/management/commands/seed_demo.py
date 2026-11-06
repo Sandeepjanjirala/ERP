@@ -21,6 +21,7 @@ from apps.academics.models import AcademicYear, Classroom, Subject, TeachingAssi
 from apps.accounts.models import User
 from apps.attendance.models import Attendance
 from apps.attendance.services import save_register
+from apps.core.jobs import jobs_paused
 from apps.exams.models import Exam
 from apps.exams.services import create_exam, save_marks, transition_exam
 from apps.organization.models import Branch, Organization
@@ -142,8 +143,11 @@ class Command(BaseCommand):
         # Every row goes through the real services and model validation, so the full size takes
         # about a minute: slower than bulk inserts, but the data can never break a business rule.
         self.stdout.write("Creating a synthetic school group; the full size takes about a minute.")
-        for index, spec in enumerate(BRANCHES, start=1):
-            self.seed_branch(org, index, spec)
+        # Months of history are recorded at once: that must not send today's families an alert
+        # for every past absence and published result.
+        with jobs_paused():
+            for index, spec in enumerate(BRANCHES, start=1):
+                self.seed_branch(org, index, spec)
 
         self.stdout.write(
             self.style.SUCCESS("Synthetic demo data created (all names are fictional).")
