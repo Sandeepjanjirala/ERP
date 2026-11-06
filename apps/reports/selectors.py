@@ -1,5 +1,7 @@
 """Read queries for reports, limited to what the user may see."""
 
+from collections import defaultdict
+
 from django.shortcuts import get_object_or_404
 
 from apps.academics.models import AcademicYear
@@ -40,3 +42,28 @@ def student_report(user, student, year_id=None):
         "years": AcademicYear.objects.filter(enrollment__student=student).distinct(),
         "selected_year": year,
     }
+
+
+def published_marks(user, year_id=None, branch=None):
+    """Every published mark the user may see, optionally for one year and one branch."""
+    permitted = exams(user).filter(status=Exam.Status.PUBLISHED)
+    if year_id and str(year_id).isdigit():
+        permitted = permitted.filter(classroom__year_id=year_id)
+    if branch:
+        permitted = permitted.filter(classroom__branch=branch)
+    return list(
+        Mark.objects.filter(exam__in=permitted).select_related(
+            "exam__subject", "exam__classroom__branch", "enrollment__student__user"
+        )
+    )
+
+
+def subject_performance(marks):
+    """Pass counts and percentages per branch and subject, in name order."""
+    groups = defaultdict(list)
+    for mark in marks:
+        groups[(mark.exam.classroom.branch.name, mark.exam.subject.name)].append(mark)
+    return [
+        {"branch": branch, "name": subject, **mark_summary(group)}
+        for (branch, subject), group in sorted(groups.items())
+    ]
