@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.models import UserManager as DjangoUserManager
 from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
 from django.db import models
 from django.db.models import Q
 from django.db.models.functions import Lower
@@ -21,16 +22,28 @@ class User(AbstractUser):
         PRINCIPAL = "principal", "Principal"
         TEACHER = "teacher", "Teacher"
         STUDENT = "student", "Student"
+        PARENT = "parent", "Parent"
 
     # Role groups for access checks; docs/PERMISSIONS.md has the full matrix.
     STAFF = (Role.SUPER, Role.ADMIN, Role.PRINCIPAL, Role.TEACHER)
     MANAGERS = (Role.SUPER, Role.ADMIN)  # manage accounts and academic setup
     LEADERS = (Role.SUPER, Role.ADMIN, Role.PRINCIPAL)  # also see people, setup, activity
+    # Families see only their own records (a parent: their children's), and published results.
+    FAMILY = (Role.STUDENT, Role.PARENT)
 
     email = models.EmailField(unique=True)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.STUDENT)
     branch = models.ForeignKey(
         Branch, on_delete=models.PROTECT, null=True, blank=True, related_name="users"
+    )
+    phone = models.CharField(
+        max_length=20,
+        blank=True,
+        validators=[
+            RegexValidator(
+                r"^\+?[0-9][0-9 -]{6,18}$", "Enter a phone number, e.g. +91 98480 22338."
+            )
+        ],
     )
     must_change_password = models.BooleanField(default=True)
     objects = UserManager()
@@ -44,7 +57,7 @@ class User(AbstractUser):
                     Q(role="superadmin", branch__isnull=True, is_superuser=True, is_staff=True)
                     | (
                         Q(
-                            role__in=["admin", "principal", "teacher", "student"],
+                            role__in=["admin", "principal", "teacher", "student", "parent"],
                             branch__isnull=False,
                             is_superuser=False,
                             is_staff=False,
@@ -84,6 +97,14 @@ class User(AbstractUser):
     @property
     def is_student(self):
         return self.role == self.Role.STUDENT
+
+    @property
+    def is_parent(self):
+        return self.role == self.Role.PARENT
+
+    @property
+    def is_family(self):
+        return self.role in self.FAMILY
 
     @property
     def is_manager(self):

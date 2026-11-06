@@ -40,6 +40,12 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U edunexa -d edunexa"
           --health-interval 5s --health-timeout 5s --health-retries 15
+      redis:
+        image: redis:7.4-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 15
     env:
       DJANGO_SECRET_KEY: ci-only-test-key-never-for-a-deployed-environment-483920184
       DATABASE_URL: postgresql://edunexa:ci-local-only@localhost:5432/edunexa?sslmode=disable
@@ -64,6 +70,13 @@ jobs:
         run: python manage.py spectacular --validate --fail-on-warn --file openapi.yml
       - name: Tests, including concurrent writes on PostgreSQL
         run: pytest --cov --cov-report=term-missing:skip-covered --cov-report=xml --cov-fail-under=85
+      - name: A Celery worker runs jobs through Redis
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.dev
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          celery -A config worker --pool=solo --loglevel=info --detach --logfile=celery.log
+          python manage.py check_jobs --timeout 30 || { cat celery.log; exit 1; }
       - uses: actions/upload-artifact@v7
         with:
           name: coverage

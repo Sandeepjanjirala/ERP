@@ -19,12 +19,16 @@ from django.utils import timezone
 
 from apps.academics.models import AcademicYear, Classroom, Subject, TeachingAssignment
 from apps.accounts.models import User
-from apps.attendance.models import Attendance
-from apps.attendance.services import save_register
+from apps.attendance.models import Attendance, LeaveRequest
+from apps.attendance.services import decide_leave, request_leave, save_register
+from apps.communication.models import Announcement
+from apps.communication.services import publish_announcement
+from apps.core.jobs import jobs_paused
 from apps.exams.models import Exam
 from apps.exams.services import create_exam, save_marks, transition_exam
 from apps.organization.models import Branch, Organization
 from apps.students.models import Enrollment, Student
+from apps.students.services import link_guardian
 
 
 @dataclass(frozen=True)
@@ -87,6 +91,19 @@ LAST_NAMES = [
     "Naidu", "Chowdary", "Pillai", "Joshi", "Das", "Khan", "Mehta", "Bose", "Shetty", "Kulkarni",
     "Agarwal", "Desai", "Hegde", "Prasad", "Murthy", "Sastry", "Goud", "Babu", "Singh", "Ali",
 ]  # fmt: skip
+PARENT_NAMES = {
+    "mother": ["Radha", "Sunitha", "Kavitha", "Swathi", "Madhavi", "Aruna", "Shabana", "Geetha"],
+    "father": [
+        "Srinivas",
+        "Ramesh",
+        "Prakash",
+        "Venkatesh",
+        "Naveen",
+        "Sanjay",
+        "Imtiaz",
+        "Mahesh",
+    ],
+}
 # Exam title, maximum marks, pass marks, position in the history window (0 to 1).
 EXAMS = [
     ("Unit Test 1", 25, 9, 0.25),
@@ -142,8 +159,13 @@ class Command(BaseCommand):
         # Every row goes through the real services and model validation, so the full size takes
         # about a minute: slower than bulk inserts, but the data can never break a business rule.
         self.stdout.write("Creating a synthetic school group; the full size takes about a minute.")
-        for index, spec in enumerate(BRANCHES, start=1):
-            self.seed_branch(org, index, spec)
+        # Months of history are recorded at once: that must not send today's families an alert
+        # for every past absence and published result.
+        self.branches = []
+        with jobs_paused():
+            for index, spec in enumerate(BRANCHES, start=1):
+                self.seed_branch(org, index, spec)
+        self.seed_announcements()
 
         self.stdout.write(
             self.style.SUCCESS("Synthetic demo data created (all names are fictional).")
@@ -155,11 +177,11 @@ class Command(BaseCommand):
         self.stdout.write("Demo password for all accounts: " + self.password)
         self.stdout.write(
             "Logins: superadmin, admin.madhapur, principal.madhapur, teacher.madhapur, "
-            "student1.madhapur"
+            "student1.madhapur, parent1.madhapur"
         )
         self.stdout.write(
             "Second branch: admin.benz-circle, principal.benz-circle, teacher.benz-circle, "
-            "student1.benz-circle"
+            "student1.benz-circle, parent1.benz-circle"
         )
         self.stdout.write(
             "The password is generated for this installation; it is not stored in project files."
@@ -184,7 +206,7 @@ class Command(BaseCommand):
         branch = Branch.objects.create(
             organization=org, name=spec["name"], code=code, city=spec["city"]
         )
-        self.account(f"admin.{code}", *spec["admin"], User.Role.ADMIN, branch)
+        admin = self.account(f"admin.{code}", *spec["admin"], User.Role.ADMIN, branch)
         principal = self.account(
             f"principal.{code}", *spec["principal"], User.Role.PRINCIPAL, branch
         )
@@ -244,10 +266,107 @@ class Command(BaseCommand):
                 roster[classroom].append(enrollment)
 
         self.progress(f"{spec['name']}: {number} students in {len(classrooms)} classes")
+        parents = self.seed_families(code, admin, roster)
+        self.progress(f"{spec['name']}: {parents} parent accounts")
         self.seed_exams(classrooms, teachers, subjects, roster, principal)
         self.progress(f"{spec['name']}: exams, marks and results")
         self.seed_attendance(classrooms, roster)
         self.progress(f"{spec['name']}: daily registers since {self.history_start:%d %b}")
+        self.seed_leave(roster)
+        self.branches.append((branch, principal, teachers[0], classrooms[0]))
+
+    def seed_families(self, code, admin, roster):
+        """A parent account for every student; about one family in ten has two children here.
+
+        Logins are created like the other demo accounts (one shared, pre-hashed password); each
+        link goes through link_guardian, as an admin would make it.
+        """
+        parents = 0
+        previous = None
+        enrollments = [e for students in roster.values() for e in students]
+        for number, enrollment in enumerate(enrollments, start=1):
+            student = enrollment.student
+            if previous and self.rng.random() < 0.1:
+                # A brother or sister of the previous student: same family, same surname.
+                parent, relationship = previous
+                student.user.last_name = parent.last_name
+                student.user.save(update_fields=["last_name"])
+            else:
+                relationship = self.rng.choice(["mother", "father"])
+                parent = self.account(
+                    f"parent{number}.{code}",
+                    self.rng.choice(PARENT_NAMES[relationship]),
+                    student.user.last_name,
+                    User.Role.PARENT,
+                    student.user.branch,
+                )
+                parents += 1
+            link_guardian(admin, student, parent, relationship)
+            previous = (parent, relationship)
+        return parents
+
+    def seed_leave(self, roster):
+        """A few leave requests per branch: one approved (it excuses recorded absences), one
+        refused, and one waiting for the class teacher."""
+        enrollments = [e for students in roster.values() for e in students]
+        yesterday = self.today - timedelta(days=1)
+        plans = [
+            (yesterday - timedelta(days=1), yesterday, "Fever", True),
+            (
+                self.today + timedelta(days=3),
+                self.today + timedelta(days=4),
+                "Family wedding",
+                False,
+            ),
+            (self.today + timedelta(days=1), self.today + timedelta(days=1), "Doctor visit", None),
+        ]
+        picks = self.rng.sample(enrollments, k=min(len(plans), len(enrollments)))
+        for enrollment, (starts, ends, reason, approve) in zip(picks, plans, strict=False):
+            student = enrollment.student
+            parent = student.guardian_links.get(is_primary=True).guardian.user
+            leave = request_leave(
+                parent,
+                LeaveRequest(student=student, starts_on=starts, ends_on=ends, reason=reason),
+            )
+            if approve is not None:
+                decide_leave(
+                    enrollment.classroom.homeroom_teacher,
+                    leave,
+                    approve,
+                    "" if approve else "Half-yearly exams that week. Please choose other days.",
+                )
+
+    def seed_announcements(self):
+        """A few announcements, delivered for real (not paused), so bells have something in them."""
+        publish_announcement(
+            User.objects.get(username="superadmin"),
+            Announcement(
+                audience=Announcement.Audience.EVERYONE,
+                title="Welcome to EduNexa",
+                body="Attendance, results, report cards and announcements are now online. "
+                "Parents can also apply for leave here.",
+            ),
+        )
+        for branch, principal, teacher, classroom in self.branches:
+            publish_announcement(
+                principal,
+                Announcement(
+                    branch=branch,
+                    audience=Announcement.Audience.PARENTS,
+                    title="Parent-teacher meeting on Saturday",
+                    body="Meet your child's class teacher between 9 am and 12 noon.",
+                ),
+            )
+            publish_announcement(
+                teacher,
+                Announcement(
+                    branch=branch,
+                    audience=Announcement.Audience.CLASS,
+                    classroom=classroom,
+                    title="Science fair projects",
+                    body="Please bring your project models to class on Monday.",
+                ),
+            )
 
     def progress(self, message):
         self.stdout.write(f"  {message}")

@@ -115,11 +115,7 @@ class StudentReportTests(ApiTestCase):
         self.assertEqual(report["selected_year"]["id"], self.year.pk)
         self.assertEqual(
             set(report["attendance"]),
-            {"present", "absent", "late", "excused"}
-            | {
-                "total",
-                "rate",
-            },
+            {"present", "absent", "late", "excused", "total", "rate", "below_minimum"},
         )
 
     def test_students_cannot_read_each_other(self):

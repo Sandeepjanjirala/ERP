@@ -10,3 +10,4 @@ Short notes on the main technical choices: the context, the decision, and what i
 | [0004](0004-brand-as-configuration.md) | The product name is configuration; the school name is data | Accepted |
 | [0005](0005-no-django-admin.md) | No Django admin site | Accepted |
 | [0006](0006-rest-api.md) | A REST API on the same services as the web app | Accepted |
+| [0007](0007-background-jobs-and-caching.md) | Background jobs after commit, idempotent; cache keys that carry a data version | Accepted |

@@ -4,7 +4,7 @@ from .models import User
 
 
 def can_manage_account(actor, person):
-    """Super admins manage every branch account; branch admins manage their teachers and students."""
+    """Super admins manage every branch account; branch admins: teachers, students and parents."""
     if not actor.is_manager or person.role == User.Role.SUPER:
         return False
     if actor.system_admin:
@@ -12,6 +12,7 @@ def can_manage_account(actor, person):
     return person.branch_id == actor.branch_id and person.role in (
         User.Role.TEACHER,
         User.Role.STUDENT,
+        User.Role.PARENT,
     )
 
 

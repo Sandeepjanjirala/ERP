@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block actions %}
+  {% if can_request %}
+    <a class="btn" href="{% url 'leave_create' %}">{% icon 'plus' %}Apply for leave</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  <nav class="tabs" aria-label="Filter leave requests">
+    <a href="{% url 'leave_requests' %}"{% if not status %} aria-current="page"{% endif %}>All</a>
+    {% for value, label in status_tabs %}
+      <a href="?status={{ value }}"{% if status == value %} aria-current="page"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </nav>
+
+  <section class="card">
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr><th>Student</th><th>Days</th><th>Reason</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for leave in page_obj %}
+            <tr>
+              <td><strong>{{ leave.student.user.display_name }}</strong><small>Asked by {{ leave.requested_by.display_name }}</small></td>
+              <td>{{ leave.starts_on|date:"d M" }} – {{ leave.ends_on|date:"d M Y" }}</td>
+              <td>{{ leave.reason }}</td>
+              <td>
+                <span class="badge badge-{% if leave.status == 'approved' %}success{% elif leave.status == 'rejected' %}warning{% else %}info{% endif %}">{{ leave.get_status_display }}</span>
+                {% if leave.decision_note %}<small>{{ leave.decision_note }}</small>{% endif %}
+              </td>
+              <td>
+                {% if leave.can_decide %}
+                  <form method="post" action="{% url 'leave_decide' leave.pk %}" class="row-actions">
+                    {% csrf_token %}
+                    <button class="link-button" type="submit" name="decision" value="approve">{% icon 'check' %} Approve</button>
+                    <label class="visually-hidden" for="note-{{ leave.pk }}">Reason if not approving</label>
+                    <input id="note-{{ leave.pk }}" name="note" maxlength="250" placeholder="Reason if not approving">
+                    <button class="link-button" type="submit" name="decision" value="reject">Not approve</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5" class="empty">No leave requests here.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% include "components/pagination.html" %}
+{% endblock %}

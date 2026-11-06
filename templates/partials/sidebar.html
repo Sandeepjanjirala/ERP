@@ -16,12 +16,14 @@
   <nav class="nav" aria-label="Main navigation">
     <p class="nav-label">Workspace</p>
     <a href="{% url 'dashboard' %}"{% aria_current 'dashboard' %}>{% icon 'grid' %}<span>Overview</span></a>
-    {% if not user.is_student %}
+    {% if not user.is_family %}
       <a href="{% url 'students' %}"{% aria_current 'students' 'student_create' 'student_report' %}>{% icon 'users' %}<span>Students</span></a>
       <a href="{% url 'attendance' %}"{% aria_current 'attendance' %}>{% icon 'calendar-check' %}<span>Daily attendance</span></a>
     {% endif %}
     <a href="{% url 'exams' %}"{% aria_current 'exams' 'exam_create' 'exam_detail' %}>{% icon 'clipboard' %}<span>Exams &amp; marks</span></a>
-    {% if not user.is_student %}
+    <a href="{% url 'leave_requests' %}"{% aria_current 'leave_requests' 'leave_create' %}>{% icon 'calendar-off' %}<span>Leave requests</span></a>
+    <a href="{% url 'announcements' %}"{% aria_current 'announcements' 'announcement_create' %}>{% icon 'message-square' %}<span>Announcements</span></a>
+    {% if not user.is_family %}
       <a href="{% url 'reports' %}"{% aria_current 'reports' %}>{% icon 'bar-chart' %}<span>Performance</span></a>
     {% endif %}
 

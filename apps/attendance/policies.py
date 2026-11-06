@@ -11,3 +11,8 @@ def can_attend(user, classroom):
             or (user.role == User.Role.TEACHER and classroom.homeroom_teacher_id == user.pk)
         )
     )
+
+
+def can_request_leave(user, student):
+    """A parent, for their own child."""
+    return user.is_parent and student.guardian_links.filter(guardian__user=user).exists()

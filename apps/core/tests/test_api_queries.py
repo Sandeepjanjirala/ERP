@@ -18,7 +18,10 @@ from apps.academics.tests.factories import (
 )
 from apps.accounts.models import User
 from apps.accounts.tests.factories import UserFactory
+from apps.attendance.models import LeaveRequest
 from apps.audit.services import audit
+from apps.communication.models import Announcement
+from apps.communication.services import notify
 from apps.exams.tests.factories import ExamFactory
 from apps.students.tests.factories import EnrollmentFactory
 
@@ -46,6 +49,9 @@ class QueryCountTests(TestCase):
         self.client.force_authenticate(self.admin)
 
     def queries(self, url):
+        # Measure the uncached path every time: a cache hit on the second call would hide a
+        # query that runs once per row.
+        cache.clear()
         with CaptureQueriesContext(connection) as context:
             response = self.client.get(url)
         self.assertEqual(response.status_code, 200, response.content)
@@ -95,6 +101,37 @@ class QueryCountTests(TestCase):
                 audit(self.admin, self.branch, "test.event", f"event {i}")
 
         self.assert_constant("/api/v1/activity/?page_size=100", events)
+
+    def test_announcements_and_notifications(self):
+        def posts(n):
+            for i in range(n):
+                Announcement.objects.create(
+                    branch=self.branch,
+                    audience="everyone",
+                    title=f"News {i}",
+                    body="x",
+                    author=self.admin,
+                )
+
+        def bells(n):
+            for i in range(n):
+                notify([self.admin], "results", f"results:{self.admin.pk}:{i}:{n}", f"Result {i}")
+
+        self.assert_constant("/api/v1/announcements/?page_size=100", posts)
+        self.assert_constant("/api/v1/notifications/?page_size=100", bells)
+
+    def test_leave_requests(self):
+        def requests(n):
+            for enrollment in EnrollmentFactory.create_batch(n, classroom=self.classroom):
+                LeaveRequest.objects.create(
+                    student=enrollment.student,
+                    requested_by=self.admin,
+                    starts_on=self.year.starts_on,
+                    ends_on=self.year.starts_on,
+                    reason="x",
+                )
+
+        self.assert_constant("/api/v1/leave-requests/?page_size=100", requests)
 
     def test_dashboard(self):
         # The dashboard lists up to 12 classes: 1 + 2 + 8 = 11 stays under that cap.

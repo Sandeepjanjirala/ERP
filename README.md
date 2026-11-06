@@ -17,10 +17,13 @@ EduNexa runs the daily work of a school group: branches, classrooms and teachers
 
 ## What it does
 
-- **Five roles:** super admin, branch admin, principal, teacher and student. Each sees only its own branch, classes or records.
+- **Six roles:** super admin, branch admin, principal, teacher, student and parent. Each sees only its own branch, classes, records or children.
 - **Daily attendance:** one register per class per day. Every student must be marked, corrections need a reason, and before/after values are logged.
 - **Exams and results:** teachers enter marks, then the workflow runs Draft → Submitted → Published. Only principals publish, and reopening a published exam needs a reason.
-- **Reports:** printable student reports, subject performance analysis, and CSV exports scoped to your access and protected against spreadsheet formula injection.
+- **Parents:** parent accounts linked to one or more children, with a primary contact. Parents follow attendance and results, download report cards, and apply for leave, which the class teacher approves.
+- **Notifications:** a notification bell and email for absences, published results, leave decisions and announcements, sent in the background.
+- **Dashboards:** for each role, with attendance charts, students below 75% attendance, and what is waiting for you.
+- **Reports:** report-card PDFs, printable student reports, subject performance analysis, and CSV exports scoped to your access and protected against spreadsheet formula injection.
 - **Security:** login throttling, a forced password change on first sign-in, a strict Content-Security-Policy, HSTS and secure cookies, and signed-in pages are never cached.
 - **Interface:** light and dark themes, responsive down to phone width, and keyboard and screen-reader friendly.
 - **REST API:** every feature under `/api/v1/` (password reset by email stays a web flow), with JWT sign-in, Swagger UI at `/api/docs/` and ReDoc at `/api/redoc/`. See [API.md](docs/API.md).
@@ -34,10 +37,12 @@ EduNexa runs the daily work of a school group: branches, classrooms and teachers
 | Business logic outside views | Each domain app has `selectors` (reads already limited to the user's scope), `policies` (who may do what) and `services` (writes with transactions, locks and audit). Views only parse input and render output. |
 | One set of rules for web and API | The web pages and the REST API call the same selectors, policies and services, and every service checks its own policy, so the two can't disagree. See [ADR 0006](docs/adr/0006-rest-api.md). |
 | Careful API security | 15-minute access tokens; refresh tokens that rotate and are blacklisted after use; a password change or deactivation revokes tokens; one sign-in limit shared with the web; out-of-scope records are 404. |
+| Background jobs done properly | Celery and Redis. Jobs are queued only after the database commits, are safe to run twice (each notification has a unique key), and re-check the facts before acting. CI starts a real worker and checks it takes jobs. See [ADR 0007](docs/adr/0007-background-jobs-and-caching.md). |
+| Caching that can't go stale | Dashboard numbers are cached in Redis under keys that include a fingerprint of the registers, so any change gives a new key. |
 | No N+1 queries | A test measures each API list's SQL queries with few rows and with many; the count must not change. |
 | Layered apps | Ten apps ordered by dependency, with no circular imports. See [ARCHITECTURE.md](docs/ARCHITECTURE.md). |
 | Production safety | Settings per environment. Production refuses to start without a secret key and PostgreSQL, and Django's `check --deploy` runs in CI. |
-| Tested | 209 tests (plus 381 table-driven cases, such as every API endpoint for every role) with 94% branch coverage. CI runs them on PostgreSQL along with lint, a migration check, an OpenAPI schema check and a Docker build. |
+| Tested | 289 tests (plus 530 table-driven cases, such as every API endpoint for every role) with 95% branch coverage. CI runs them on PostgreSQL along with lint, a migration check, an OpenAPI schema check, a real Celery worker taking a job through Redis, and a Docker build. |
 
 ## Run it on your computer
 
@@ -60,9 +65,10 @@ Open **http://127.0.0.1:8000/** and sign in with the password that `seed_demo` p
 | Principal | `principal.madhapur` |
 | Teacher (class teacher of Class 10-A, teaches Mathematics) | `teacher.madhapur` |
 | Student (in Class 10-A) | `student1.madhapur` |
-| Second branch | `admin.benz-circle`, `principal.benz-circle`, `teacher.benz-circle`, `student1.benz-circle` |
+| Parent (of `student1.madhapur`) | `parent1.madhapur` |
+| Second branch | `admin.benz-circle`, `principal.benz-circle`, `teacher.benz-circle`, `student1.benz-circle`, `parent1.benz-circle` |
 
-The demo school, *Greenfield Group of Schools*, is synthetic: 2 branches, 250 students, about three months of attendance and two terms of results. Accounts use `example.invalid` email addresses. Seeding refuses to run outside development settings or on a database that already has data. To reset the demo password, run `manage.py changepassword superadmin`.
+The demo school, *Greenfield Group of Schools*, is synthetic: 2 branches, 250 students and their parents, about three months of attendance, two terms of results, leave requests and announcements. Accounts use `example.invalid` email addresses. Seeding refuses to run outside development settings or on a database that already has data. To reset the demo password, run `manage.py changepassword superadmin`.
 
 ### With Docker and PostgreSQL
 
@@ -70,10 +76,10 @@ Install Docker Desktop, run `python setup_local.py` once to create `.env`, then:
 
 ```powershell
 docker compose up --build -d
-docker compose exec web python manage.py seed_demo
+docker compose exec web python manage.py seed_demo   # a few minutes: Docker on Windows adds a little to every query
 ```
 
-Compose runs PostgreSQL and the web app (gunicorn and WhiteNoise) on http://127.0.0.1:8000/. Data lives in a Docker volume. `docker compose stop` stops it; removing the volume deletes the data.
+Compose runs the full stack: PostgreSQL, Redis, the web app (gunicorn and WhiteNoise) on http://127.0.0.1:8000/, a Celery worker and scheduler, and Mailpit, which catches every email EduNexa sends so you can read them at http://127.0.0.1:8025/. Without Docker, background jobs simply run inside the request and emails print in the terminal. Data lives in a Docker volume. `docker compose stop` stops it; removing the volume deletes the data.
 
 ## Tests and code quality
 
@@ -102,10 +108,11 @@ apps/
   audit/         activity log: AuditEvent, audit(), events()
   accounts/      users and roles, sign-in and throttling, account management
   academics/     academic years, classrooms, subjects, teacher assignments
-  students/      students, enrollments, admission
-  attendance/    daily registers
-  exams/         exams, marks, result workflow
-  reports/       dashboard, student report, performance, activity log page
+  students/      students, enrollments, admission, guardians (parents)
+  communication/ announcements, notifications, email
+  attendance/    daily registers, leave requests, absence alerts
+  exams/         exams, marks, result workflow, results notifications
+  reports/       dashboards and charts, student report, report-card PDF, performance, activity log
   demo/          seed_demo command
                  each domain app: selectors, policies, services, web views, api/, tests/ with factories
 config/          settings (base, dev, prod, test), URLs, API URLs, WSGI
@@ -140,4 +147,4 @@ Initial passwords must be shared privately, and everyone must change theirs at f
 
 ## Status
 
-Phase 1 (foundation and rebrand) and Phase 2 (REST API) are complete. Next are background jobs and a parent portal, then fees and online payments, timetables, and a live demo. See the [roadmap](docs/DESIGN.md#14-roadmap).
+Phases 1 to 3 are complete: the foundation and rebrand, the REST API, and background jobs with the parent portal. Next are fees and online payments, then timetables and academic operations, and a live demo. See the [roadmap](docs/DESIGN.md#14-roadmap).

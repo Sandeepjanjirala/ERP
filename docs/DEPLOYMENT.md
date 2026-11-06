@@ -22,6 +22,8 @@ Use the host’s environment/secret settings. Never commit production secrets or
 | `DJANGO_SECRET_KEY` | New random secret of at least 50 characters. It also signs API tokens, so changing it signs every API client out. |
 | `DATABASE_URL` | PostgreSQL connection URL; TLS defaults to `sslmode=require` |
 | `ALLOWED_HOSTS` | Actual hostname(s), comma separated, without schemes |
+| `REDIS_URL` | Redis for background jobs and the shared cache, e.g. `redis://redis.internal:6379/0`. Without it, jobs run inside web requests and each process keeps its own cache (and its own API rate limits). |
+| `SITE_URL` | The address people open, e.g. `https://school.example.com`, for links in emails |
 | `CSRF_TRUSTED_ORIGINS` | Actual origins such as `https://school.example.com` |
 | `TRUST_PROXY` | `1` only if your reverse proxy overwrites `X-Forwarded-Proto` |
 | `EMAIL_HOST` / `EMAIL_PORT` | SMTP provider details |
@@ -53,21 +55,25 @@ python manage.py migrate --noinput
 python manage.py check --deploy
 ```
 
-Start the application behind the host’s HTTPS proxy:
+Start the application behind the host’s HTTPS proxy, plus one Celery worker and one scheduler:
 
 ```text
 gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 60
+celery -A config worker --loglevel=info
+celery -A config beat --loglevel=info
+```
+
+Run exactly one `beat` process, or scheduled jobs run twice. Check that the worker is taking jobs:
+
+```text
+python manage.py check_jobs
 ```
 
 For a host that supplies a `PORT` environment variable, configure its start command with that port instead of 8000. The Dockerfile already collects static files at startup; migrations remain a separate production release step. The provided compose file is a local setup and intentionally runs local migrations at startup.
 
 Use the hosting shell to run `python manage.py createsuperuser`. Complete the initial setup steps in README. Do not seed demo accounts on the production database.
 
-Each API token refresh adds a row to the token blacklist. Remove expired rows now and then, for example daily (Phase 3 will schedule this with Celery beat):
-
-```text
-python manage.py flushexpiredtokens
-```
+Each API token refresh adds a row to the token blacklist. Celery beat removes the expired ones every night (`flushexpiredtokens`).
 
 The API documentation at `/api/docs/`, `/api/redoc/` and `/api/schema/` is public, like most API references: it lists endpoints and fields, never data. Every data endpoint requires a token.
 

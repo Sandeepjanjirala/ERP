@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block actions %}
+  {% if user.is_parent %}
+    <a class="btn btn-secondary" href="{% url 'leave_create' %}">{% icon 'calendar-off' %}Apply for leave</a>
+  {% endif %}
+  <a class="btn" href="{% url 'report_card' student.pk %}">{% icon 'download' %}Report card (PDF)</a>
+{% endblock %}
+
+{% block content %}
+  {% if children|length > 1 %}
+    <nav class="tabs" aria-label="Choose a child">
+      {% for child in children %}
+        <a href="?child={{ child.pk }}"{% if child.pk == student.pk %} aria-current="page"{% endif %}>{{ child.user.display_name }}</a>
+      {% endfor %}
+    </nav>
+  {% endif %}
+
+  <section class="card identity">
+    <span class="avatar avatar-large" aria-hidden="true">{{ student.user.first_name|first|default:student.user.username|first|upper }}</span>
+    <div>
+      <p class="eyebrow">{% if user.is_parent %}Your child{% else %}Your progress{% endif %}</p>
+      <h2>{{ student.user.display_name }}</h2>
+      <p>{{ student.admission_number }} · {{ student.user.branch.name }}{% for enrollment in enrollments %} · {{ enrollment.classroom.grade }}–{{ enrollment.classroom.section }}{% endfor %}</p>
+    </div>
+    <a href="{% url 'student_report' student.pk %}">Full report {% icon 'arrow-right' %}</a>
+  </section>
+
+  {% if attendance_summary.below_minimum %}
+    <div class="callout callout-warning" role="note">
+      {% icon 'alert' %}
+      <div>
+        <strong>Attendance is below 75%.</strong>
+        <p>Regular attendance matters for results. Please speak to the class teacher.</p>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="grid-stats">
+    {% with attendance_days=attendance_summary.total|stringformat:"s"|add:" days recorded" %}
+      {% include "components/stat_card.html" with label="Attendance" value=attendance_summary.rate unit="%" hint=attendance_days only %}
+    {% endwith %}
+    {% include "components/stat_card.html" with label="Days absent" value=attendance_summary.A hint="This academic year" only %}
+    {% include "components/stat_card.html" with label="Overall percentage" value=summary.percentage unit="%" hint="Published results" only %}
+    {% include "components/stat_card.html" with label="Assessments passed" value=summary.passed total=summary.count hint="Based on each exam’s pass mark" only %}
+  </div>
+
+  <div class="grid-two">
+    <section class="card">
+      <div class="card-header"><div><h2>Latest results</h2><p>Published by the principal</p></div></div>
+      <div class="list">
+        {% for mark in latest_results %}
+          <div class="list-item">
+            <span class="subject-icon" aria-hidden="true">{{ mark.exam.subject.name|first }}</span>
+            <span class="list-item-body"><strong>{{ mark.exam.title }}</strong><small>{{ mark.exam.subject.name }} · {{ mark.exam.date|date:"d M Y" }}</small></span>
+            {% if mark.absent %}
+              <span class="badge">Absent</span>
+            {% else %}
+              <span class="badge {% if mark.passed %}badge-success{% else %}badge-warning{% endif %}">{{ mark.score }} / {{ mark.exam.max_marks }}</span>
+            {% endif %}
+          </div>
+        {% empty %}
+          <p class="empty">Results appear here once they are published.</p>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header"><div><h2>Recent attendance</h2><p>The last ten recorded days</p></div></div>
+      <div class="list">
+        {% for record in recent_attendance %}
+          <div class="list-item">
+            <span class="list-item-body"><strong>{{ record.session.date|date:"l, d M" }}</strong></span>
+            <span class="badge {% if record.status == 'A' %}badge-warning{% elif record.status == 'E' %}badge-info{% else %}badge-success{% endif %}">{{ record.get_status_display }}</span>
+          </div>
+        {% empty %}
+          <p class="empty">No attendance recorded yet this year.</p>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+
+  <div class="grid-two">
+    <section class="card">
+      <div class="card-header"><div><h2>Announcements</h2></div><a href="{% url 'announcements' %}">All {% icon 'arrow-right' %}</a></div>
+      <div class="list">
+        {% for announcement in announcements %}
+          <a class="list-item" href="{% url 'announcements' %}#announcement-{{ announcement.pk }}">
+            <span class="list-item-body"><strong>{{ announcement.title }}</strong><small>{{ announcement.created_at|date:"d M Y" }}</small></span>
+          </a>
+        {% empty %}
+          <p class="empty">No announcements yet.</p>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header"><div><h2>Leave requests</h2></div><a href="{% url 'leave_requests' %}">All {% icon 'arrow-right' %}</a></div>
+      <div class="list">
+        {% for leave in leave %}
+          <div class="list-item">
+            <span class="list-item-body"><strong>{{ leave.starts_on|date:"d M" }} – {{ leave.ends_on|date:"d M Y" }}</strong><small>{{ leave.reason|truncatechars:60 }}</small></span>
+            <span class="badge badge-{% if leave.status == 'approved' %}success{% elif leave.status == 'rejected' %}warning{% else %}info{% endif %}">{{ leave.get_status_display }}</span>
+          </div>
+        {% empty %}
+          <p class="empty">No leave requests.</p>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+{% endblock %}

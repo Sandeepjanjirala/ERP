@@ -6,6 +6,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from apps.accounts.decorators import role_required
 from apps.accounts.models import User
 from apps.core.pagination import paginate
+from apps.students.selectors import students
 
 from .forms import ExamForm, MarkSheetForm
 from .models import Exam
@@ -27,11 +28,11 @@ def exam_list(request):
             "title": "Exams & marks",
             "page_obj": paginate(request, qs),
             "status": status,
-            # Students only ever see published results, so they get no draft or review tabs.
+            # Families only ever see published results, so they get no draft or review tabs.
             "status_tabs": [
                 choice
                 for choice in Exam.Status.choices
-                if not request.user.is_student or choice[0] == Exam.Status.PUBLISHED
+                if not request.user.is_family or choice[0] == Exam.Status.PUBLISHED
             ],
             "can_create": request.user.role in EXAM_AUTHORS,
         },
@@ -41,8 +42,12 @@ def exam_list(request):
 @login_required
 def exam_detail(request, pk):
     exam = get_object_or_404(exams(request.user), pk=pk)
+    # The page shows the whole class's marks, so families see their own results instead.
     if request.user.role == User.Role.STUDENT:
         return redirect("student_report", pk=request.user.student_profile.pk)
+    if request.user.is_parent:
+        child = students(request.user).filter(enrollments__marks__exam=exam).first()
+        return redirect("student_report", pk=child.pk)
     sheet = mark_sheet(exam)
     enrolled, marks = sheet["roster"], sheet["marks"]
     writer = can_mark(request.user, exam)

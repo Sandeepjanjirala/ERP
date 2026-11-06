@@ -4,8 +4,9 @@ from django.utils import timezone
 from apps.academics.models import Classroom
 from apps.academics.selectors import classrooms
 from apps.core.forms import DateInput
+from apps.students.selectors import students
 
-from .models import Attendance
+from .models import Attendance, LeaveRequest
 from .services import register_date_error
 
 
@@ -44,3 +45,24 @@ class RegisterForm(forms.Form):
                 initial=initial_statuses.get(enrollment.pk),
             )
             self.rows.append((enrollment, self[key]))
+
+
+class LeaveRequestForm(forms.ModelForm):
+    class Meta:
+        model = LeaveRequest
+        fields = ["student", "starts_on", "ends_on", "reason"]
+        labels = {"student": "Child", "starts_on": "First day", "ends_on": "Last day"}
+        widgets = {
+            "starts_on": DateInput(),
+            "ends_on": DateInput(),
+            "reason": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, actor, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["student"].queryset = students(actor)
+
+
+class LeaveDecisionForm(forms.Form):
+    decision = forms.ChoiceField(choices=[("approve", "Approve"), ("reject", "Not approve")])
+    note = forms.CharField(max_length=250, required=False)

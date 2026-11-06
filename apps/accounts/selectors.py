@@ -24,6 +24,11 @@ def teachers(user):
     return User.objects.filter(branch__in=branches(user), role=User.Role.TEACHER, is_active=True)
 
 
+def parents(user):
+    """Active parent accounts in the user's branches: the choices when linking a guardian."""
+    return User.objects.filter(branch__in=branches(user), role=User.Role.PARENT, is_active=True)
+
+
 def branch_accounts(user):
     """Accounts that belong to one of the user's branches. Super admins have no branch."""
     return User.objects.filter(branch__in=branches(user))

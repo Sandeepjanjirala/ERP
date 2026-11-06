@@ -1,19 +1,30 @@
 from django.db.models import Prefetch
+from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 from rest_framework import mixins, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.accounts.models import User
 from apps.core.api.permissions import role_in
 
 from ..models import Enrollment, Student
-from ..selectors import enrollments, students
-from ..services import admit_student, enroll
+from ..selectors import enrollments, guardian_links, students
+from ..services import (
+    add_guardian_account,
+    admit_student,
+    enroll,
+    link_guardian,
+    make_primary_guardian,
+)
 from .filters import EnrollmentFilter, StudentFilter
 from .serializers import (
     AdmissionSerializer,
     EnrollmentCreateSerializer,
     EnrollmentSerializer,
+    GuardianAccountSerializer,
+    GuardianLinkSerializer,
+    LinkGuardianSerializer,
     StudentSerializer,
 )
 
@@ -38,10 +49,59 @@ class StudentViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
         )
 
     def get_permissions(self):
-        return [role_in(*(User.MANAGERS if self.action == "create" else User.STAFF))()]
+        writes = self.action in ("create", "link_guardian", "make_primary") or (
+            self.action == "guardians" and self.request.method == "POST"
+        )
+        return [role_in(*(User.MANAGERS if writes else User.STAFF))()]
 
     def get_serializer_class(self):
-        return AdmissionSerializer if self.action == "create" else StudentSerializer
+        return {
+            "create": AdmissionSerializer,
+            "guardians": GuardianAccountSerializer,
+            "link_guardian": LinkGuardianSerializer,
+            "make_primary": GuardianLinkSerializer,
+        }.get(self.action, StudentSerializer)
+
+    def guardian_list(self, student, status_code=status.HTTP_200_OK):
+        links = guardian_links(self.request.user).filter(student=student)
+        return Response(GuardianLinkSerializer(links, many=True).data, status=status_code)
+
+    @extend_schema(methods=["GET"], request=None, responses=GuardianLinkSerializer(many=True))
+    @extend_schema(methods=["POST"], responses={201: GuardianLinkSerializer(many=True)})
+    @action(detail=True, methods=["get", "post"])
+    def guardians(self, request, pk=None):
+        """The student's parents. POST creates a new parent account and links it."""
+        student = self.get_object()
+        if request.method == "GET":
+            return self.guardian_list(student)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        password = data.pop("password")
+        relationship, make_primary = data.pop("relationship"), data.pop("make_primary")
+        add_guardian_account(
+            request.user, User(**data), password, student, relationship, make_primary
+        )
+        return self.guardian_list(student, status.HTTP_201_CREATED)
+
+    @extend_schema(responses={201: GuardianLinkSerializer(many=True)})
+    @action(detail=True, methods=["post"], url_path="guardians/link")
+    def link_guardian(self, request, pk=None):
+        """Link an existing parent account, e.g. for a brother or sister."""
+        student = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        link_guardian(request.user, student, **serializer.validated_data)
+        return self.guardian_list(student, status.HTTP_201_CREATED)
+
+    @extend_schema(request=None, responses=GuardianLinkSerializer(many=True))
+    @action(detail=True, methods=["post"], url_path=r"guardians/(?P<link_pk>[0-9]+)/make-primary")
+    def make_primary(self, request, pk=None, link_pk=None):
+        """Make this guardian the student's primary contact."""
+        student = self.get_object()
+        link = get_object_or_404(guardian_links(request.user), pk=link_pk, student=student)
+        make_primary_guardian(request.user, link)
+        return self.guardian_list(student)
 
     @extend_schema(responses={201: StudentSerializer})
     def create(self, request, *args, **kwargs):
