@@ -127,6 +127,11 @@ class User(AbstractUser):
         return self.role == self.Role.ACCOUNTANT
 
     @property
+    def is_finance(self):
+        """Collects fees and issues invoices: admins and accountants."""
+        return self.role in self.FINANCE
+
+    @property
     def is_family(self):
         return self.role in self.FAMILY
 

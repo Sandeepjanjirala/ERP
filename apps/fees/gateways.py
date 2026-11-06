@@ -33,14 +33,9 @@ class PaymentEvent:
     status: str
 
 
-def parse_event(body):
-    """A Razorpay-format webhook body as a PaymentEvent. ValueError if it isn't one."""
+def payment_event(entity, kind):
+    """A Razorpay payment entity (from a webhook or the payments API) as a PaymentEvent."""
     try:
-        data = json.loads(body)
-        entity = data["payload"]["payment"]["entity"]
-        kind = {"payment.captured": "captured", "payment.failed": "failed"}.get(
-            data["event"], "other"
-        )
         return PaymentEvent(
             kind=kind,
             order_id=str(entity["order_id"]),
@@ -50,7 +45,20 @@ def parse_event(body):
             status=str(entity["status"]),
         )
     except (KeyError, TypeError, ValueError) as error:
+        raise ValueError("Not a payment.") from error
+
+
+def parse_event(body):
+    """A Razorpay-format webhook body as a PaymentEvent. ValueError if it isn't one."""
+    try:
+        data = json.loads(body)
+        entity = data["payload"]["payment"]["entity"]
+        kind = {"payment.captured": "captured", "payment.failed": "failed"}.get(
+            data["event"], "other"
+        )
+    except (KeyError, TypeError, ValueError) as error:
         raise ValueError("Not a payment event.") from error
+    return payment_event(entity, kind)
 
 
 class Gateway:

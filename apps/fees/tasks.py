@@ -23,7 +23,7 @@ def notify_invoices_issued(invoice_ids):
             f"New fee invoice: {invoice.title}",
             f"{rupees(invoice.total_paise)} for {invoice.student.user.display_name}, "
             f"due {invoice.due_on:%d %b %Y}.",
-            url=reverse("fees"),
+            url=reverse("invoice_detail", args=[invoice.pk]),
             email=True,
         )
     return sent
@@ -47,7 +47,7 @@ def send_receipt(payment_id):
         f"Payment received: {rupees(payment.amount_paise)}",
         f"Receipt {payment.receipt.number} for {invoice.student.user.display_name}, "
         f"{invoice.title}.",
-        url=reverse("fees"),
+        url=reverse("invoice_detail", args=[invoice.pk]),
         email=True,
         attachments=[(receipt_filename(payment), render_receipt(payment), "application/pdf")],
     )

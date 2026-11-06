@@ -10,7 +10,7 @@ from apps.audit.services import audit
 from apps.core.jobs import run_after_commit
 from apps.students.models import Student
 
-from .gateways import get_gateway, parse_event
+from .gateways import GatewayError, get_gateway, parse_event, payment_event
 from .models import (
     Concession,
     FeePlanItem,
@@ -428,3 +428,38 @@ def receive_webhook(gateway_name, body, signature):
     if not gateway.verify(body, signature):
         raise InvalidSignature
     return confirm_online_payment(gateway_name, parse_event(body))
+
+
+def simulate_sandbox_payment(actor, order, outcome):
+    """The Sandbox plays the provider: it sends the signed webhook Razorpay would send, so a test
+    payment goes through exactly the same checks as a real one."""
+    if order.gateway != "sandbox" or not can_pay_online(actor, order.invoice):
+        raise PermissionDenied
+    gateway = get_gateway("sandbox")
+    body = gateway.event_body(order, outcome)
+    return receive_webhook(gateway.name, body, gateway.sign(body))
+
+
+def confirm_checkout(actor, order, payment_id, signature):
+    """Razorpay's checkout sent the browser back with a payment id and a signature.
+
+    Nothing from the browser is trusted for the money: the signature proves Razorpay issued that
+    payment id for this order, and the amount, currency and status are fetched from Razorpay.
+    The webhook may arrive first or later; either way the payment is recorded once.
+    """
+    if order.gateway != "razorpay" or not can_pay_online(actor, order.invoice):
+        raise PermissionDenied
+    gateway = get_gateway("razorpay")
+    if not payment_id or not gateway.verify_checkout(order.gateway_order_id, payment_id, signature):
+        raise InvalidSignature
+    data = gateway.fetch_payment(payment_id)  # a network call, outside any transaction
+    status = data.get("status") if isinstance(data, dict) else None
+    try:
+        event = payment_event(
+            data, {"captured": "captured", "failed": "failed"}.get(status, "other")
+        )
+    except ValueError as error:
+        raise GatewayError("Razorpay sent a reply EduNexa didn't understand.") from error
+    if (event.order_id, event.payment_id) != (order.gateway_order_id, payment_id):
+        raise InvalidSignature
+    return confirm_online_payment("razorpay", event)

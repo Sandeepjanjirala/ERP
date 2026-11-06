@@ -54,6 +54,13 @@ def receipts(user):
     )
 
 
+def payment_orders(user):
+    """Online checkouts on the invoices the user can see."""
+    return PaymentOrder.objects.filter(invoice__in=invoices(user)).select_related(
+        "invoice__student__user", "invoice__branch"
+    )
+
+
 def orders_for_review(user):
     """Captured online payments that could not be applied automatically, and excess money."""
     if user.role not in User.FINANCE:

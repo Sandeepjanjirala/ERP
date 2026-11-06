@@ -37,7 +37,7 @@
         <tbody>
           {% for invoice in page_obj %}
             <tr>
-              <td><strong>#{{ invoice.pk }} {{ invoice.title }}</strong><small>{{ invoice.plan.grade|default:"" }}</small></td>
+              <td><a href="{% url 'invoice_detail' invoice.pk %}"><strong>#{{ invoice.pk }} {{ invoice.title }}</strong></a><small>{{ invoice.plan.grade|default:"" }}</small></td>
               <td>{{ invoice.student.user.display_name }}<small>{{ invoice.student.admission_number }}</small></td>
               <td>{{ invoice.due_on|date:"d M Y" }}</td>
               <td class="num">{{ invoice.total_paise|rupees }}</td>

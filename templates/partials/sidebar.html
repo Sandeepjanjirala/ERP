@@ -24,6 +24,13 @@
       <a href="{% url 'exams' %}"{% aria_current 'exams' 'exam_create' 'exam_detail' %}>{% icon 'clipboard' %}<span>Exams &amp; marks</span></a>
       <a href="{% url 'leave_requests' %}"{% aria_current 'leave_requests' 'leave_create' %}>{% icon 'calendar-off' %}<span>Leave requests</span></a>
     {% endif %}
+    {% if user.is_finance or user.is_parent %}
+      <a href="{% url 'fees' %}"{% aria_current 'fees' 'invoice_detail' 'checkout' %}>{% icon 'credit-card' %}<span>Fees</span></a>
+    {% endif %}
+    {% if user.is_finance %}
+      <a href="{% url 'fee_setup' %}"{% aria_current 'fee_setup' 'fee_head_create' 'fee_plan_create' 'fee_plan_edit' 'invoices_issue' %}>{% icon 'layers' %}<span>Fee setup</span></a>
+      <a href="{% url 'payment_review' %}"{% aria_current 'payment_review' %}>{% icon 'alert' %}<span>Payments to check</span></a>
+    {% endif %}
     <a href="{% url 'announcements' %}"{% aria_current 'announcements' 'announcement_create' %}>{% icon 'message-square' %}<span>Announcements</span></a>
     {% if user.is_school_staff %}
       <a href="{% url 'reports' %}"{% aria_current 'reports' %}>{% icon 'bar-chart' %}<span>Performance</span></a>
