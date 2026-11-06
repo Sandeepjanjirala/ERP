@@ -4,7 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.accounts.models import User
-from apps.core.api.permissions import IsSignedIn, role_in
+from apps.core.api.permissions import role_in
 
 from ..models import Exam
 from ..policies import EXAM_AUTHORS
@@ -52,7 +52,7 @@ class ExamViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
             return [role_in(*EXAM_AUTHORS)()]
         if self.action == "marks":  # the whole class's marks: staff only
             return [role_in(*User.STAFF)()]
-        return [IsSignedIn()]
+        return [role_in(*User.ACADEMIC)()]
 
     def detail_response(self, exam, status_code=status.HTTP_200_OK):
         exam = self.get_queryset().get(pk=exam.pk)  # a fresh copy after a write

@@ -8,15 +8,16 @@ per endpoint in each app's test_api_*.py.
 
 from apps.core.testing import ApiTestCase
 
-ROLES = ("root", "admin", "principal", "teacher", "student", "parent")
-ALL, STAFF, LEADERS, MANAGERS = (
-    (200, 200, 200, 200, 200, 200),
-    (200, 200, 200, 200, 403, 403),
-    (200, 200, 200, 403, 403, 403),
-    (200, 200, 403, 403, 403, 403),
+ROLES = ("root", "admin", "principal", "teacher", "student", "parent", "accountant")
+ALL, ACADEMIC, STAFF, LEADERS, MANAGERS = (
+    (200, 200, 200, 200, 200, 200, 200),
+    (200, 200, 200, 200, 200, 200, 403),  # everyone but accountants: marks, attendance, reports
+    (200, 200, 200, 200, 403, 403, 403),
+    (200, 200, 200, 403, 403, 403, 403),
+    (200, 200, 403, 403, 403, 403, 403),
 )
 # For writes with an empty body.
-WRITE_MANAGERS = (400, 400, 403, 403, 403, 403)
+WRITE_MANAGERS = (400, 400, 403, 403, 403, 403, 403)
 
 
 class ApiPermissionMatrixTests(ApiTestCase):
@@ -28,6 +29,7 @@ class ApiPermissionMatrixTests(ApiTestCase):
             "teacher": self.teacher,
             "student": self.e1.student.user,
             "parent": self.parent,  # Alice's mother
+            "accountant": self.accountant,
         }
 
     def reads(self):
@@ -37,13 +39,13 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("/api/v1/branches/", ALL),
             ("/api/v1/years/", ALL),
             ("/api/v1/classrooms/", ALL),
-            ("/api/v1/exams/", ALL),
+            ("/api/v1/exams/", ACADEMIC),
             ("/api/v1/announcements/", ALL),
-            ("/api/v1/leave-requests/", ALL),
+            ("/api/v1/leave-requests/", ACADEMIC),
             ("/api/v1/notifications/", ALL),
             ("/api/v1/notifications/unread-count/", ALL),
-            (f"/api/v1/students/{self.e1.student.pk}/report/", ALL),
-            (f"/api/v1/students/{self.e1.student.pk}/report-card/", ALL),
+            (f"/api/v1/students/{self.e1.student.pk}/report/", ACADEMIC),
+            (f"/api/v1/students/{self.e1.student.pk}/report-card/", ACADEMIC),
             ("/api/v1/subjects/", STAFF),
             ("/api/v1/students/", STAFF),
             ("/api/v1/enrollments/", STAFF),
@@ -70,26 +72,26 @@ class ApiPermissionMatrixTests(ApiTestCase):
             # stop at validation. The policy itself is tested in test_shared_rules.py.
             ("post", "/api/v1/branches/", WRITE_MANAGERS),
             ("post", "/api/v1/years/", WRITE_MANAGERS),
-            ("patch", "/api/v1/organization/", (200, 403, 403, 403, 403, 403)),
-            ("post", "/api/v1/exams/", (400, 400, 403, 400, 403, 403)),
-            ("post", "/api/v1/announcements/", (400, 400, 400, 400, 403, 403)),
+            ("patch", "/api/v1/organization/", (200, 403, 403, 403, 403, 403, 403)),
+            ("post", "/api/v1/exams/", (400, 400, 403, 400, 403, 403, 403)),
+            ("post", "/api/v1/announcements/", (400, 400, 400, 400, 403, 403, 403)),
             # Only parents apply for leave (for their own children).
-            ("post", "/api/v1/leave-requests/", (403, 403, 403, 403, 403, 400)),
-            ("post", "/api/v1/notifications/read-all/", (200, 200, 200, 200, 200, 200)),
+            ("post", "/api/v1/leave-requests/", (403, 403, 403, 403, 403, 400, 403)),
+            ("post", "/api/v1/notifications/read-all/", (200, 200, 200, 200, 200, 200, 200)),
             (
                 "put",
                 f"/api/v1/classrooms/{self.c.pk}/register/",
-                (400, 400, 400, 400, 403, 403),
+                (400, 400, 400, 400, 403, 403, 403),
             ),
-            ("put", f"/api/v1/exams/{self.exam.pk}/marks/", (400, 400, 400, 400, 403, 403)),
+            ("put", f"/api/v1/exams/{self.exam.pk}/marks/", (400, 400, 400, 400, 403, 403, 403)),
             # Families can't see a draft exam at all, so it is a 404 for them.
-            ("post", f"/api/v1/exams/{self.exam.pk}/submit/", (400, 400, 400, 400, 404, 404)),
-            ("post", f"/api/v1/exams/{self.exam.pk}/publish/", (400, 400, 400, 400, 404, 404)),
-            ("post", f"/api/v1/exams/{self.exam.pk}/reopen/", (400, 400, 400, 400, 404, 404)),
+            ("post", f"/api/v1/exams/{self.exam.pk}/submit/", (400, 400, 400, 400, 404, 404, 403)),
+            ("post", f"/api/v1/exams/{self.exam.pk}/publish/", (400, 400, 400, 400, 404, 404, 403)),
+            ("post", f"/api/v1/exams/{self.exam.pk}/reopen/", (400, 400, 400, 400, 404, 404, 403)),
             (
                 "post",
                 f"/api/v1/people/{self.teacher.pk}/toggle-access/",
-                (200, 200, 403, 403, 403, 403),
+                (200, 200, 403, 403, 403, 403, 403),
             ),
         ]
 

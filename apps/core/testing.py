@@ -24,7 +24,8 @@ PASSWORD = "Testing-only-strong-password-892!"
 
 
 class SchoolTestCase(TestCase):
-    """Two branches, staff in every role, two students in one class, a parent, and three exams."""
+    """Two branches, staff in every role (and an accountant), two students in one class, a parent,
+    and three exams."""
 
     @classmethod
     def setUpTestData(cls):
@@ -92,6 +93,7 @@ class SchoolTestCase(TestCase):
         cls.e1 = enroll("alice", cls.a, cls.c)
         cls.e2 = enroll("bob", cls.a, cls.c)
         cls.foreign_enrollment = enroll("charlie", cls.b, cls.foreign_class)
+        cls.accountant = user("accountant", "accountant", cls.a)
         # Alice's mother. Bob has no guardian account.
         cls.parent = user("parent", "parent", cls.a)
         StudentGuardian.objects.create(

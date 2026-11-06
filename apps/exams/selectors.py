@@ -13,6 +13,8 @@ from .models import Exam
 
 
 def exams(user):
+    if user.role not in User.ACADEMIC:
+        return Exam.objects.none()  # accountants work with fees, not marks
     qs = Exam.objects.filter(classroom__in=classrooms(user)).select_related(
         "classroom__branch", "classroom__year", "subject", "published_by"
     )

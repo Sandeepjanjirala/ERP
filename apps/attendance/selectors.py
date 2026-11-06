@@ -2,6 +2,7 @@
 
 from django.db.models import Q
 
+from apps.accounts.models import User
 from apps.students.models import Enrollment
 from apps.students.selectors import enrollments, roster, students
 
@@ -36,7 +37,10 @@ def daily_register(classroom, day):
 
 
 def leave_requests(user):
-    """Leave requests for the students the user may see, newest first."""
+    """Leave requests for the students the user may see, newest first. Not for accountants:
+    the reasons are about a child's health and family."""
+    if user.role not in User.ACADEMIC:
+        return LeaveRequest.objects.none()
     return LeaveRequest.objects.filter(student__in=students(user)).select_related(
         "student__user", "requested_by", "decided_by"
     )
@@ -53,10 +57,11 @@ def leave_enrollment(leave):
 
 
 def attendance_rows(user):
-    qs = Attendance.objects.filter(enrollment__in=enrollments(user)).select_related(
+    if user.role not in User.ACADEMIC:
+        return Attendance.objects.none()  # accountants work with fees, not attendance
+    return Attendance.objects.filter(enrollment__in=enrollments(user)).select_related(
         "session", "enrollment__student__user"
     )
-    return qs
 
 
 def attendance_summary(rows):

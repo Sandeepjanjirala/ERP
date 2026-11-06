@@ -41,6 +41,7 @@ class StudentReportView(generics.GenericAPIView):
     """
 
     serializer_class = StudentReportSerializer
+    permission_classes = [role_in(*User.ACADEMIC)]
 
     @extend_schema(
         parameters=[OpenApiParameter("year", OpenApiTypes.INT, description="Academic year id")]
@@ -162,6 +163,7 @@ class ReportCardView(generics.GenericAPIView):
     """The student's report card for one year as a PDF (default: their latest year)."""
 
     renderer_classes = [renderers.JSONRenderer, PDFRenderer]
+    permission_classes = [role_in(*User.ACADEMIC)]
 
     @extend_schema(
         parameters=[OpenApiParameter("year", OpenApiTypes.INT, description="Academic year id")],

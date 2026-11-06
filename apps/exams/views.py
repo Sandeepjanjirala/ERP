@@ -1,5 +1,4 @@
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 
@@ -15,7 +14,7 @@ from .selectors import exams, mark_sheet, mark_summary
 from .services import create_exam, save_marks, transition_exam
 
 
-@login_required
+@role_required(*User.ACADEMIC)
 def exam_list(request):
     qs = exams(request.user)
     status = request.GET.get("status", "")
@@ -39,7 +38,7 @@ def exam_list(request):
     )
 
 
-@login_required
+@role_required(*User.ACADEMIC)
 def exam_detail(request, pk):
     exam = get_object_or_404(exams(request.user), pk=pk)
     # The page shows the whole class's marks, so families see their own results instead.

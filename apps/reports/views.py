@@ -32,6 +32,8 @@ from .services import export_results_csv
 def dashboard(request):
     if request.user.is_family:
         return family_dashboard(request)
+    if request.user.is_accountant:
+        return render(request, "reports/accountant_dashboard.html", {"title": "Overview"})
     branch = selected_branch(request.user, request.GET.get("branch"))
     trend = attendance_trend(request.user, branch)
     return render(
@@ -75,7 +77,7 @@ def family_dashboard(request):
     )
 
 
-@login_required
+@role_required(*User.ACADEMIC)
 def report_card(request, pk):
     """The student report as a printable PDF report card."""
     student = get_object_or_404(students(request.user), pk=pk)
@@ -88,7 +90,7 @@ def report_card(request, pk):
     return response
 
 
-@login_required
+@role_required(*User.ACADEMIC)
 def student_report(request, pk):
     student = get_object_or_404(students(request.user), pk=pk)
     report = student_report_data(request.user, student, request.GET.get("year"))
