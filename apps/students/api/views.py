@@ -27,6 +27,7 @@ class StudentViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
     queryset = Student.objects.none()  # for the schema; get_queryset() is the real scope
     filterset_class = StudentFilter
     search_fields = ["user__first_name", "user__last_name", "admission_number"]
+    ordering_fields = ["user__first_name", "user__last_name", "admission_number"]
 
     def get_queryset(self):
         user = self.request.user

@@ -96,6 +96,7 @@ class PeopleViewSet(
     queryset = User.objects.none()  # for the schema; get_queryset() is the real scope
     filterset_fields = ["role", "is_active"]
     search_fields = ["username", "first_name", "last_name", "email"]
+    ordering_fields = ["username", "first_name", "last_name", "role"]
     http_method_names = ["get", "post", "patch", "head", "options"]
 
     def get_queryset(self):

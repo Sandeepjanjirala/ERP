@@ -131,6 +131,7 @@ class ActivityViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [role_in(*User.LEADERS)]
     filterset_class = AuditEventFilter
     search_fields = ["target", "actor__username"]
+    ordering_fields = ["created_at", "action"]
 
     def get_queryset(self):
         return events(self.request.user)

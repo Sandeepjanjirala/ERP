@@ -32,6 +32,7 @@ class ExamViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
     queryset = Exam.objects.none()  # for the schema; get_queryset() is the real scope
     filterset_class = ExamFilter
     search_fields = ["title", "subject__name"]
+    ordering_fields = ["date", "title"]
 
     def get_queryset(self):
         return exams(self.request.user).order_by("-date", "title", "pk")
