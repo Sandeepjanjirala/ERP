@@ -13,7 +13,7 @@ class RedocView(SpectacularRedocView):
 
     def finalize_response(self, request, response, *args, **kwargs):
         response = super().finalize_response(request, response, *args, **kwargs)
-        response.csp_extra = "worker-src 'self' blob:"
+        response.csp_add = {"worker-src": ["blob:"]}
         return response
 
 
