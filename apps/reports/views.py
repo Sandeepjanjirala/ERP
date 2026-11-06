@@ -10,10 +10,10 @@ from apps.accounts.models import User
 from apps.audit.selectors import events
 from apps.core.pagination import paginate
 from apps.exams.selectors import mark_summary
-from apps.organization.selectors import branches, selected_branch
+from apps.organization.selectors import branches, school_name, selected_branch
 from apps.students.selectors import guardian_links, students
 
-from .pdf import render_report_card, report_card_filename, school_name
+from .pdf import render_report_card, report_card_filename
 from .selectors import (
     attendance_trend,
     branch_comparison,

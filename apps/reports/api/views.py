@@ -11,10 +11,10 @@ from apps.audit.models import AuditEvent
 from apps.audit.selectors import events
 from apps.core.api.permissions import role_in
 from apps.exams.selectors import mark_summary
-from apps.organization.selectors import selected_branch
+from apps.organization.selectors import school_name, selected_branch
 from apps.students.selectors import students
 
-from ..pdf import render_report_card, report_card_filename, school_name
+from ..pdf import render_report_card, report_card_filename
 from ..selectors import (
     attendance_trend,
     low_attendance,

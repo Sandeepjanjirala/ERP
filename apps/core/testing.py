@@ -1,5 +1,8 @@
 """Shared test fixtures. Test code may import from any app; the layering rule is for app code."""
 
+import base64
+import re
+import zlib
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from decimal import Decimal
@@ -207,3 +210,17 @@ class ConcurrentTestCase(TransactionTestCase):
             futures = [pool.submit(worker, index) for index in range(2)]
             results = [f.result(timeout=30) for f in futures]
         self.assertEqual(sorted(results), ["conflict", "saved"])
+
+
+def pdf_text(content):
+    """The text drawn on the pages. ReportLab writes each page's drawing commands compressed
+    (zlib) and then as ASCII85 text, so both are undone here."""
+    streams = re.findall(rb"stream\r?\n(.*?)endstream", content, re.S)
+    text = b""
+    for stream in streams:
+        try:
+            text += zlib.decompress(base64.a85decode(stream.strip(), adobe=True))
+        except (ValueError, zlib.error):
+            continue  # fonts and other binary streams
+    # A line may be drawn as several runs, "(Sri <) Tj (Vidya) Tj": join them up.
+    return text.decode("latin-1").replace(") Tj (", "")
