@@ -2,7 +2,8 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.db.models import Q
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
 from apps.accounts.decorators import role_required
 from apps.accounts.models import User
@@ -10,9 +11,15 @@ from apps.core.exceptions import error_text
 from apps.core.pagination import paginate
 from apps.organization.selectors import branches, selected_branch
 
-from .forms import EnrollmentForm, StudentAccountForm
-from .selectors import students
-from .services import admit_student, enroll
+from .forms import EnrollmentForm, GuardianAccountForm, LinkGuardianForm, StudentAccountForm
+from .selectors import guardian_links, students
+from .services import (
+    add_guardian_account,
+    admit_student,
+    enroll,
+    link_guardian,
+    make_primary_guardian,
+)
 
 
 @role_required(*User.STAFF)
@@ -100,3 +107,78 @@ def enrollment_create(request):
             "description": "Choose matching branch, classroom, and academic-year details.",
         },
     )
+
+
+@role_required(*User.MANAGERS)
+def guardian_create(request, pk):
+    student = get_object_or_404(students(request.user), pk=pk)
+    # The form validates the new account as a whole, so it must already be a parent in the
+    # student's branch (the service sets the same values).
+    form = GuardianAccountForm(
+        request.POST or None, instance=User(role=User.Role.PARENT, branch=student.user.branch)
+    )
+    if request.method == "POST" and form.is_valid():
+        try:
+            link = add_guardian_account(
+                request.user,
+                form.save(commit=False),
+                form.cleaned_data["password"],
+                student,
+                form.cleaned_data["relationship"],
+                form.cleaned_data["make_primary"],
+            )
+        except (ValidationError, IntegrityError) as exc:
+            form.add_error(None, error_text(exc, "A matching account already exists."))
+        else:
+            messages.success(
+                request,
+                f"{link.guardian} can now sign in. Their first login requires a password change.",
+            )
+            return redirect("student_report", pk=student.pk)
+    return render(
+        request,
+        "form_page.html",
+        {
+            "title": f"Add a parent for {student.user.display_name}",
+            "form": form,
+            "description": "Creates the parent's own login. Initial passwords must be shared privately.",
+        },
+    )
+
+
+@role_required(*User.MANAGERS)
+def guardian_link(request, pk):
+    student = get_object_or_404(students(request.user), pk=pk)
+    form = LinkGuardianForm(request.POST or None, student=student)
+    if request.method == "POST" and form.is_valid():
+        try:
+            link_guardian(
+                request.user,
+                student,
+                form.cleaned_data["parent"],
+                form.cleaned_data["relationship"],
+                form.cleaned_data["make_primary"],
+            )
+        except (ValidationError, IntegrityError) as exc:
+            form.add_error(None, error_text(exc, "This parent is already linked."))
+        else:
+            messages.success(request, "Parent linked.")
+            return redirect("student_report", pk=student.pk)
+    return render(
+        request,
+        "form_page.html",
+        {
+            "title": f"Link a parent to {student.user.display_name}",
+            "form": form,
+            "description": "For a brother or sister of a student already at the school.",
+        },
+    )
+
+
+@require_POST
+@role_required(*User.MANAGERS)
+def guardian_make_primary(request, pk, link_pk):
+    link = get_object_or_404(guardian_links(request.user), pk=link_pk, student_id=pk)
+    make_primary_guardian(request.user, link)
+    messages.success(request, f"{link.guardian} is now the primary contact.")
+    return redirect("student_report", pk=pk)

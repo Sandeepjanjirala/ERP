@@ -103,5 +103,46 @@
     </section>
   </div>
 
+  <section class="card">
+    <div class="card-header">
+      <div>
+        <h2>Parents and guardians</h2>
+        <p>The primary contact receives absence alerts and results first.</p>
+      </div>
+      {% if can_manage_guardians %}
+        <div class="row-actions">
+          <a href="{% url 'guardian_create' student.pk %}">{% icon 'plus' %} Add parent</a>
+          <a href="{% url 'guardian_link' student.pk %}">{% icon 'users' %} Link existing parent</a>
+        </div>
+      {% endif %}
+    </div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Name</th><th>Relationship</th><th>Contact</th><th></th></tr></thead>
+        <tbody>
+          {% for link in guardians %}
+            <tr>
+              <td><strong>{{ link.guardian.user.display_name }}</strong></td>
+              <td>{{ link.get_relationship_display }}</td>
+              <td>{{ link.guardian.user.email }}{% if link.guardian.user.phone %}<small>{{ link.guardian.user.phone }}</small>{% endif %}</td>
+              <td>
+                {% if link.is_primary %}
+                  <span class="badge badge-info">Primary contact</span>
+                {% elif can_manage_guardians %}
+                  <form method="post" action="{% url 'guardian_make_primary' student.pk link.pk %}">
+                    {% csrf_token %}
+                    <button class="link-button" type="submit">Make primary</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="empty">No parent accounts are linked yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <p class="footnote">Only published results are included. Absent exam attempts count as zero. Overall percentage is weighted by each exam’s maximum marks. A teacher’s report is limited to their permitted classes and subjects.</p>
 {% endblock %}

@@ -5,9 +5,10 @@ from rest_framework.validators import UniqueValidator
 from apps.academics.api.serializers import AcademicYearSerializer, ClassroomSummarySerializer
 from apps.academics.selectors import classrooms
 from apps.accounts.api.serializers import AccountCreateFields, PersonSerializer
+from apps.accounts.selectors import parents
 from apps.core.api.fields import ScopedPrimaryKeyField
 
-from ..models import Enrollment, Student
+from ..models import Enrollment, Student, StudentGuardian
 from ..selectors import students
 
 
@@ -61,3 +62,29 @@ class AdmissionSerializer(AccountCreateFields):
 
     class Meta(AccountCreateFields.Meta):
         fields = [*AccountCreateFields.Meta.fields, "admission_number", "classroom", "joined_on"]
+
+
+class GuardianLinkSerializer(serializers.ModelSerializer):
+    guardian = PersonSerializer(source="guardian.user", read_only=True)
+
+    class Meta:
+        model = StudentGuardian
+        fields = ["id", "relationship", "is_primary", "guardian"]
+
+
+class GuardianAccountSerializer(AccountCreateFields):
+    """A new parent login, linked to this student. The branch is the student's branch."""
+
+    relationship = serializers.ChoiceField(choices=StudentGuardian.Relationship.choices)
+    make_primary = serializers.BooleanField(default=False)
+
+    class Meta(AccountCreateFields.Meta):
+        fields = [*AccountCreateFields.Meta.fields, "relationship", "make_primary"]
+
+
+class LinkGuardianSerializer(serializers.Serializer):
+    """An existing parent account in your branch, e.g. for a brother or sister."""
+
+    parent = ScopedPrimaryKeyField(parents)
+    relationship = serializers.ChoiceField(choices=StudentGuardian.Relationship.choices)
+    make_primary = serializers.BooleanField(default=False)

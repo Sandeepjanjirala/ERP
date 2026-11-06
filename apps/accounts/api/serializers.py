@@ -53,6 +53,7 @@ class PersonSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "email",
+            "phone",
             "role",
             "role_label",
             "branch",
@@ -76,7 +77,6 @@ class MeSerializer(PersonSerializer):
     class Meta(PersonSerializer.Meta):
         fields = [
             *PersonSerializer.Meta.fields,
-            "phone",
             "must_change_password",
             "student_id",
             "children",
@@ -131,7 +131,7 @@ class AccountCreateFields(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "username", "first_name", "last_name", "email", "password"]
+        fields = ["id", "username", "first_name", "last_name", "email", "phone", "password"]
 
 
 class StaffAccountCreateSerializer(AccountCreateFields):
@@ -164,7 +164,7 @@ class ContactDetailsSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["first_name", "last_name", "email"]
+        fields = ["first_name", "last_name", "email", "phone"]
 
     def validate_email(self, value):
         taken = User.objects.filter(email__iexact=value).exclude(pk=self.instance.pk)

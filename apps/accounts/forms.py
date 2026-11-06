@@ -18,8 +18,8 @@ class LoginForm(AuthenticationForm):
         return self.cleaned_data["username"].strip().lower()
 
 
-class AccountForm(forms.ModelForm):
-    """A new staff account. Branch admins may only create teachers, and only in their branch."""
+class NewAccountForm(forms.ModelForm):
+    """Login details for a new account: a unique username and email, and a strong password."""
 
     password = forms.CharField(
         widget=forms.PasswordInput,
@@ -28,20 +28,11 @@ class AccountForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ["username", "first_name", "last_name", "email", "role", "branch"]
+        fields = ["username", "first_name", "last_name", "email", "phone"]
 
-    def __init__(self, *args, actor, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.actor = actor
-        self.fields["branch"].queryset = branches(actor)
-        self.fields["branch"].required = True
         self.fields["first_name"].required = True
-        self.fields["role"].choices = self.role_choices()
-        if not actor.system_admin:
-            self.fields["branch"].initial = actor.branch_id
-
-    def role_choices(self):
-        return choices_for(*staff_roles_for(self.actor))
 
     def clean_username(self):
         value = self.cleaned_data["username"].strip().lower()
@@ -68,10 +59,29 @@ class AccountForm(forms.ModelForm):
         return data
 
 
+class AccountForm(NewAccountForm):
+    """A new staff account. Branch admins may only create teachers, and only in their branch."""
+
+    class Meta(NewAccountForm.Meta):
+        fields = [*NewAccountForm.Meta.fields, "role", "branch"]
+
+    def __init__(self, *args, actor, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.actor = actor
+        self.fields["branch"].queryset = branches(actor)
+        self.fields["branch"].required = True
+        self.fields["role"].choices = self.role_choices()
+        if not actor.system_admin:
+            self.fields["branch"].initial = actor.branch_id
+
+    def role_choices(self):
+        return choices_for(*staff_roles_for(self.actor))
+
+
 class AccountEditForm(forms.ModelForm):
     class Meta:
         model = User
-        fields = ["first_name", "last_name", "email"]
+        fields = ["first_name", "last_name", "email", "phone"]
 
     def clean_email(self):
         value = self.cleaned_data["email"].strip().lower()

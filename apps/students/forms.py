@@ -3,11 +3,11 @@ from django.utils import timezone
 
 from apps.academics.models import Classroom
 from apps.academics.selectors import classrooms
-from apps.accounts.forms import AccountForm, choices_for
+from apps.accounts.forms import AccountForm, NewAccountForm, choices_for
 from apps.accounts.models import User
 from apps.core.forms import DateInput
 
-from .models import Enrollment, Student
+from .models import Enrollment, Student, StudentGuardian
 from .selectors import students
 
 
@@ -66,3 +66,33 @@ class EnrollmentForm(forms.ModelForm):
             ):
                 self.add_error("student", "This student already has an enrollment for that year.")
         return data
+
+
+class GuardianChoices(forms.Form):
+    relationship = forms.ChoiceField(choices=StudentGuardian.Relationship.choices)
+    make_primary = forms.BooleanField(
+        required=False,
+        label="Make this the primary contact",
+        help_text="A student's first guardian is always the primary contact.",
+    )
+
+
+class GuardianAccountForm(NewAccountForm, GuardianChoices):
+    """A new parent login for this student's family."""
+
+    field_order = [*NewAccountForm.Meta.fields, "password", "relationship", "make_primary"]
+
+
+class LinkGuardianForm(GuardianChoices):
+    """An existing parent account, for a brother or sister of a student already at the school."""
+
+    parent = forms.ModelChoiceField(queryset=User.objects.none(), label="Parent account")
+
+    def __init__(self, *args, student, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["parent"].queryset = (
+            User.objects.filter(role=User.Role.PARENT, branch=student.user.branch, is_active=True)
+            .exclude(guardian_profile__child_links__student=student)
+            .order_by("first_name", "username")
+        )
+        self.order_fields(["parent", "relationship", "make_primary"])

@@ -7,7 +7,7 @@ from apps.audit.services import audit
 from .models import User
 from .policies import can_change_access, can_manage_account
 
-CONTACT_FIELDS = ("first_name", "last_name", "email")
+CONTACT_FIELDS = ("first_name", "last_name", "email", "phone")
 
 
 @transaction.atomic

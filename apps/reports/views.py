@@ -10,7 +10,7 @@ from apps.core.pagination import paginate
 from apps.exams.selectors import mark_summary
 from apps.organization.selectors import branches, selected_branch
 from apps.students.models import Student
-from apps.students.selectors import students
+from apps.students.selectors import guardian_links, students
 
 from .selectors import overview, published_marks, subject_performance
 from .selectors import student_report as student_report_data
@@ -51,6 +51,8 @@ def student_report(request, pk):
             "title": "Student report",
             "student": student,
             **report,
+            "guardians": guardian_links(request.user).filter(student=student),
+            "can_manage_guardians": request.user.is_manager,
             "attendance_page": paginate(request, report["attendance_rows"], 15),
         },
     )
