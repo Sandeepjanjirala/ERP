@@ -1,6 +1,7 @@
 # Local development: runtime dependencies plus test and code-quality tools.
 -r base.txt
 coverage==7.17.2
+factory-boy==3.3.3
 pre-commit==4.7.0
 pytest==9.2.0
 pytest-cov==7.1.0
