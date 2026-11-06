@@ -1,6 +1,8 @@
 from rest_framework import serializers
 
 from apps.academics.api.serializers import AcademicYearSerializer, ClassroomSummarySerializer
+from apps.accounts.api.serializers import UserSummarySerializer
+from apps.audit.models import AuditEvent
 from apps.exams.models import Mark
 from apps.students.api.serializers import EnrollmentSerializer, StudentSerializer
 
@@ -19,8 +21,18 @@ class ResultSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Mark
-        fields = ["exam", "exam_title", "subject", "classroom", "date", "score", "absent"]
-        fields += ["max_marks", "percentage", "passed"]
+        fields = [
+            "exam",
+            "exam_title",
+            "subject",
+            "classroom",
+            "date",
+            "score",
+            "absent",
+            "max_marks",
+            "percentage",
+            "passed",
+        ]
 
 
 class MarkSummarySerializer(serializers.Serializer):
@@ -38,6 +50,32 @@ class AttendanceSummarySerializer(serializers.Serializer):
     excused = serializers.IntegerField(source="E")
     total = serializers.IntegerField()
     rate = serializers.FloatField(allow_null=True, help_text="Present and late, out of days")
+
+
+class SubjectPerformanceSerializer(MarkSummarySerializer):
+    branch = serializers.CharField()
+    name = serializers.CharField()
+
+
+class PerformanceSerializer(serializers.Serializer):
+    """Published results only: overall, and per branch and subject."""
+
+    summary = MarkSummarySerializer()
+    subjects = SubjectPerformanceSerializer(many=True)
+
+
+class PerformanceQuerySerializer(serializers.Serializer):
+    year = serializers.IntegerField(required=False, help_text="Academic year id")
+    branch = serializers.IntegerField(required=False, help_text="Branch id (404 outside scope)")
+
+
+class AuditEventSerializer(serializers.ModelSerializer):
+    actor = UserSummarySerializer()
+    details = serializers.JSONField()
+
+    class Meta:
+        model = AuditEvent
+        fields = ["id", "created_at", "actor", "branch", "action", "target", "details"]
 
 
 class StudentReportSerializer(serializers.Serializer):
