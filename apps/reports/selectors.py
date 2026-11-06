@@ -2,13 +2,17 @@
 
 from collections import defaultdict
 
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
 from apps.academics.models import AcademicYear
+from apps.academics.selectors import classrooms
+from apps.attendance.models import AttendanceSession
 from apps.attendance.selectors import attendance_rows, attendance_summary
 from apps.exams.models import Exam, Mark
 from apps.exams.selectors import exams, mark_summary
-from apps.students.selectors import enrollments
+from apps.students.selectors import enrollments, students
 
 
 def student_report(user, student, year_id=None):
@@ -67,3 +71,42 @@ def subject_performance(marks):
         {"branch": branch, "name": subject, **mark_summary(group)}
         for (branch, subject), group in sorted(groups.items())
     ]
+
+
+def overview(user, branch=None):
+    """The dashboard: headline numbers, up to 12 classes with today's register, recent exams."""
+    classes = classrooms(user)
+    people = students(user)
+    exams_qs = exams(user)
+    attendance = attendance_rows(user)
+    if branch:
+        classes = classes.filter(branch=branch)
+        people = people.filter(user__branch=branch)
+        exams_qs = exams_qs.filter(classroom__branch=branch)
+        attendance = attendance.filter(session__classroom__branch=branch)
+    today = timezone.localdate()
+    stats = {
+        "students": people.filter(user__is_active=True).count(),
+        "classes": classes.count(),
+        "pending": exams_qs.filter(status=Exam.Status.SUBMITTED).count(),
+        "attendance": attendance_summary(attendance.filter(session__date=today))["rate"],
+    }
+    class_rows = list(
+        classes.annotate(
+            student_count=Count(
+                "enrollments", filter=Q(enrollments__left_on__isnull=True), distinct=True
+            )
+        )[:12]
+    )
+    sessions = {
+        s.classroom_id: s
+        for s in AttendanceSession.objects.filter(classroom__in=class_rows, date=today)
+    }
+    for classroom in class_rows:
+        classroom.register = sessions.get(classroom.pk)
+    return {
+        "today": today,
+        "stats": stats,
+        "class_rows": class_rows,
+        "recent_exams": exams_qs[:5],
+    }
