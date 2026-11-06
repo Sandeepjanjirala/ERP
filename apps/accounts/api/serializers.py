@@ -61,16 +61,40 @@ class PersonSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class ChildSerializer(serializers.Serializer):
+    student_id = serializers.IntegerField(source="student.pk")
+    name = serializers.CharField(source="student.user.display_name")
+    admission_number = serializers.CharField(source="student.admission_number")
+    relationship = serializers.CharField()
+    is_primary = serializers.BooleanField()
+
+
 class MeSerializer(PersonSerializer):
     student_id = serializers.SerializerMethodField()
+    children = serializers.SerializerMethodField()
 
     class Meta(PersonSerializer.Meta):
-        fields = [*PersonSerializer.Meta.fields, "must_change_password", "student_id"]
+        fields = [
+            *PersonSerializer.Meta.fields,
+            "phone",
+            "must_change_password",
+            "student_id",
+            "children",
+        ]
         read_only_fields = fields
 
     def get_student_id(self, user) -> int | None:
         profile = getattr(user, "student_profile", None) if user.is_student else None
         return profile.pk if profile else None
+
+    def get_children(self, user) -> ChildSerializer(many=True):
+        """A parent's children; empty for everyone else."""
+        profile = getattr(user, "guardian_profile", None) if user.is_parent else None
+        if not profile:
+            return []
+        # students sits above accounts, so its models are reached through the relation.
+        links = profile.child_links.select_related("student__user").order_by("student__pk")
+        return ChildSerializer(links, many=True).data
 
 
 class PeopleSerializer(PersonSerializer):

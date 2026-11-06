@@ -16,9 +16,15 @@ def exams(user):
     qs = Exam.objects.filter(classroom__in=classrooms(user)).select_related(
         "classroom__branch", "classroom__year", "subject", "published_by"
     )
+    # Families see published exams only, and only those their child sat.
     if user.role == User.Role.STUDENT:
         return qs.filter(
             status=Exam.Status.PUBLISHED, marks__enrollment__student__user=user
+        ).distinct()
+    if user.role == User.Role.PARENT:
+        return qs.filter(
+            status=Exam.Status.PUBLISHED,
+            marks__enrollment__student__guardian_links__guardian__user=user,
         ).distinct()
     if user.role == User.Role.TEACHER:
         assigned = TeachingAssignment.objects.filter(teacher=user).values(

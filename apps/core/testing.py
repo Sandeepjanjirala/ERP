@@ -18,13 +18,13 @@ from apps.core.exceptions import Conflict
 from apps.exams.models import Exam
 from apps.exams.services import save_marks, transition_exam
 from apps.organization.models import Branch, Organization
-from apps.students.models import Enrollment, Student
+from apps.students.models import Enrollment, Guardian, Student, StudentGuardian
 
 PASSWORD = "Testing-only-strong-password-892!"
 
 
 class SchoolTestCase(TestCase):
-    """Two branches, staff in every role, two students in one class, and three exams."""
+    """Two branches, staff in every role, two students in one class, a parent, and three exams."""
 
     @classmethod
     def setUpTestData(cls):
@@ -92,6 +92,14 @@ class SchoolTestCase(TestCase):
         cls.e1 = enroll("alice", cls.a, cls.c)
         cls.e2 = enroll("bob", cls.a, cls.c)
         cls.foreign_enrollment = enroll("charlie", cls.b, cls.foreign_class)
+        # Alice's mother. Bob has no guardian account.
+        cls.parent = user("parent", "parent", cls.a)
+        StudentGuardian.objects.create(
+            student=cls.e1.student,
+            guardian=Guardian.objects.create(user=cls.parent),
+            relationship=StudentGuardian.Relationship.MOTHER,
+            is_primary=True,
+        )
         cls.exam = Exam.objects.create(
             classroom=cls.c,
             subject=cls.math,

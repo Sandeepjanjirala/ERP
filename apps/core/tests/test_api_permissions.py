@@ -8,15 +8,15 @@ per endpoint in each app's test_api_*.py.
 
 from apps.core.testing import ApiTestCase
 
-ROLES = ("root", "admin", "principal", "teacher", "student")
+ROLES = ("root", "admin", "principal", "teacher", "student", "parent")
 ALL, STAFF, LEADERS, MANAGERS = (
-    (200, 200, 200, 200, 200),
-    (200, 200, 200, 200, 403),
-    (200, 200, 200, 403, 403),
-    (200, 200, 403, 403, 403),
+    (200, 200, 200, 200, 200, 200),
+    (200, 200, 200, 200, 403, 403),
+    (200, 200, 200, 403, 403, 403),
+    (200, 200, 403, 403, 403, 403),
 )
 # For writes with an empty body.
-WRITE_MANAGERS = (400, 400, 403, 403, 403)
+WRITE_MANAGERS = (400, 400, 403, 403, 403, 403)
 
 
 class ApiPermissionMatrixTests(ApiTestCase):
@@ -27,6 +27,7 @@ class ApiPermissionMatrixTests(ApiTestCase):
             "principal": self.principal,
             "teacher": self.teacher,
             "student": self.e1.student.user,
+            "parent": self.parent,  # Alice's mother
         }
 
     def reads(self):
@@ -64,19 +65,23 @@ class ApiPermissionMatrixTests(ApiTestCase):
             # stop at validation. The policy itself is tested in test_shared_rules.py.
             ("post", "/api/v1/branches/", WRITE_MANAGERS),
             ("post", "/api/v1/years/", WRITE_MANAGERS),
-            ("patch", "/api/v1/organization/", (200, 403, 403, 403, 403)),
-            ("post", "/api/v1/exams/", (400, 400, 403, 400, 403)),
+            ("patch", "/api/v1/organization/", (200, 403, 403, 403, 403, 403)),
+            ("post", "/api/v1/exams/", (400, 400, 403, 400, 403, 403)),
             (
                 "put",
                 f"/api/v1/classrooms/{self.c.pk}/register/",
-                (400, 400, 400, 400, 403),
+                (400, 400, 400, 400, 403, 403),
             ),
-            ("put", f"/api/v1/exams/{self.exam.pk}/marks/", (400, 400, 400, 400, 403)),
-            # Students can't see a draft exam at all, so it is a 404 for them.
-            ("post", f"/api/v1/exams/{self.exam.pk}/submit/", (400, 400, 400, 400, 404)),
-            ("post", f"/api/v1/exams/{self.exam.pk}/publish/", (400, 400, 400, 400, 404)),
-            ("post", f"/api/v1/exams/{self.exam.pk}/reopen/", (400, 400, 400, 400, 404)),
-            ("post", f"/api/v1/people/{self.teacher.pk}/toggle-access/", (200, 200, 403, 403, 403)),
+            ("put", f"/api/v1/exams/{self.exam.pk}/marks/", (400, 400, 400, 400, 403, 403)),
+            # Families can't see a draft exam at all, so it is a 404 for them.
+            ("post", f"/api/v1/exams/{self.exam.pk}/submit/", (400, 400, 400, 400, 404, 404)),
+            ("post", f"/api/v1/exams/{self.exam.pk}/publish/", (400, 400, 400, 400, 404, 404)),
+            ("post", f"/api/v1/exams/{self.exam.pk}/reopen/", (400, 400, 400, 400, 404, 404)),
+            (
+                "post",
+                f"/api/v1/people/{self.teacher.pk}/toggle-access/",
+                (200, 200, 403, 403, 403, 403),
+            ),
         ]
 
     def test_reads(self):

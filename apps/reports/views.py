@@ -22,6 +22,11 @@ def dashboard(request):
     if request.user.role == User.Role.STUDENT:
         profile = get_object_or_404(Student, user=request.user)
         return redirect("student_report", pk=profile.pk)
+    if request.user.is_parent:
+        child = students(request.user).order_by("user__first_name", "pk").first()
+        if child:
+            return redirect("student_report", pk=child.pk)
+        return render(request, "reports/no_children.html", {"title": "Overview"})
     branch = selected_branch(request.user, request.GET.get("branch"))
     return render(
         request,

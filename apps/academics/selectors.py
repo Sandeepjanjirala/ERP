@@ -16,6 +16,9 @@ def classrooms(user):
         qs = qs.filter(Q(homeroom_teacher=user) | Q(teaching__teacher=user)).distinct()
     elif user.role == User.Role.STUDENT:
         qs = qs.filter(enrollments__student__user=user).distinct()
+    elif user.role == User.Role.PARENT:
+        # students sits above academics, so its guardian links are named, not imported.
+        qs = qs.filter(enrollments__student__guardian_links__guardian__user=user).distinct()
     return qs
 
 

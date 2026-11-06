@@ -6,7 +6,7 @@ from apps.academics.selectors import classrooms
 from apps.accounts.models import User
 from apps.organization.selectors import branches
 
-from .models import Enrollment, Student
+from .models import Enrollment, Student, StudentGuardian
 
 
 def students(user):
@@ -15,6 +15,8 @@ def students(user):
     )
     if user.role == User.Role.STUDENT:
         return qs.filter(user=user)
+    if user.role == User.Role.PARENT:
+        return qs.filter(guardian_links__guardian__user=user)
     if user.role == User.Role.TEACHER:
         return qs.filter(enrollments__classroom__in=classrooms(user)).distinct()
     return qs
@@ -26,7 +28,17 @@ def enrollments(user):
     )
     if user.role == User.Role.STUDENT:
         qs = qs.filter(student__user=user)
+    elif user.role == User.Role.PARENT:
+        # Their children only, not the children's classmates.
+        qs = qs.filter(student__guardian_links__guardian__user=user)
     return qs
+
+
+def guardian_links(user):
+    """Student–guardian links the user may see: those of the students they may see."""
+    return StudentGuardian.objects.filter(student__in=students(user)).select_related(
+        "student__user", "guardian__user"
+    )
 
 
 def roster(classroom, day):

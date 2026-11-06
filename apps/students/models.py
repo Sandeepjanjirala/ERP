@@ -68,3 +68,55 @@ class Enrollment(ValidatedModel):
 
     def __str__(self):
         return f"{self.student} · {self.classroom}"
+
+
+class Guardian(ValidatedModel):
+    """A parent account's family profile. A guardian can have several children at the school."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="guardian_profile"
+    )
+
+    def clean(self):
+        if self.user_id and self.user.role != User.Role.PARENT:
+            raise ValidationError("A guardian profile requires a parent account.")
+
+    def __str__(self):
+        return self.user.display_name
+
+
+class StudentGuardian(ValidatedModel):
+    """Which guardians a student has. Exactly one of a student's guardians is the primary one."""
+
+    class Relationship(models.TextChoices):
+        MOTHER = "mother", "Mother"
+        FATHER = "father", "Father"
+        GUARDIAN = "guardian", "Guardian"
+
+    student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name="guardian_links")
+    guardian = models.ForeignKey(Guardian, on_delete=models.PROTECT, related_name="child_links")
+    relationship = models.CharField(max_length=10, choices=Relationship.choices)
+    is_primary = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-is_primary", "pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student", "guardian"], name="guardian_once_per_student"
+            ),
+            # At most one primary guardian per student; the services make sure there is one.
+            models.UniqueConstraint(
+                fields=["student"], condition=Q(is_primary=True), name="one_primary_guardian"
+            ),
+        ]
+
+    def clean(self):
+        if (
+            self.student_id
+            and self.guardian_id
+            and self.student.user.branch_id != self.guardian.user.branch_id
+        ):
+            raise ValidationError("A guardian and their child must belong to the same branch.")
+
+    def __str__(self):
+        return f"{self.guardian} · {self.get_relationship_display()} of {self.student}"
