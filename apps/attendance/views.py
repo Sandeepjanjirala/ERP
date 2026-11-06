@@ -1,14 +1,18 @@
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
 from apps.accounts.decorators import role_required
 from apps.accounts.models import User
+from apps.core.pagination import paginate
 
-from .forms import RegisterForm, RegisterSelection
+from .forms import LeaveDecisionForm, LeaveRequestForm, RegisterForm, RegisterSelection
+from .models import Attendance, LeaveRequest
 from .policies import can_attend
-from .selectors import daily_register
-from .services import save_register
+from .selectors import daily_register, leave_enrollments, leave_requests
+from .services import decide_leave, request_leave, save_register
 
 
 @role_required(*User.STAFF)
@@ -24,7 +28,11 @@ def attendance(request):
     form = RegisterForm(
         request.POST if request.method == "POST" else None,
         roster=enrolled,
-        initial_statuses=register["statuses"],
+        # Approved leave suggests "Excused" until the register is saved; saved statuses win.
+        initial_statuses={
+            **dict.fromkeys(register["on_leave"], Attendance.Status.EXCUSED),
+            **register["statuses"],
+        },
         version=session.version if session else 0,
     )
     if request.method == "POST":
@@ -55,6 +63,80 @@ def attendance(request):
             "can_write": writable,
             "session": session,
             "roster_count": len(enrolled),
+            "on_leave": register["on_leave"],
         }
     )
     return render(request, "attendance/register.html", context)
+
+
+@login_required
+def leave_list(request):
+    requests = leave_requests(request.user)
+    status = request.GET.get("status", "")
+    if status in LeaveRequest.Status.values:
+        requests = requests.filter(status=status)
+    page_obj = paginate(request, requests)
+    # Each row offers approve/reject only to people who may decide it (the register's keepers).
+    enrollments = leave_enrollments(page_obj)
+    for leave in page_obj:
+        enrollment = enrollments[leave.pk]
+        leave.can_decide = (
+            leave.status == LeaveRequest.Status.PENDING
+            and enrollment is not None
+            and can_attend(request.user, enrollment.classroom)
+        )
+    return render(
+        request,
+        "attendance/leave_list.html",
+        {
+            "title": "Leave requests",
+            "page_obj": page_obj,
+            "status": status,
+            "status_tabs": LeaveRequest.Status.choices,
+            "can_request": request.user.is_parent,
+        },
+    )
+
+
+@role_required(User.Role.PARENT)
+def leave_create(request):
+    form = LeaveRequestForm(request.POST or None, actor=request.user)
+    if request.method == "POST" and form.is_valid():
+        try:
+            request_leave(request.user, form.save(commit=False))
+        except ValidationError as exc:
+            form.add_error(None, "; ".join(exc.messages))
+        else:
+            messages.success(request, "Request sent to the class teacher.")
+            return redirect("leave_requests")
+    return render(
+        request,
+        "form_page.html",
+        {
+            "title": "Apply for leave",
+            "form": form,
+            "description": "The class teacher decides. Approved days show as Excused on the register.",
+        },
+    )
+
+
+@require_POST
+@login_required
+def leave_decide(request, pk):
+    leave = get_object_or_404(leave_requests(request.user), pk=pk)
+    form = LeaveDecisionForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, "Choose approve or not approve.")
+        return redirect("leave_requests")
+    try:
+        decide_leave(
+            request.user,
+            leave,
+            form.cleaned_data["decision"] == "approve",
+            form.cleaned_data["note"],
+        )
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+    else:
+        messages.success(request, "Decision saved. The family will be notified.")
+    return redirect("leave_requests")

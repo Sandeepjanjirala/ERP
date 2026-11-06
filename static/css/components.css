@@ -1109,3 +1109,9 @@ details summary {
   margin: 0;
   white-space: normal;
 }
+
+.row-actions input {
+  width: 12rem;
+  min-height: 2rem;
+  padding: 0.25rem 0.5rem;
+}

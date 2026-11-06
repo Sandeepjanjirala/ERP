@@ -6,7 +6,8 @@ from apps.communication.services import notify
 from apps.students.models import Student
 from apps.students.selectors import family
 
-from .models import Attendance, AttendanceSession
+from .models import Attendance, AttendanceSession, LeaveRequest
+from .selectors import leave_enrollment
 
 
 @shared_task
@@ -35,3 +36,38 @@ def alert_absent_families(session_id, enrollment_ids):
             email=True,
         )
     return sent
+
+
+@shared_task
+def notify_leave_requested(leave_id):
+    """Tell the class teacher a parent asked for leave. Safe to run twice."""
+    leave = LeaveRequest.objects.select_related("student__user").get(pk=leave_id)
+    enrollment = leave_enrollment(leave)
+    teacher = enrollment.classroom.homeroom_teacher if enrollment else None
+    if teacher is None:
+        return 0
+    return notify(
+        [teacher],
+        Notification.Kind.LEAVE,
+        f"leave-requested:{leave.pk}",
+        f"Leave request for {leave.student.user.display_name}",
+        f"{leave.starts_on:%d %b} to {leave.ends_on:%d %b %Y}: {leave.reason}",
+        url=reverse("leave_requests"),
+        email=True,
+    )
+
+
+@shared_task
+def notify_leave_decided(leave_id):
+    """Tell the parent who asked, and the student, what was decided. Safe to run twice."""
+    leave = LeaveRequest.objects.select_related("student__user", "requested_by").get(pk=leave_id)
+    verdict = "approved" if leave.status == LeaveRequest.Status.APPROVED else "not approved"
+    return notify(
+        [leave.requested_by, leave.student.user],
+        Notification.Kind.LEAVE,
+        f"leave-decided:{leave.pk}",
+        f"Leave {verdict} for {leave.student.user.display_name}",
+        f"{leave.starts_on:%d %b} to {leave.ends_on:%d %b %Y}. {leave.decision_note}".strip(),
+        url=reverse("leave_requests"),
+        email=True,
+    )

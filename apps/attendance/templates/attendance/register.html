@@ -37,7 +37,10 @@
               {% for enrollment, field in form.rows %}
                 <tr>
                   <td>{{ enrollment.student.admission_number }}</td>
-                  <td><label for="{{ field.id_for_label }}">{{ enrollment.student.user.display_name }}</label></td>
+                  <td>
+                    <label for="{{ field.id_for_label }}">{{ enrollment.student.user.display_name }}</label>
+                    {% if enrollment.pk in on_leave %}<span class="badge badge-info">On approved leave</span>{% endif %}
+                  </td>
                   <td>{{ field }}{{ field.errors }}</td>
                 </tr>
               {% empty %}

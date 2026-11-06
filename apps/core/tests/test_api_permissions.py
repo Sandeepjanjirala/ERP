@@ -39,6 +39,7 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("/api/v1/classrooms/", ALL),
             ("/api/v1/exams/", ALL),
             ("/api/v1/announcements/", ALL),
+            ("/api/v1/leave-requests/", ALL),
             ("/api/v1/notifications/", ALL),
             ("/api/v1/notifications/unread-count/", ALL),
             (f"/api/v1/students/{self.e1.student.pk}/report/", ALL),
@@ -71,6 +72,8 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("patch", "/api/v1/organization/", (200, 403, 403, 403, 403, 403)),
             ("post", "/api/v1/exams/", (400, 400, 403, 400, 403, 403)),
             ("post", "/api/v1/announcements/", (400, 400, 400, 400, 403, 403)),
+            # Only parents apply for leave (for their own children).
+            ("post", "/api/v1/leave-requests/", (403, 403, 403, 403, 403, 400)),
             ("post", "/api/v1/notifications/read-all/", (200, 200, 200, 200, 200, 200)),
             (
                 "put",

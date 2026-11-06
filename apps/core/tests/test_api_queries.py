@@ -18,6 +18,7 @@ from apps.academics.tests.factories import (
 )
 from apps.accounts.models import User
 from apps.accounts.tests.factories import UserFactory
+from apps.attendance.models import LeaveRequest
 from apps.audit.services import audit
 from apps.communication.models import Announcement
 from apps.communication.services import notify
@@ -115,6 +116,19 @@ class QueryCountTests(TestCase):
 
         self.assert_constant("/api/v1/announcements/?page_size=100", posts)
         self.assert_constant("/api/v1/notifications/?page_size=100", bells)
+
+    def test_leave_requests(self):
+        def requests(n):
+            for enrollment in EnrollmentFactory.create_batch(n, classroom=self.classroom):
+                LeaveRequest.objects.create(
+                    student=enrollment.student,
+                    requested_by=self.admin,
+                    starts_on=self.year.starts_on,
+                    ends_on=self.year.starts_on,
+                    reason="x",
+                )
+
+        self.assert_constant("/api/v1/leave-requests/?page_size=100", requests)
 
     def test_dashboard(self):
         # The dashboard lists up to 12 classes: 1 + 2 + 8 = 11 stays under that cap.
