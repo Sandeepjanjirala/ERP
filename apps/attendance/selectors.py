@@ -1,8 +1,18 @@
 """Read queries and summaries for attendance."""
 
-from apps.students.selectors import enrollments
+from apps.students.selectors import enrollments, roster
 
-from .models import Attendance
+from .models import Attendance, AttendanceSession
+
+
+def daily_register(classroom, day):
+    """The students on the class list that day, the saved register (or None) and their statuses."""
+    session = AttendanceSession.objects.filter(classroom=classroom, date=day).first()
+    return {
+        "roster": list(roster(classroom, day)),
+        "session": session,
+        "statuses": dict(session.records.values_list("enrollment_id", "status")) if session else {},
+    }
 
 
 def attendance_rows(user):

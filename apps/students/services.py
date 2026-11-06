@@ -1,3 +1,4 @@
+from django.core.exceptions import PermissionDenied
 from django.db import transaction
 
 from apps.academics.models import Classroom
@@ -5,11 +6,14 @@ from apps.accounts.services import create_account
 from apps.audit.services import audit
 
 from .models import Enrollment, Student
+from .policies import can_enroll
 
 
 @transaction.atomic
 def admit_student(actor, user, password, admission_number, classroom, joined_on):
     """Create a student's login, profile and first enrollment together, or none of them."""
+    if not can_enroll(actor, classroom):
+        raise PermissionDenied
     # Lock the classroom so a register or exam can't be completed while its roster changes.
     Classroom.objects.select_for_update().get(pk=classroom.pk)
     create_account(actor, user, password)
@@ -23,7 +27,10 @@ def admit_student(actor, user, password, admission_number, classroom, joined_on)
 @transaction.atomic
 def enroll(actor, enrollment):
     """Enroll an existing student in a classroom for the classroom's academic year."""
+    if not can_enroll(actor, enrollment.classroom):
+        raise PermissionDenied
     Classroom.objects.select_for_update().get(pk=enrollment.classroom_id)
+    enrollment.year = enrollment.classroom.year
     enrollment.save()
     audit(actor, enrollment.classroom.branch, "setup.enrollment.saved", enrollment)
     return enrollment

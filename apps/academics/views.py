@@ -12,8 +12,9 @@ from apps.organization.models import Organization
 from apps.organization.selectors import branches
 
 from .forms import AssignmentForm, ClassroomForm, SubjectForm, YearForm
-from .models import AcademicYear, Subject, TeachingAssignment
-from .selectors import classrooms
+from .models import AcademicYear
+from .policies import GROUP_LEVEL, can_manage_setup
+from .selectors import assignments, classrooms, subjects
 from .services import save_setup_record, update_setup_record
 
 
@@ -27,10 +28,8 @@ def setup(request):
             "branches": branches(request.user),
             "years": AcademicYear.objects.all(),
             "classrooms": classrooms(request.user).annotate(student_count=Count("enrollments")),
-            "subjects": Subject.objects.filter(branch__in=branches(request.user)),
-            "assignments": TeachingAssignment.objects.filter(
-                classroom__in=classrooms(request.user)
-            ).select_related("teacher", "classroom__branch", "classroom__year", "subject"),
+            "subjects": subjects(request.user),
+            "assignments": assignments(request.user),
         },
     )
 
@@ -43,13 +42,14 @@ SETUP_FORMS = {
     "subject": SubjectForm,
     "assignment": AssignmentForm,
 }
-# Records that belong to the whole school group, not one branch: super admins only.
-GROUP_LEVEL = ("organization", "branch", "year")
 
 
 @role_required(*User.MANAGERS)
 def setup_create(request, kind):
-    if kind not in SETUP_FORMS or (kind in GROUP_LEVEL and not request.user.system_admin):
+    # Branch records are checked again in the service, once the form says which branch.
+    if kind not in SETUP_FORMS or (
+        kind in GROUP_LEVEL and not can_manage_setup(request.user, kind)
+    ):
         raise PermissionDenied
     options = {} if kind in GROUP_LEVEL else {"actor": request.user}
     if kind == "organization":
@@ -78,13 +78,9 @@ def setup_create(request, kind):
 def setup_edit(request, kind, pk):
     editable = {
         "classroom": (classrooms(request.user), ClassroomForm, ("branch", "year")),
-        "subject": (
-            Subject.objects.filter(branch__in=branches(request.user)),
-            SubjectForm,
-            ("branch",),
-        ),
+        "subject": (subjects(request.user), SubjectForm, ("branch",)),
         "assignment": (
-            TeachingAssignment.objects.filter(classroom__in=classrooms(request.user)),
+            assignments(request.user),
             AssignmentForm,
             ("classroom", "subject"),
         ),

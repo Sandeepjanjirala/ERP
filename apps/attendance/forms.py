@@ -6,6 +6,7 @@ from apps.academics.selectors import classrooms
 from apps.core.forms import DateInput
 
 from .models import Attendance
+from .services import register_date_error
 
 
 class RegisterSelection(forms.Form):
@@ -18,14 +19,11 @@ class RegisterSelection(forms.Form):
 
     def clean(self):
         d = super().clean()
-        if d.get("date"):
-            if d["date"] > timezone.localdate():
-                self.add_error("date", "Future attendance is not allowed.")
-            elif (
-                d.get("classroom")
-                and not d["classroom"].year.starts_on <= d["date"] <= d["classroom"].year.ends_on
-            ):
-                self.add_error("date", "Select a date within the classroom academic year.")
+        if d.get("date") and d.get("classroom"):
+            if problem := register_date_error(d["classroom"], d["date"]):
+                self.add_error("date", problem)
+        elif d.get("date") and d["date"] > timezone.localdate():
+            self.add_error("date", "Future attendance is not allowed.")
         return d
 
 

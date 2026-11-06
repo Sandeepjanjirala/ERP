@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from apps.organization.selectors import branches
 
 from .models import User
+from .policies import staff_roles_for
 
 
 def choices_for(*roles):
@@ -40,9 +41,7 @@ class AccountForm(forms.ModelForm):
             self.fields["branch"].initial = actor.branch_id
 
     def role_choices(self):
-        if self.actor.system_admin:
-            return choices_for(User.Role.ADMIN, User.Role.PRINCIPAL, User.Role.TEACHER)
-        return choices_for(User.Role.TEACHER)
+        return choices_for(*staff_roles_for(self.actor))
 
     def clean_username(self):
         value = self.cleaned_data["username"].strip().lower()

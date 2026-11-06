@@ -11,14 +11,23 @@ from .models import Attendance, AttendanceSession
 from .policies import can_attend
 
 
+def register_date_error(classroom, day):
+    """Why a register can't exist for this day, or None: not in the future, inside the year."""
+    if day > timezone.localdate():
+        return "Future attendance is not allowed."
+    if not classroom.year.starts_on <= day <= classroom.year.ends_on:
+        return "Select a date within the classroom academic year."
+    return None
+
+
 @transaction.atomic
 def save_register(actor, classroom, day, statuses, expected_version, reason=""):
     # The classroom lock also serializes first creation when no register exists yet.
     classroom = Classroom.objects.select_for_update().get(pk=classroom.pk)
     if not can_attend(actor, classroom):
         raise PermissionDenied
-    if day > timezone.localdate() or not classroom.year.starts_on <= day <= classroom.year.ends_on:
-        raise ValidationError("Attendance date is outside the permitted range.")
+    if problem := register_date_error(classroom, day):
+        raise ValidationError(problem)
     eligible = set(roster(classroom, day).values_list("pk", flat=True))
     if (
         not eligible

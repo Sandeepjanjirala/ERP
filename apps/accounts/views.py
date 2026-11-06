@@ -1,8 +1,10 @@
 from django.conf import settings
 from django.contrib import messages
+from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth import views as auth_views
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError
+from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -15,7 +17,7 @@ from .forms import AccountEditForm, AccountForm, LoginForm
 from .models import LoginAttempt, User
 from .policies import can_change_access, can_manage_account
 from .selectors import branch_accounts, people
-from .services import create_account, toggle_access, update_contact_details
+from .services import change_password, create_account, toggle_access, update_contact_details
 from .throttling import throttle
 
 
@@ -57,16 +59,12 @@ class PasswordChangeView(auth_views.PasswordChangeView):
     }
 
     def form_valid(self, form):
-        response = super().form_valid(form)
-        self.request.user.must_change_password = False
-        self.request.user.save(update_fields=["must_change_password"])
-        audit(
-            self.request.user,
-            self.request.user.branch,
-            "account.password_changed",
-            self.request.user.username,
+        change_password(
+            form.user, form.cleaned_data["old_password"], form.cleaned_data["new_password1"]
         )
-        return response
+        # Changing the password rotates the session hash; keep this browser signed in.
+        update_session_auth_hash(self.request, form.user)
+        return HttpResponseRedirect(self.get_success_url())
 
 
 class PasswordResetView(auth_views.PasswordResetView):

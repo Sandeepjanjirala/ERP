@@ -1,0 +1,16 @@
+{% comment %}
+  drf-spectacular's ReDoc page without its Google Fonts link: everything is served from our own
+  static files, so the Content-Security-Policy stays "self" only.
+{% endcomment %}<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>{{ title|default:"Redoc" }}</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>body { margin: 0; padding: 0; }</style>
+  </head>
+  <body>
+    <redoc spec-url="{{ schema_url }}"></redoc>
+    <script src="{{ redoc_standalone }}"></script>
+  </body>
+</html>

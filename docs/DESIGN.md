@@ -2,9 +2,9 @@
 
 **EduNexa is a school ERP for school groups with many branches, built with Django.**
 
-Status: Phase 1 complete (5 November 2026); Phases 2 to 6 are planned
+Status: Phase 1 complete (5 November 2026); Phase 2 complete (6 November 2026); Phases 3 to 6 are planned
 
-This document describes where the project is going: the product, its modules, how the code is organised, how the main workflows run, and the order we build it in. Nothing here is built yet. We build it phase by phase (see [Roadmap](#14-roadmap)).
+This document describes where the project is going: the product, its modules, how the code is organised, how the main workflows run, and the order we build it in. Phases 1 and 2 are built; the rest is planned. We build it phase by phase (see [Roadmap](#14-roadmap)).
 
 ---
 
@@ -291,6 +291,8 @@ Cash and UPI paid at the school counter go through the same service, so receipts
 | `POST /api/v1/payments/webhook/` | Payment provider callback (signature checked) |
 | `GET /api/v1/announcements/` · `GET /api/v1/notifications/` | Communication |
 
+Phase 2 built the API for every existing feature; the full list is in [API.md](API.md). The fees endpoints arrive with Phase 4 and the communication endpoints with Phase 3, alongside those features. Password reset by email stays a web flow.
+
 ## 13. Tech stack
 
 | Area | Choice | Why |
@@ -319,7 +321,7 @@ Each phase ends with green tests and CI, updated docs, focused commits with clea
 | Phase | What we build | What a reviewer sees afterwards |
 |---|---|---|
 | **1. Foundation and rebrand** (done) | EduNexa branding everywhere; split into domain apps with services/selectors/policies; role constants; settings split; ruff, pre-commit, pytest; readable templates and CSS with dark mode and icons; richer demo data (about 250 students, 3 months of history); CI; README rewrite | A clean, professional Django codebase |
-| **2. REST API** | DRF API for all existing features, JWT, Swagger/ReDoc, API permission tests, factory_boy test factories | Live Swagger docs |
+| **2. REST API** (done) | DRF API for all existing features, JWT, Swagger/ReDoc, API permission tests, factory_boy test factories | Live Swagger docs |
 | **3. Async and parent portal** | Redis + Celery; announcements, notifications, guardians and parent role, absence alerts, leave requests, report card PDFs, role dashboards with charts, caching | Background jobs and real-world workflows |
 | **4. Fees and payments** | Accountant role, fee plans, invoices, concessions, Razorpay + Sandbox, webhooks, receipts, reminders, collection reports | A payments integration done properly |
 | **5. Academic operations** | Terms and grading scale, timetable with clash rules, CSV import with preview, year-end promotion, activity-log filters | Product depth |

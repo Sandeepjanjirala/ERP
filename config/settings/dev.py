@@ -16,3 +16,13 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = False
 SECURE_HSTS_PRELOAD = False
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+# The browsable API (HTML pages at /api/v1/ while signed in) is a development convenience;
+# production serves JSON only.
+REST_FRAMEWORK = {
+    **REST_FRAMEWORK,
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+        "rest_framework.renderers.BrowsableAPIRenderer",
+    ],
+}

@@ -24,7 +24,7 @@ class ReportTests(SchoolTestCase):
         self.assertTrue(AuditEvent.objects.filter(action="report.exported").exists())
 
     def test_csv_formula_neutralization(self):
-        from apps.reports.views import safe_csv
+        from apps.reports.services import safe_csv
 
         self.assertEqual(safe_csv('=HYPERLINK("x")'), '\'=HYPERLINK("x")')
 

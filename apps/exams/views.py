@@ -6,16 +6,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from apps.accounts.decorators import role_required
 from apps.accounts.models import User
 from apps.core.pagination import paginate
-from apps.students.selectors import roster
 
 from .forms import ExamForm, MarkSheetForm
 from .models import Exam
-from .policies import can_mark, can_publish
-from .selectors import exams, mark_summary
+from .policies import EXAM_AUTHORS, can_mark, exam_actions
+from .selectors import exams, mark_sheet, mark_summary
 from .services import create_exam, save_marks, transition_exam
-
-# Roles that may create exams (teachers only for their own class and subject).
-EXAM_AUTHORS = (User.Role.SUPER, User.Role.ADMIN, User.Role.TEACHER)
 
 
 @login_required
@@ -47,11 +43,9 @@ def exam_detail(request, pk):
     exam = get_object_or_404(exams(request.user), pk=pk)
     if request.user.role == User.Role.STUDENT:
         return redirect("student_report", pk=request.user.student_profile.pk)
-    enrolled = list(roster(exam.classroom, exam.date))
-    marks = {
-        m.enrollment_id: m for m in exam.marks.select_related("enrollment__student__user", "exam")
-    }
-    writer, publisher = can_mark(request.user, exam), can_publish(request.user, exam)
+    sheet = mark_sheet(exam)
+    enrolled, marks = sheet["roster"], sheet["marks"]
+    writer = can_mark(request.user, exam)
     form = MarkSheetForm(
         request.POST if request.method == "POST" else None, roster=enrolled, marks=marks, exam=exam
     )
@@ -91,8 +85,8 @@ def exam_detail(request, pk):
                 return redirect("exam_detail", pk=pk)
         except ValidationError as exc:
             form.add_error(None, "; ".join(exc.messages))
-    writable = writer and exam.status == Exam.Status.DRAFT
-    if not writable:
+    actions = exam_actions(request.user, exam)
+    if not actions["can_edit_marks"]:
         for field in form.fields.values():
             field.disabled = True
     return render(
@@ -102,10 +96,10 @@ def exam_detail(request, pk):
             "title": exam.title,
             "exam": exam,
             "form": form,
-            "can_write": writable,
-            "can_submit": writer and exam.status == Exam.Status.DRAFT,
-            "can_publish": publisher and exam.status == Exam.Status.SUBMITTED,
-            "can_reopen": publisher and exam.status != Exam.Status.DRAFT,
+            "can_write": actions["can_edit_marks"],
+            "can_submit": actions["can_submit"],
+            "can_publish": actions["can_publish"],
+            "can_reopen": actions["can_reopen"],
             "summary": mark_summary(marks.values()),
         },
     )
