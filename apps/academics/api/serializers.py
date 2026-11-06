@@ -69,7 +69,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
 class BranchCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Branch
-        fields = ["name", "code", "city"]
+        fields = ["name", "code", "city", "receipt_prefix"]
         validators = []
 
 

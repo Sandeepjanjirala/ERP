@@ -92,6 +92,7 @@ INSTALLED_APPS = [
     "apps.academics",
     "apps.students",
     "apps.communication",
+    "apps.fees",
     "apps.attendance",
     "apps.exams",
     "apps.reports",
