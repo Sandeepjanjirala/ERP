@@ -86,6 +86,12 @@ class ExportTests(ApiTestCase):
         self.assertEqual(response.status_code, 403)
         self.assertFalse(AuditEvent.objects.filter(action="report.exported").exists())
 
+    def test_errors_for_a_csv_client_are_plain_text(self):
+        self.as_user(self.e1.student.user)
+        response = self.client.get("/api/v1/reports/performance/export/", HTTP_ACCEPT="text/csv")
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("permission", response.content.decode())
+
 
 class ActivityTests(ApiTestCase):
     def test_leaders_see_their_branch_newest_first(self):

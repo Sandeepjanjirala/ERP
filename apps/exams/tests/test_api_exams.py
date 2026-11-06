@@ -132,6 +132,16 @@ class MarkSheetTests(ApiTestCase):
             (self.body(1, alice="101"), 400),  # above the maximum
             (self.body(1, bob_absent=True), 400),  # a score and absent together
             (self.body(0), 400),  # version must be at least 1
+            (  # the same student twice
+                {
+                    "version": 1,
+                    "marks": [
+                        {"enrollment": self.e1.pk, "score": "10"},
+                        {"enrollment": self.e1.pk, "score": "20"},
+                    ],
+                },
+                400,
+            ),
         ]
         for body, status in cases:
             with self.subTest(body=body):

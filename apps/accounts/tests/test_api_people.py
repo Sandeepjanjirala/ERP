@@ -112,6 +112,15 @@ class AccountChangeTests(ApiTestCase):
         )
         self.assertTrue(AuditEvent.objects.filter(action="account.profile_updated").exists())
 
+    def test_email_change(self):
+        self.as_user(self.admin)
+        response = self.client.patch(
+            f"/api/v1/people/{self.teacher.pk}/", {"email": "Tara.New@Example.com"}
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.teacher.refresh_from_db()
+        self.assertEqual(self.teacher.email, "tara.new@example.com")  # stored lower-case
+
     def test_contact_edit_rules(self):
         self.as_user(self.admin)
         taken = self.client.patch(
