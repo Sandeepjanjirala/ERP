@@ -144,6 +144,7 @@ Initial passwords must be shared privately, and everyone must change theirs at f
 - [Deployment](docs/DEPLOYMENT.md): production settings and release steps.
 - [Upgrading](docs/UPGRADING.md): moving data from the single-app version, tested.
 - [Decision records](docs/adr/): why the main technical choices were made.
+- [Backlog](docs/BACKLOG.md): known limitations and follow-ups, with the phase likely to take each on.
 
 ## Status
 
