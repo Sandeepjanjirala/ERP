@@ -7,6 +7,9 @@ from apps.students.selectors import enrollments, roster, students
 
 from .models import Attendance, AttendanceSession, LeaveRequest
 
+# Students below this attendance rate (%) are flagged on reports and dashboards.
+MINIMUM_ATTENDANCE = 75
+
 
 def daily_register(classroom, day):
     """The class list that day, the saved register (or None), its statuses, and who is on leave.
@@ -63,10 +66,12 @@ def attendance_summary(rows):
     # Present and late count as attended; excused days are left out of the percentage.
     attended = counts[Attendance.Status.PRESENT] + counts[Attendance.Status.LATE]
     denominator = attended + counts[Attendance.Status.ABSENT]
+    rate = round(100 * attended / denominator, 1) if denominator else None
     return {
         **counts,
         "total": sum(counts.values()),
-        "rate": round(100 * attended / denominator, 1) if denominator else None,
+        "rate": rate,
+        "below_minimum": rate is not None and rate < MINIMUM_ATTENDANCE,
     }
 
 

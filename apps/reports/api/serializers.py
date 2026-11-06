@@ -51,6 +51,7 @@ class AttendanceSummarySerializer(serializers.Serializer):
     excused = serializers.IntegerField(source="E")
     total = serializers.IntegerField()
     rate = serializers.FloatField(allow_null=True, help_text="Present and late, out of days")
+    below_minimum = serializers.BooleanField(help_text="Attendance below 75%")
 
 
 class DashboardStatsSerializer(serializers.Serializer):

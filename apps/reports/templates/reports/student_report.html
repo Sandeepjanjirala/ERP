@@ -2,7 +2,8 @@
 {% load ui %}
 
 {% block actions %}
-  <button class="btn btn-secondary" type="button" data-print>{% icon 'printer' %}Print / Save PDF</button>
+  <a class="btn" href="{% url 'report_card' student.pk %}{% if selected_year %}?year={{ selected_year.pk }}{% endif %}">{% icon 'download' %}Report card (PDF)</a>
+  <button class="btn btn-secondary" type="button" data-print>{% icon 'printer' %}Print</button>
 {% endblock %}
 
 {% block content %}
@@ -27,6 +28,16 @@
       <button class="btn btn-secondary" type="submit">Apply</button>
     </form>
   </section>
+
+  {% if attendance_summary.below_minimum %}
+    <div class="callout callout-warning" role="note">
+      {% icon 'alert' %}
+      <div>
+        <strong>Attendance is below 75%.</strong>
+        <p>Regular attendance matters for results. Please speak to the class teacher.</p>
+      </div>
+    </div>
+  {% endif %}
 
   <div class="grid-stats">
     {% include "components/stat_card.html" with label="Published assessments" value=summary.count hint="Results available to the student" only %}

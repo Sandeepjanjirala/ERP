@@ -12,6 +12,7 @@ from apps.organization.selectors import branches, selected_branch
 from apps.students.models import Student
 from apps.students.selectors import guardian_links, students
 
+from .pdf import render_report_card, report_card_filename, school_name
 from .selectors import overview, published_marks, subject_performance
 from .selectors import student_report as student_report_data
 from .services import export_results_csv
@@ -38,6 +39,19 @@ def dashboard(request):
             "selected_branch": branch,
         },
     )
+
+
+@login_required
+def report_card(request, pk):
+    """The student report as a printable PDF report card."""
+    student = get_object_or_404(students(request.user), pk=pk)
+    report = student_report_data(request.user, student, request.GET.get("year"))
+    response = HttpResponse(
+        render_report_card(student, report, school_name()), content_type="application/pdf"
+    )
+    filename = report_card_filename(student, report)
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 @login_required

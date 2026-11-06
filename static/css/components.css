@@ -658,6 +658,15 @@
   font-size: 0.875rem;
 }
 
+.callout-warning {
+  border-color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.callout-warning > .icon {
+  color: var(--color-warning);
+}
+
 .footnote {
   margin-top: 1rem;
   font-size: 0.8125rem;

@@ -14,6 +14,7 @@ from apps.exams.selectors import mark_summary
 from apps.organization.selectors import selected_branch
 from apps.students.selectors import students
 
+from ..pdf import render_report_card, report_card_filename, school_name
 from ..selectors import overview, published_marks, student_report, subject_performance
 from ..services import export_results_csv
 from .serializers import (
@@ -83,14 +84,17 @@ class PerformanceView(generics.GenericAPIView):
         return Response(self.get_serializer(data).data)
 
 
-class CSVRenderer(renderers.BaseRenderer):
-    """Lets clients ask for text/csv. Success responses are already CSV; errors become text."""
-
-    media_type = "text/csv"
-    format = "csv"
+class FileRenderer(renderers.BaseRenderer):
+    """Lets clients ask for a file type. Success responses are already the file; errors (dicts)
+    become their plain-text message."""
 
     def render(self, data, accepted_media_type=None, renderer_context=None):
         return str(data.get("detail", data) if isinstance(data, dict) else data).encode()
+
+
+class CSVRenderer(FileRenderer):
+    media_type = "text/csv"
+    format = "csv"
 
 
 class PerformanceExportView(generics.GenericAPIView):
@@ -135,3 +139,28 @@ class ActivityViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         return events(self.request.user)
+
+
+class PDFRenderer(FileRenderer):
+    media_type = "application/pdf"
+    format = "pdf"
+
+
+class ReportCardView(generics.GenericAPIView):
+    """The student's report card for one year as a PDF (default: their latest year)."""
+
+    renderer_classes = [renderers.JSONRenderer, PDFRenderer]
+
+    @extend_schema(
+        parameters=[OpenApiParameter("year", OpenApiTypes.INT, description="Academic year id")],
+        responses={(200, "application/pdf"): OpenApiTypes.BINARY},
+    )
+    def get(self, request, pk):
+        student = get_object_or_404(students(request.user), pk=pk)
+        report = student_report(request.user, student, request.query_params.get("year"))
+        response = HttpResponse(
+            render_report_card(student, report, school_name()), content_type="application/pdf"
+        )
+        filename = report_card_filename(student, report)
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response

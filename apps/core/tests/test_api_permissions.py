@@ -43,6 +43,7 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("/api/v1/notifications/", ALL),
             ("/api/v1/notifications/unread-count/", ALL),
             (f"/api/v1/students/{self.e1.student.pk}/report/", ALL),
+            (f"/api/v1/students/{self.e1.student.pk}/report-card/", ALL),
             ("/api/v1/subjects/", STAFF),
             ("/api/v1/students/", STAFF),
             ("/api/v1/enrollments/", STAFF),
