@@ -12,7 +12,12 @@ class SecurityHeadersMiddleware:
 
     def __call__(self, request):
         response = self.get_response(request)
-        response["Content-Security-Policy"] = self.CONTENT_SECURITY_POLICY
+        # A view may add a directive the base policy doesn't set (response.csp_extra). Browsers
+        # use the first copy of a repeated directive, so an addition can't loosen one above.
+        extra = getattr(response, "csp_extra", "")
+        response["Content-Security-Policy"] = "; ".join(
+            filter(None, [self.CONTENT_SECURITY_POLICY, extra])
+        )
         response["Referrer-Policy"] = "same-origin"
         response["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         # API callers authenticate with a token the middleware can't see, so API responses

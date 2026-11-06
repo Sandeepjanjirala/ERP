@@ -1,6 +1,9 @@
-from django.test import Client
+from django.contrib.auth.models import AnonymousUser
+from django.http import HttpResponse
+from django.test import Client, RequestFactory, TestCase
 from django.urls import reverse
 
+from apps.core.middleware import SecurityHeadersMiddleware
 from apps.core.testing import SchoolTestCase
 
 
@@ -47,3 +50,31 @@ class SecurityTests(SchoolTestCase):
             reverse("student_report", args=[self.e1.student_id]),
         ]:
             self.assertEqual(self.client.get(path).status_code, 200)
+
+
+class ContentSecurityPolicyTests(TestCase):
+    def policy(self, csp_extra=None):
+        def view(request):
+            response = HttpResponse()
+            if csp_extra:
+                response.csp_extra = csp_extra
+            return response
+
+        request = RequestFactory().get("/")
+        request.user = AnonymousUser()
+        return SecurityHeadersMiddleware(view)(request)["Content-Security-Policy"]
+
+    def test_only_the_redoc_page_allows_blob_workers(self):
+        self.assertIn(
+            "worker-src 'self' blob:", self.client.get("/api/redoc/")["Content-Security-Policy"]
+        )
+        for url in ("/api/docs/", "/accounts/login/"):
+            with self.subTest(url=url):
+                self.assertNotIn("worker-src", self.client.get(url)["Content-Security-Policy"])
+
+    def test_an_addition_comes_after_the_base_policy(self):
+        """Browsers keep the first copy of a directive, so "script-src *" here changes nothing."""
+        policy = self.policy("script-src *")
+        self.assertTrue(policy.startswith(SecurityHeadersMiddleware.CONTENT_SECURITY_POLICY))
+        self.assertLess(policy.index("script-src 'self'"), policy.index("script-src *"))
+        self.assertEqual(self.policy(), SecurityHeadersMiddleware.CONTENT_SECURITY_POLICY)
