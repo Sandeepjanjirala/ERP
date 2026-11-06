@@ -214,7 +214,11 @@ class PaymentOrder(models.Model):
     amount_paise = models.PositiveIntegerField()
     currency = models.CharField(max_length=3, default="INR")
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.CREATED)
-    # Why a captured payment couldn't be applied automatically (amount, currency, ...).
+    # What the provider reported capturing, kept even when it can't be applied automatically.
+    gateway_payment_id = models.CharField(max_length=64, blank=True)
+    captured_amount_paise = models.PositiveIntegerField(null=True, blank=True)
+    captured_currency = models.CharField(max_length=3, blank=True)
+    # Why a captured payment needs a person to look at it (amount, currency, ...).
     problem = models.CharField(max_length=250, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+"

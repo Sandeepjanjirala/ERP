@@ -2,7 +2,7 @@
 rows it changes, and writes the activity log."""
 
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
 
@@ -10,9 +10,18 @@ from apps.audit.services import audit
 from apps.core.jobs import run_after_commit
 from apps.students.models import Student
 
-from .models import Concession, FeePlanItem, Invoice, InvoiceLine, rupees
+from .models import (
+    Concession,
+    FeePlanItem,
+    Invoice,
+    InvoiceLine,
+    Payment,
+    Receipt,
+    ReceiptCounter,
+    rupees,
+)
 from .policies import can_collect_fees, can_set_up_fees
-from .tasks import notify_invoices_issued
+from .tasks import notify_invoices_issued, send_receipt
 
 
 def settle(invoice):
@@ -184,3 +193,97 @@ def cancel_invoice(actor, invoice, reason):
     invoice.save()
     audit(actor, invoice.branch, "fees.invoice.cancelled", invoice, {"reason": reason})
     return invoice
+
+
+# Payments and receipts -------------------------------------------------------------------------
+
+COUNTER_METHODS = (Payment.Method.CASH, Payment.Method.UPI, Payment.Method.CHEQUE)
+
+
+def receipt_number(branch, year, sequence):
+    """e.g. NORTH/2026-27/00042: branch, academic year, then the sequence."""
+    start = year.starts_on.year
+    return f"{branch.receipt_code}/{start}-{(start + 1) % 100:02d}/{sequence:05d}"
+
+
+def _take_receipt_number(branch, year):
+    """The next receipt number for the branch and year.
+
+    The counter row is locked until the payment's transaction ends. If the payment rolls back,
+    so does the increment: no gaps. Once committed, a number is never handed out again.
+    """
+    try:
+        with transaction.atomic():  # a savepoint: another payment may create the row first
+            ReceiptCounter.objects.get_or_create(branch=branch, year=year)
+    except IntegrityError:
+        pass
+    counter = ReceiptCounter.objects.select_for_update().get(branch=branch, year=year)
+    counter.last_number += 1
+    counter.save(update_fields=["last_number"])
+    return counter.last_number
+
+
+def _apply(invoice, amount_paise, **fields):
+    """Record money received against a locked invoice, and issue its receipt.
+
+    Only what the invoice still owes is applied; the rest is kept on the payment as excess for a
+    refund. The money is recorded either way: a confirmed payment is never discarded.
+    """
+    applied = min(amount_paise, invoice.balance_paise)
+    payment = Payment.objects.create(
+        invoice=invoice, amount_paise=amount_paise, applied_paise=applied, **fields
+    )
+    if applied:
+        invoice.paid_paise += applied
+        invoice.status = settle(invoice)
+        invoice.version += 1
+        invoice.save()
+    sequence = _take_receipt_number(invoice.branch, invoice.year)
+    Receipt.objects.create(
+        payment=payment,
+        branch=invoice.branch,
+        year=invoice.year,
+        sequence=sequence,
+        number=receipt_number(invoice.branch, invoice.year, sequence),
+    )
+    run_after_commit(send_receipt, payment.pk)
+    return payment
+
+
+@transaction.atomic
+def record_counter_payment(actor, invoice, amount_paise, method, reference=""):
+    """Cash, UPI or a cheque taken at the school office. Never more than the balance."""
+    invoice = Invoice.objects.select_for_update().get(pk=invoice.pk)
+    if not can_collect_fees(actor, invoice.branch):
+        raise PermissionDenied
+    if method not in COUNTER_METHODS:
+        raise ValidationError({"method": "Choose cash, UPI or cheque."})
+    if method != Payment.Method.CASH and not reference.strip():
+        raise ValidationError({"reference": "Enter the UPI or cheque reference."})
+    if invoice.balance_paise <= 0:
+        raise ValidationError("This invoice has nothing left to pay.")
+    if not 0 < amount_paise <= invoice.balance_paise:
+        raise ValidationError(
+            {"amount_paise": f"Enter an amount up to the balance, {rupees(invoice.balance_paise)}."}
+        )
+    payment = _apply(
+        invoice,
+        amount_paise,
+        method=method,
+        reference=reference.strip(),
+        recorded_by=actor,
+        paid_at=timezone.now(),
+    )
+    audit(
+        actor,
+        invoice.branch,
+        "fees.payment.recorded",
+        invoice,
+        {
+            "amount_paise": amount_paise,
+            "method": method,
+            "reference": reference.strip(),
+            "receipt": payment.receipt.number,
+        },
+    )
+    return payment

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% load ui money %}
+
+{% block content %}
+  {% if not user.is_parent %}
+    <div class="grid-stats">
+      {% include "components/stat_card.html" with label="Billed" value=totals.billed|rupees hint="Invoices not cancelled" only %}
+      {% include "components/stat_card.html" with label="Collected" value=totals.collected|rupees hint="Applied to invoices" only %}
+      {% include "components/stat_card.html" with label="Outstanding" value=totals.outstanding|rupees hint="Still owed" only %}
+      {% include "components/stat_card.html" with label="Overdue invoices" value=overdue_count hint="Past their due date" only %}
+    </div>
+  {% endif %}
+
+  <nav class="tabs" aria-label="Filter invoices">
+    {% for value, label in filters %}
+      <a href="?show={{ value }}{% if query %}&amp;q={{ query|urlencode }}{% endif %}"{% if shown == value %} aria-current="page"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </nav>
+
+  {% if not user.is_parent %}
+    <form class="filter-bar" method="get">
+      <input type="hidden" name="show" value="{{ shown }}">
+      <div>
+        <label for="q">Student or invoice number</label>
+        <input id="q" name="q" value="{{ query }}" placeholder="Name, admission number or #42">
+      </div>
+      <button class="btn btn-secondary" type="submit">{% icon 'search' %}Search</button>
+    </form>
+  {% endif %}
+
+  <section class="card">
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr><th>Invoice</th><th>Student</th><th>Due</th><th class="num">Total</th><th class="num">Balance</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          {% for invoice in page_obj %}
+            <tr>
+              <td><strong>#{{ invoice.pk }} {{ invoice.title }}</strong><small>{{ invoice.plan.grade|default:"" }}</small></td>
+              <td>{{ invoice.student.user.display_name }}<small>{{ invoice.student.admission_number }}</small></td>
+              <td>{{ invoice.due_on|date:"d M Y" }}</td>
+              <td class="num">{{ invoice.total_paise|rupees }}</td>
+              <td class="num">{{ invoice.balance_paise|rupees }}</td>
+              <td>
+                {% if invoice.overdue %}
+                  <span class="badge badge-warning">Overdue</span>
+                {% else %}
+                  <span class="badge {% if invoice.status == 'paid' %}badge-success{% elif invoice.status == 'cancelled' %}{% else %}badge-info{% endif %}">{{ invoice.get_status_display }}</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="empty">No invoices here.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% include "components/pagination.html" %}
+{% endblock %}
