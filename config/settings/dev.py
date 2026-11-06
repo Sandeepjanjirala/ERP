@@ -1,4 +1,7 @@
-"""Local development: debug pages, SQLite unless DATABASE_URL is set, emails printed to the console."""
+"""Local development: debug pages, SQLite unless DATABASE_URL is set.
+
+Emails print to the console, unless EMAIL_HOST names a mail catcher (Docker uses Mailpit).
+"""
 
 from .base import *  # noqa: F403
 
@@ -15,7 +18,8 @@ SECURE_HSTS_SECONDS = 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = False
 SECURE_HSTS_PRELOAD = False
 
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+if not EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # The browsable API (HTML pages at /api/v1/ while signed in) is a development convenience;
 # production serves JSON only.

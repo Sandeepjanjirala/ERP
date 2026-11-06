@@ -13,6 +13,7 @@ from datetime import timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+from celery.schedules import crontab
 from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -144,6 +145,35 @@ TIME_ZONE = "Asia/Kolkata"
 USE_TZ = True
 USE_I18N = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Background jobs (Celery) and the cache. With REDIS_URL (Docker, production), jobs go to a
+# Celery worker and every process shares one cache. Without it (the quick local run on Windows,
+# where Celery isn't supported), jobs run straight away inside the request, after the database
+# commit, and each process keeps its own cache.
+REDIS_URL = os.getenv("REDIS_URL", "")
+CELERY_BROKER_URL = REDIS_URL or "memory://"
+CELERY_TASK_ALWAYS_EAGER = not REDIS_URL
+CELERY_TASK_IGNORE_RESULT = True
+# A job is acknowledged only when it finishes, so a worker that crashes mid-job doesn't lose it.
+# Jobs must therefore be safe to run twice.
+CELERY_TASK_ACKS_LATE = True
+CELERY_TASK_REJECT_ON_WORKER_LOST = True
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_TASK_TIME_LIMIT = 5 * 60
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_BEAT_SCHEDULE = {
+    "flush-expired-api-tokens": {
+        "task": "apps.accounts.tasks.flush_expired_tokens",
+        "schedule": crontab(hour=3, minute=15),
+    },
+}
+CACHES = {
+    "default": (
+        {"BACKEND": "django.core.cache.backends.redis.RedisCache", "LOCATION": REDIS_URL}
+        if REDIS_URL
+        else {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}
+    )
+}
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
