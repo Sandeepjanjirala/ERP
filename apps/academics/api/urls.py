@@ -1,10 +1,15 @@
+from django.urls import path
 from rest_framework.routers import SimpleRouter
 
 from . import views
 
 router = SimpleRouter()
+router.register("branches", views.BranchViewSet, basename="api-branch")
 router.register("years", views.AcademicYearViewSet, basename="api-year")
 router.register("classrooms", views.ClassroomViewSet, basename="api-classroom")
 router.register("subjects", views.SubjectViewSet, basename="api-subject")
 router.register("assignments", views.TeachingAssignmentViewSet, basename="api-assignment")
-urlpatterns = router.urls
+urlpatterns = [
+    path("organization/", views.OrganizationView.as_view(), name="api-organization"),
+    *router.urls,
+]
