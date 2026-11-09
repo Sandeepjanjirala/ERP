@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.db.models import Q
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -11,11 +12,20 @@ from apps.core.exceptions import error_text
 from apps.core.pagination import paginate
 from apps.organization.selectors import branches, selected_branch
 
-from .forms import EnrollmentForm, GuardianAccountForm, LinkGuardianForm, StudentAccountForm
-from .selectors import guardian_links, students
+from .forms import (
+    EnrollmentForm,
+    GuardianAccountForm,
+    ImportForm,
+    LinkGuardianForm,
+    StudentAccountForm,
+)
+from .imports import COLUMNS, read_csv, template_csv
+from .selectors import guardian_links, import_batches, students
 from .services import (
     add_guardian_account,
     admit_student,
+    check_import,
+    confirm_import,
     enroll,
     link_guardian,
     make_primary_guardian,
@@ -182,3 +192,86 @@ def guardian_make_primary(request, pk, link_pk):
     make_primary_guardian(request.user, link)
     messages.success(request, f"{link.guardian} is now the primary contact.")
     return redirect("student_report", pk=pk)
+
+
+# CSV import --------------------------------------------------------------------------------
+
+
+@role_required(*User.MANAGERS)
+def student_import(request):
+    """Upload a CSV. Every row is checked as a real import would, then nothing is kept but the
+    check: the preview comes next."""
+    form = ImportForm(request.POST or None, request.FILES or None, actor=request.user)
+    if request.method == "POST" and form.is_valid():
+        upload = form.cleaned_data["file"]
+        try:
+            rows = read_csv(upload)
+        except ValidationError as exc:
+            form.add_error("file", exc.messages)
+        else:
+            batch = check_import(
+                request.user,
+                form.cleaned_data["branch"],
+                form.cleaned_data["year"],
+                upload.name,
+                rows,
+            )
+            return redirect("student_import_preview", batch.pk)
+    return render(
+        request,
+        "students/import.html",
+        {
+            "title": "Import students",
+            "form": form,
+            "columns": COLUMNS,
+            "recent": import_batches(request.user)[:10],
+        },
+    )
+
+
+@role_required(*User.MANAGERS)
+def student_import_template(request):
+    response = HttpResponse(template_csv(), content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="students-import-template.csv"'
+    return response
+
+
+@role_required(*User.MANAGERS)
+def student_import_preview(request, pk):
+    batch = get_object_or_404(import_batches(request.user), pk=pk)
+    rows = [
+        {"number": number, "row": row, "problems": batch.errors.get(str(number), [])}
+        for number, row in enumerate(batch.rows, start=2)
+    ]
+    return render(
+        request,
+        "students/import_preview.html",
+        {"title": f"Import: {batch.filename}", "batch": batch, "rows": rows},
+    )
+
+
+@require_POST
+@role_required(*User.MANAGERS)
+def student_import_confirm(request, pk):
+    batch = get_object_or_404(import_batches(request.user), pk=pk)
+    already = batch.status == batch.Status.IMPORTED
+    try:
+        batch = confirm_import(request.user, batch)
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+        return redirect("student_import_preview", batch.pk)
+    if batch.errors:
+        messages.error(
+            request,
+            "Something changed since the check, so nothing was imported. See the problems below.",
+        )
+        return redirect("student_import_preview", batch.pk)
+    if already:
+        messages.info(request, "This file was already imported.")
+    else:
+        messages.success(
+            request,
+            f"{len(batch.rows)} students imported. New accounts are being sent a link to set "
+            "their password.",
+        )
+    return redirect("student_import_preview", batch.pk)

@@ -3,12 +3,14 @@ from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
 from apps.academics.api.serializers import AcademicYearSerializer, ClassroomSummarySerializer
+from apps.academics.models import AcademicYear
 from apps.academics.selectors import classrooms
 from apps.accounts.api.serializers import AccountCreateFields, PersonSerializer
 from apps.accounts.selectors import parents
 from apps.core.api.fields import ScopedPrimaryKeyField
+from apps.organization.selectors import branches
 
-from ..models import Enrollment, Student, StudentGuardian
+from ..models import Enrollment, ImportBatch, Student, StudentGuardian
 from ..selectors import students
 
 
@@ -88,3 +90,38 @@ class LinkGuardianSerializer(serializers.Serializer):
     parent = ScopedPrimaryKeyField(parents)
     relationship = serializers.ChoiceField(choices=StudentGuardian.Relationship.choices)
     make_primary = serializers.BooleanField(default=False)
+
+
+class ImportBatchSerializer(serializers.ModelSerializer):
+    """A checked CSV. `errors` maps a row number (the header is row 1) to its problems; with
+    none, POST .../confirm/ imports every row together."""
+
+    status_label = serializers.CharField(source="get_status_display", read_only=True)
+    ready = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = ImportBatch
+        fields = [
+            "id",
+            "filename",
+            "branch",
+            "year",
+            "status",
+            "status_label",
+            "ready",
+            "rows",
+            "errors",
+            "accounts",
+            "created_at",
+            "imported_at",
+        ]
+        read_only_fields = fields
+
+
+class ImportUploadSerializer(serializers.Serializer):
+    """multipart/form-data: the branch and year of the classes, and the CSV (UTF-8, at most 500
+    rows and 2 MB; columns as in the template on the web page)."""
+
+    branch = ScopedPrimaryKeyField(branches)
+    year = serializers.PrimaryKeyRelatedField(queryset=AcademicYear.objects.all())
+    file = serializers.FileField()

@@ -4,6 +4,7 @@
 {% block actions %}
   {% if user.is_manager %}
     <a class="btn" href="{% url 'student_create' %}">{% icon 'plus' %}Add student</a>
+    <a class="btn btn-secondary" href="{% url 'student_import' %}">{% icon 'layers' %}Import from CSV</a>
   {% endif %}
 {% endblock %}
 

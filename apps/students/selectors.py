@@ -6,7 +6,7 @@ from apps.academics.selectors import classrooms
 from apps.accounts.models import User
 from apps.organization.selectors import branches
 
-from .models import Enrollment, Student, StudentGuardian
+from .models import Enrollment, ImportBatch, Student, StudentGuardian
 
 
 def students(user):
@@ -54,4 +54,11 @@ def roster(classroom, day):
         classroom.enrollments.filter(joined_on__lte=day)
         .filter(Q(left_on__isnull=True) | Q(left_on__gte=day))
         .select_related("student__user")
+    )
+
+
+def import_batches(user):
+    """CSV imports of the user's branches, newest first."""
+    return ImportBatch.objects.filter(branch__in=branches(user)).select_related(
+        "branch", "year", "created_by"
     )

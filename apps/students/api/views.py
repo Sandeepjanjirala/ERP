@@ -1,18 +1,23 @@
+from django.core.exceptions import ValidationError
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 
 from apps.accounts.models import User
 from apps.core.api.permissions import role_in
 
-from ..models import Enrollment, Student
-from ..selectors import enrollments, guardian_links, students
+from ..imports import read_csv
+from ..models import Enrollment, ImportBatch, Student
+from ..selectors import enrollments, guardian_links, import_batches, students
 from ..services import (
     add_guardian_account,
     admit_student,
+    check_import,
+    confirm_import,
     enroll,
     link_guardian,
     make_primary_guardian,
@@ -24,6 +29,8 @@ from .serializers import (
     EnrollmentSerializer,
     GuardianAccountSerializer,
     GuardianLinkSerializer,
+    ImportBatchSerializer,
+    ImportUploadSerializer,
     LinkGuardianSerializer,
     StudentSerializer,
 )
@@ -143,3 +150,45 @@ class EnrollmentViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
         enrollment = enroll(request.user, Enrollment(**serializer.validated_data))
         body = EnrollmentSerializer(self.get_queryset().get(pk=enrollment.pk)).data
         return Response(body, status=status.HTTP_201_CREATED)
+
+
+class StudentImportViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
+    """CSV imports of students. POST a file to check it (nothing is imported); then POST
+    /{id}/confirm/ to import every row together, or none."""
+
+    queryset = ImportBatch.objects.none()  # for the schema; get_queryset() is the real scope
+    serializer_class = ImportBatchSerializer
+    permission_classes = [role_in(*User.MANAGERS)]
+    parser_classes = [MultiPartParser]
+
+    def get_queryset(self):
+        return import_batches(self.request.user)
+
+    def get_serializer_class(self):
+        return ImportUploadSerializer if self.action == "create" else ImportBatchSerializer
+
+    @extend_schema(responses={201: ImportBatchSerializer})
+    def create(self, request, *args, **kwargs):
+        body = self.get_serializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        upload = body.validated_data["file"]
+        try:
+            rows = read_csv(upload)
+        except ValidationError as exc:
+            raise ValidationError({"file": exc.messages}) from None
+        batch = check_import(
+            request.user,
+            body.validated_data["branch"],
+            body.validated_data["year"],
+            upload.name,
+            rows,
+        )
+        return Response(ImportBatchSerializer(batch).data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(request=None, responses=ImportBatchSerializer)
+    @action(detail=True, methods=["post"])
+    def confirm(self, request, pk=None):
+        """Import every row together. An already imported batch is returned unchanged; if
+        something changed since the check, nothing is imported and `errors` says why."""
+        batch = confirm_import(request.user, self.get_object())
+        return Response(ImportBatchSerializer(batch).data)
