@@ -16,3 +16,4 @@ Short notes on the main technical choices: the context, the decision, and what i
 | [0010](0010-versioned-grading-scale.md) | A versioned grading scale that never rewrites published results | Accepted |
 | [0011](0011-timetable-and-htmx.md) | Timetable clashes stopped by the database; htmx without loosening the CSP | Accepted |
 | [0012](0012-import-and-promotion.md) | Bulk changes: a dry-run preview, then all or nothing | Accepted |
+| [0013](0013-leaving-and-access.md) | Leaving school: records kept, sign-in ended, a limited grace period | Accepted |

@@ -34,6 +34,11 @@ class EnrollmentCreateSerializer(serializers.ModelSerializer):
         fields = ["student", "classroom", "joined_on", "left_on"]
 
 
+class LeavingSerializer(serializers.Serializer):
+    left_on = serializers.DateField(help_text="The student's last day at school.")
+    reason = serializers.CharField(max_length=200)
+
+
 class StudentSerializer(serializers.ModelSerializer):
     user = PersonSerializer(read_only=True)
     enrollments = EnrollmentSerializer(many=True, read_only=True)

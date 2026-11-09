@@ -18,6 +18,7 @@ urlpatterns = [
         views.student_import_confirm,
         name="student_import_confirm",
     ),
+    path("students/enrollments/<int:pk>/leave/", views.enrollment_leave, name="enrollment_leave"),
     path("students/<int:pk>/guardians/new/", views.guardian_create, name="guardian_create"),
     path("students/<int:pk>/guardians/link/", views.guardian_link, name="guardian_link"),
     path(

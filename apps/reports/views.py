@@ -29,7 +29,7 @@ from .selectors import (
     to_do,
 )
 from .selectors import student_report as student_report_data
-from .services import export_results_csv
+from .services import export_results_csv, records_pack
 
 
 @login_required
@@ -122,6 +122,17 @@ def report_card(request, pk):
         render_report_card(student, report, school_name()), content_type="application/pdf"
     )
     filename = report_card_filename(student, report)
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@role_required(*User.ACADEMIC)
+def records(request, pk):
+    """Every report card, the fee statement and every receipt for a student, in one ZIP: how a
+    family keeps their records after leaving (docs/adr/0013-leaving-and-access.md)."""
+    student = get_object_or_404(students(request.user), pk=pk)
+    response = HttpResponse(records_pack(request.user, student), content_type="application/zip")
+    filename = f"records-{student.admission_number}.zip"
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
 

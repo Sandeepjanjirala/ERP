@@ -6,6 +6,7 @@
     <a class="btn btn-secondary" href="{% url 'leave_create' %}">{% icon 'calendar-off' %}Apply for leave</a>
   {% endif %}
   <a class="btn" href="{% url 'report_card' student.pk %}">{% icon 'download' %}Report card (PDF)</a>
+  <a class="btn btn-secondary" href="{% url 'student_records' student.pk %}">{% icon 'download' %}All records (ZIP)</a>
 {% endblock %}
 
 {% block content %}

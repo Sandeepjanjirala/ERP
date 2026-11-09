@@ -50,3 +50,66 @@ def render_receipt(payment):
 
 def receipt_filename(payment):
     return f"receipt-{payment.receipt.number.replace('/', '-')}.pdf"
+
+
+def statement_rows(invoices):
+    """The statement table: a header row, one row per invoice, then the totals."""
+    rows = [["Invoice", "For", "Issued", "Due", "Status", "Amount", "Paid", "Balance"]]
+    billed = paid = 0
+    for invoice in invoices:
+        cancelled = invoice.status == invoice.Status.CANCELLED
+        balance = 0 if cancelled else invoice.total_paise - invoice.paid_paise
+        rows.append(
+            [
+                f"#{invoice.pk}",
+                invoice.title,
+                f"{invoice.issued_on:%d %b %Y}",
+                f"{invoice.due_on:%d %b %Y}",
+                invoice.get_status_display(),
+                rupees(invoice.total_paise),
+                rupees(invoice.paid_paise),
+                rupees(balance),
+            ]
+        )
+        if not cancelled:
+            billed += invoice.total_paise
+            paid += invoice.paid_paise
+    rows.append(
+        [
+            "",
+            "Total (cancelled invoices excluded)",
+            "",
+            "",
+            "",
+            rupees(billed),
+            rupees(paid),
+            rupees(billed - paid),
+        ]
+    )
+    return rows
+
+
+def render_statement(student, invoices):
+    """Every invoice a student has had, with what was paid and what is still owed, as PDF bytes."""
+    sheet = styles()
+    story = [
+        *letterhead(school_name(), f"{student.user.branch.name} · Fee statement"),
+        table(
+            [
+                ["Student", student.user.display_name],
+                ["Admission number", student.admission_number],
+            ],
+            [45 * mm, 125 * mm],
+        ),
+        Spacer(1, 6 * mm),
+        table(
+            statement_rows(invoices),
+            [14 * mm, 44 * mm, 20 * mm, 20 * mm, 18 * mm, 20 * mm, 18 * mm, 20 * mm],
+        ),
+        Spacer(1, 6 * mm),
+        Paragraph(
+            escape("This statement was issued electronically and needs no signature."),
+            sheet["BodyText"],
+        ),
+    ]
+    return render(story, f"Fee statement: {student.user.display_name}", school_name())

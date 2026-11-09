@@ -3,7 +3,15 @@
 
 {% block actions %}
   <a class="btn" href="{% url 'report_card' student.pk %}{% if selected_year %}?year={{ selected_year.pk }}{% endif %}">{% icon 'download' %}Report card (PDF)</a>
+  <a class="btn btn-secondary" href="{% url 'student_records' student.pk %}">{% icon 'download' %}All records (ZIP)</a>
   <button class="btn btn-secondary" type="button" data-print>{% icon 'printer' %}Print</button>
+  {% if can_manage_guardians %}
+    {% for enrollment in enrollments %}
+      {% if not enrollment.left_on %}
+        <a class="btn btn-secondary" href="{% url 'enrollment_leave' enrollment.pk %}">{% icon 'log-out' %}Record leaving</a>
+      {% endif %}
+    {% endfor %}
+  {% endif %}
 {% endblock %}
 
 {% block content %}
@@ -13,7 +21,7 @@
       <p class="eyebrow">Student progress report</p>
       <h2>{{ student.user.display_name }}</h2>
       <p>
-        {{ student.admission_number }} · {{ student.user.branch.name }}{% for enrollment in enrollments %} · {{ enrollment.classroom.grade }}–{{ enrollment.classroom.section }}{% endfor %}
+        {{ student.admission_number }} · {{ student.user.branch.name }}{% for enrollment in enrollments %} · {{ enrollment.classroom.grade }}–{{ enrollment.classroom.section }}{% if enrollment.left_on %} (left {{ enrollment.left_on|date:"j M Y" }}){% endif %}{% endfor %}
       </p>
     </div>
     <form method="get" class="identity-filter">

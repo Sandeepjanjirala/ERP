@@ -25,6 +25,7 @@ from ..services import (
     make_primary_guardian,
     promote_class,
     promotion_preview,
+    record_leaving,
 )
 from .filters import EnrollmentFilter, StudentFilter
 from .serializers import (
@@ -35,6 +36,7 @@ from .serializers import (
     GuardianLinkSerializer,
     ImportBatchSerializer,
     ImportUploadSerializer,
+    LeavingSerializer,
     LinkGuardianSerializer,
     PromotionResultSerializer,
     PromotionRowSerializer,
@@ -145,10 +147,13 @@ class EnrollmentViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
         )
 
     def get_permissions(self):
-        return [role_in(*(User.MANAGERS if self.action == "create" else User.STAFF))()]
+        writes = self.action in ("create", "leave")
+        return [role_in(*(User.MANAGERS if writes else User.STAFF))()]
 
     def get_serializer_class(self):
-        return EnrollmentCreateSerializer if self.action == "create" else EnrollmentSerializer
+        return {"create": EnrollmentCreateSerializer, "leave": LeavingSerializer}.get(
+            self.action, EnrollmentSerializer
+        )
 
     @extend_schema(responses={201: EnrollmentSerializer})
     def create(self, request, *args, **kwargs):
@@ -157,6 +162,19 @@ class EnrollmentViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
         enrollment = enroll(request.user, Enrollment(**serializer.validated_data))
         body = EnrollmentSerializer(self.get_queryset().get(pk=enrollment.pk)).data
         return Response(body, status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        summary="Record that a student has left",
+        description="Sets the enrollment's last day. Records are kept; the student's sign-in "
+        "stops the next day and their parents' after the grace period.",
+        responses={200: EnrollmentSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def leave(self, request, pk=None):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        enrollment = record_leaving(request.user, self.get_object(), **serializer.validated_data)
+        return Response(EnrollmentSerializer(self.get_queryset().get(pk=enrollment.pk)).data)
 
 
 class StudentImportViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):

@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
@@ -16,12 +17,13 @@ from .forms import (
     EnrollmentForm,
     GuardianAccountForm,
     ImportForm,
+    LeavingForm,
     LinkGuardianForm,
     PromotionForm,
     StudentAccountForm,
 )
 from .imports import COLUMNS, read_csv, template_csv
-from .selectors import guardian_links, import_batches, students
+from .selectors import enrollments, guardian_links, import_batches, students
 from .services import (
     DECISIONS,
     add_guardian_account,
@@ -33,6 +35,7 @@ from .services import (
     make_primary_guardian,
     promote_class,
     promotion_preview,
+    record_leaving,
 )
 
 
@@ -119,6 +122,39 @@ def enrollment_create(request):
             "title": "Set up enrollment",
             "form": form,
             "description": "Choose matching branch, classroom, and academic-year details.",
+        },
+    )
+
+
+@role_required(*User.MANAGERS)
+def enrollment_leave(request, pk):
+    """Record that a student has left. Their records stay; their sign-in stops the next day and
+    their parents' after the grace period (docs/adr/0013-leaving-and-access.md)."""
+    enrollment = get_object_or_404(enrollments(request.user), pk=pk)
+    form = LeavingForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        try:
+            record_leaving(request.user, enrollment, **form.cleaned_data)
+        except ValidationError as exc:
+            form.add_error(None, error_text(exc))
+        else:
+            messages.success(
+                request, f"{enrollment.student.user.display_name}'s leaving is recorded."
+            )
+            return redirect("student_report", pk=enrollment.student_id)
+    student = enrollment.student.user.display_name
+    return render(
+        request,
+        "form_page.html",
+        {
+            "title": f"Record that {student} has left",
+            "form": form,
+            "description": (
+                f"{enrollment.classroom}, {enrollment.classroom.year}. Nothing is deleted: "
+                f"{student}'s sign-in stops the day after, and their parents can still sign in "
+                f"for {settings.LEAVER_GRACE_DAYS} days (longer while fees are owed) to download "
+                "records."
+            ),
         },
     )
 

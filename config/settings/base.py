@@ -177,7 +177,16 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.fees.tasks.remind_overdue_invoices",
         "schedule": crontab(hour=9, minute=0),
     },
+    "review-account-access": {
+        "task": "apps.students.tasks.review_account_access",
+        "schedule": crontab(hour=2, minute=30),
+    },
 }
+# Days a parent can still sign in after their last child leaves, to download records, and the
+# longer limit while fees are owed (to pay online). Students lose access the day after they leave.
+# See docs/adr/0013-leaving-and-access.md.
+LEAVER_GRACE_DAYS = int(os.getenv("LEAVER_GRACE_DAYS", "30"))
+LEAVER_FEES_GRACE_DAYS = max(int(os.getenv("LEAVER_FEES_GRACE_DAYS", "90")), LEAVER_GRACE_DAYS)
 # Online fee payments. Razorpay runs in test mode only; without its keys the built-in Sandbox
 # gateway takes payments, so tests and the demo never depend on Razorpay or on real money.
 RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "")

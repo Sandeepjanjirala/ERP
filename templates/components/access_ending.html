@@ -1,0 +1,11 @@
+{% load ui %}
+{% if user.access_ends_on %}
+  {# Set for a parent whose children have all left, or a leaver an admin switched back on (students.services.review_access). #}
+  <div class="callout callout-warning" role="note">
+    {% icon 'alert' %}
+    <div>
+      <strong>Your account stops working after {{ user.access_ends_on|date:"j F Y" }}.</strong>
+      <p>Until then, download {% if user.is_parent %}each child's{% else %}your{% endif %} records (report cards{% if user.is_parent %}, fee statement and receipts{% endif %}) from your overview page. The school keeps every record; contact the office if you need one later.</p>
+    </div>
+  </div>
+{% endif %}

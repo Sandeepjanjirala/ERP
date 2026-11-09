@@ -148,3 +148,12 @@ class PromotionForm(forms.Form):
         scope = classrooms(actor).order_by("-year__starts_on", "grade__order", "section")
         for name in ("source", "target", "repeat"):
             self.fields[name].queryset = scope
+
+
+class LeavingForm(forms.Form):
+    left_on = forms.DateField(
+        label="Last day at school", widget=DateInput, initial=timezone.localdate
+    )
+    reason = forms.CharField(
+        max_length=200, help_text="For example: moved to another city. Kept in the activity log."
+    )

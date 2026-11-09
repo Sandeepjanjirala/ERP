@@ -54,6 +54,12 @@ class User(AbstractUser):
         ],
     )
     must_change_password = models.BooleanField(default=True)
+    # Set when the daily access review switched the account off ("left_school" for a student,
+    # "children_left" for a parent), so it switches back on only accounts it switched off
+    # itself. Empty when an administrator did it.
+    deactivated_reason = models.CharField(max_length=20, blank=True)
+    # A parent whose children have all left: the last day their sign-in works (shown to them).
+    access_ends_on = models.DateField(null=True, blank=True)
     objects = UserManager()
 
     class Meta:

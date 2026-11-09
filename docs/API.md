@@ -51,7 +51,7 @@ How the tokens behave:
 
 - **Short-lived access, rotating refresh.** Each refresh returns a new refresh token and blacklists the old one, so a stolen refresh token stops working as soon as the real app uses it.
 - **A password change signs out every other device.** Tokens carry a fingerprint of the password hash. After a change, older tokens are refused with `password_changed`.
-- **Deactivation is immediate.** A deactivated account's tokens are refused on the next request.
+- **Deactivation is immediate.** A deactivated account's tokens are refused on the next request, and its refresh tokens are blacklisted, so they stay dead if the account is switched back on. This includes students and parents switched off automatically after leaving (docs/adr/0013-leaving-and-access.md).
 - **New accounts change their password first.** Until they do, every endpoint except `/me/`, `/me/password/` and sign-out answers `403 password_change_required` (the web app redirects to the password page instead).
 - **One sign-in limit for web and API.** Eight failed attempts for a username in 15 minutes block further attempts from either, with `429 throttled`.
 
@@ -116,6 +116,7 @@ Roles: **S** super admin, **A** branch admin, **P** principal, **T** teacher, **
 | `/api/v1/students/{id}/guardians/` | GET · POST (new parent account) | S A P T · S A |
 | `/api/v1/students/{id}/guardians/link/`, `.../{link}/make-primary/` | POST | S A |
 | `/api/v1/enrollments/` | GET · POST | S A P T · S A |
+| `/api/v1/enrollments/{id}/leave/` | POST (record the last day at school) | S A |
 | `/api/v1/classrooms/{id}/register/?date=` | GET · PUT | S A P T · S A, homeroom teacher |
 | `/api/v1/classrooms/{id}/timetable/` | GET · POST (one cell) | Everyone who can see the class but Ac · S A |
 | `/api/v1/timetable/mine/` | GET | T |

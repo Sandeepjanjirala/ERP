@@ -18,10 +18,12 @@ Permissions are enforced in Django views, filtered querysets, and write services
 | View timetables | All | Own branch | Own branch | Classes they teach, their own week | Own class | Children's classes | No |
 | Import students from CSV | All | Own branch | No | No | No | No | No |
 | Year-end promotion | All | Own branch | Own branch | No | No | No | No |
+| Record that a student has left | All | Own branch | No | No | No | No | No |
 | Record daily attendance | All | Own branch | Read only | Assigned homeroom only | No | No | No |
 | Apply for leave | No | No | No | No | No | Own children | No |
 | Approve / refuse leave | All | Own branch | No | Own homeroom | No | No | No |
 | View student reports and report cards | All | Own branch | Own branch | Assigned scope | Self only | Own children | No |
+| Download all records (ZIP) | All | Own branch | Own branch | Assigned scope (no fees) | Self only (no fees) | Own children | No |
 | Create exams | All | Own branch | No | Assigned class+subject | No | No | No |
 | Enter draft marks | All | No | No | Assigned class+subject | No | No | No |
 | Submit exams | All | No | No | Assigned class+subject | No | No | No |
@@ -50,7 +52,7 @@ Branch administrators cannot create or edit principal/super-admin accounts, set 
 
 Role values are fixed application roles. This pilot does not have a configurable permissions editor. Privilege reassignment and cross-branch transfers require a reviewed migration to keep student, classroom, and historical records consistent.
 
-Accounts are created by an administrator. There is no public signup endpoint. New accounts must change their initial password. Deactivation prevents new login and invalidates access by already-authenticated sessions on their next request. Password reset uses Django’s expiring email-token flow.
+Accounts are created by an administrator. There is no public signup endpoint. New accounts must change their initial password. Deactivation prevents new login, deletes the account's web sessions and blacklists its API refresh tokens, so reactivating it never revives them. Students and parents who leave are switched off automatically after a grace period (docs/adr/0013-leaving-and-access.md). Password reset uses Django’s expiring email-token flow.
 
 After eight login attempts for the same normalized username in a 15-minute window, further attempts are temporarily blocked. A successful login clears that username’s counter. Account-level throttling is not a replacement for hosting-level request-rate controls.
 

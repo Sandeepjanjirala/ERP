@@ -1,6 +1,7 @@
 import secrets
-from datetime import date
+from datetime import date, timedelta
 
+from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.validators import validate_email
 from django.db import IntegrityError, transaction
@@ -9,13 +10,13 @@ from django.utils import timezone
 
 from apps.academics.models import Classroom
 from apps.accounts.models import User
-from apps.accounts.services import create_account
+from apps.accounts.services import create_account, set_access
 from apps.audit.services import audit
 from apps.core.jobs import run_after_commit
 
 from .models import Enrollment, Guardian, ImportBatch, Student, StudentGuardian
 from .policies import can_enroll, can_import, can_manage_guardians, can_promote
-from .tasks import send_import_invites
+from .tasks import send_access_ending_notice, send_import_invites
 
 
 @transaction.atomic
@@ -408,4 +409,149 @@ def promote_class(actor, source, decisions, target=None, repeat=None):
             "repeat_in": f"{repeat.grade.name}-{repeat.section}" if repeat else None,
         },
     )
+    return counts
+
+
+# Leaving and access ----------------------------------------------------------------------------
+#
+# A student's sign-in works while they are enrolled (now or later). A parent's works while any of
+# their children is enrolled, and then for a grace period so the family can download records and
+# pay what is owed: LEAVER_GRACE_DAYS, or LEAVER_FEES_GRACE_DAYS while an invoice is unpaid (never
+# indefinitely; after that, fees are settled at the school office). Nothing is deleted; the daily
+# review below switches accounts off and back on, revoking sessions and API tokens when it
+# switches off. docs/adr/0013-leaving-and-access.md
+
+LEFT_SCHOOL, CHILDREN_LEFT = "left_school", "children_left"
+# Invoice statuses with money still owed. fees sits above students, so its model isn't imported:
+# invoices are reached through the student's reverse relation.
+OWED = ("issued", "partly_paid")
+
+
+@transaction.atomic
+def record_leaving(actor, enrollment, left_on, reason):
+    """Record that a student left their class on `left_on` (the last day they attended).
+
+    Refused before the joining date, after the year's end, or before a day on which their
+    attendance was already recorded. Their sign-in stops the next day (review_access).
+    """
+    enrollment = (
+        Enrollment.objects.select_for_update()
+        .select_related("classroom__year", "student__user")
+        .get(pk=enrollment.pk)
+    )
+    if not can_enroll(actor, enrollment.classroom):
+        raise PermissionDenied
+    if not reason.strip():
+        raise ValidationError({"reason": "Give the reason the student is leaving."})
+    if not enrollment.joined_on <= left_on <= enrollment.classroom.year.ends_on:
+        raise ValidationError(
+            {
+                "left_on": f"Choose a day from {enrollment.joined_on:%d %b %Y} to the end of the year."
+            }
+        )
+    # attendance sits above students: its records are reached through the enrollment.
+    last_recorded = (
+        enrollment.attendance.order_by("-session__date")
+        .values_list("session__date", flat=True)
+        .first()
+    )
+    if last_recorded and left_on < last_recorded:
+        raise ValidationError(
+            {
+                "left_on": f"Attendance is recorded for this student on {last_recorded:%d %b %Y}: choose that day or later."
+            }
+        )
+    before = enrollment.left_on
+    enrollment.left_on = left_on
+    enrollment.save(update_fields=["left_on"])
+    audit(
+        actor,
+        enrollment.classroom.branch,
+        "students.left",
+        enrollment.student,
+        {
+            "left_on": left_on.isoformat(),
+            "before": before.isoformat() if before else None,
+            "reason": reason,
+        },
+    )
+    return enrollment
+
+
+def _enrolled(today):
+    """Students with an enrollment that hasn't ended: current, or starting later."""
+    return Student.objects.filter(
+        Q(enrollments__left_on__isnull=True) | Q(enrollments__left_on__gte=today)
+    )
+
+
+def review_access(today=None):
+    """The daily access review. Returns how many accounts it switched off and on, and the
+    parents told when their access ends.
+
+    - A student account switches off the day after their last enrollment ends, and back on if
+      they are enrolled again.
+    - A parent account stays on while any child is enrolled. After the last child leaves it
+      stays on for LEAVER_GRACE_DAYS (LEAVER_FEES_GRACE_DAYS if fees are owed); the parent is
+      emailed the end date, with how to download records and pay. Then it switches off, and back
+      on if a child is enrolled again.
+    An end date a parent has been told is never brought forward. Accounts an administrator
+    switched off are never switched on here, and one an administrator switched back on keeps
+    access until its access_ends_on.
+    """
+    today = today or timezone.localdate()
+    enrolled = _enrolled(today)
+    owing = Student.objects.filter(invoices__status__in=OWED)
+    counts = {
+        "students_off": 0,
+        "students_on": 0,
+        "parents_off": 0,
+        "parents_on": 0,
+        "parents_told": 0,
+    }
+
+    leavers = User.objects.filter(
+        role=User.Role.STUDENT, is_active=True, student_profile__enrollments__isnull=False
+    ).exclude(access_ends_on__gte=today)
+    for user in leavers.exclude(student_profile__in=enrolled).distinct():
+        counts["students_off"] += set_access(user, False, LEFT_SCHOOL)
+    returning = User.objects.filter(
+        role=User.Role.STUDENT,
+        is_active=False,
+        deactivated_reason=LEFT_SCHOOL,
+        student_profile__in=enrolled,
+    ).distinct()
+    for user in returning:
+        counts["students_on"] += set_access(user, True)
+
+    grace = timedelta(days=settings.LEAVER_GRACE_DAYS)
+    fees_grace = timedelta(days=settings.LEAVER_FEES_GRACE_DAYS)
+    parents = User.objects.filter(
+        role=User.Role.PARENT, guardian_profile__child_links__isnull=False
+    ).distinct()
+    for parent in parents.filter(Q(is_active=True) | Q(deactivated_reason=CHILDREN_LEFT)):
+        children = Student.objects.filter(guardian_links__guardian__user=parent)
+        if children.filter(pk__in=enrolled).exists():
+            if not parent.is_active:
+                counts["parents_on"] += set_access(parent, True)
+            elif parent.access_ends_on:
+                User.objects.filter(pk=parent.pk).update(access_ends_on=None)
+            continue
+        left = [e.left_on for e in Enrollment.objects.filter(student__in=children) if e.left_on]
+        if not left:
+            continue  # no child has been enrolled yet
+        owes = children.filter(pk__in=owing).exists()
+        ends_on = max(
+            max(left) + (fees_grace if owes else grace), parent.access_ends_on or date.min
+        )
+        if today > ends_on:
+            counts["parents_off"] += set_access(parent, False, CHILDREN_LEFT)
+            continue
+        if not parent.is_active:  # an invoice issued after leaving extends a lapsed grace period
+            counts["parents_on"] += set_access(parent, True)
+        elif parent.access_ends_on == ends_on:
+            continue  # already told
+        User.objects.filter(pk=parent.pk).update(access_ends_on=ends_on)
+        run_after_commit(send_access_ending_notice, parent.pk, owes)
+        counts["parents_told"] += 1
     return counts

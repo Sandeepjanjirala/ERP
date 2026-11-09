@@ -99,6 +99,7 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("post", "/api/v1/people/", WRITE_MANAGERS),
             ("post", "/api/v1/students/", WRITE_MANAGERS),
             ("post", "/api/v1/enrollments/", WRITE_MANAGERS),
+            ("post", f"/api/v1/enrollments/{self.e1.pk}/leave/", WRITE_MANAGERS),
             # Uploads are multipart only: managers get past the role check, then 415 for JSON.
             ("post", "/api/v1/student-imports/", (415, 415, 403, 403, 403, 403, 403)),
             # Leaders get past the role check; with no class to move up to, the body is refused.

@@ -53,3 +53,33 @@ def send_import_invites(batch_id):
         batch.invites_sent_at = timezone.now()
         batch.save(update_fields=["invites_sent_at"])
     return len(messages)
+
+
+@shared_task
+def review_account_access():
+    """The nightly access review (students.services.review_access)."""
+    from .services import review_access  # here, not at the top: services imports this module
+
+    return review_access()
+
+
+@shared_task
+def send_access_ending_notice(parent_id, fees_owed=False):
+    """Tell a parent whose children have all left when their sign-in ends, and how to download
+    their children's records (and pay what is owed) before then."""
+    parent = User.objects.filter(pk=parent_id, is_active=True).exclude(email="").first()
+    if parent is None or parent.access_ends_on is None:
+        return 0
+    body = render_to_string(
+        "students/access_ending.txt",
+        {
+            "person": parent,
+            "school": school_name(),
+            "ends_on": parent.access_ends_on,
+            "fees_owed": fees_owed,
+            "fees_link": f"{settings.SITE_URL}{reverse('fees')}",
+            "link": f"{settings.SITE_URL}{reverse('dashboard')}",
+        },
+    )
+    EmailMessage(f"Your access to {school_name()} is ending", body, to=[parent.email]).send()
+    return 1

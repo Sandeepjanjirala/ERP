@@ -34,6 +34,7 @@
           <div class="page-actions">{% block actions %}{% endblock %}</div>
         </header>
         {% include "components/messages.html" %}
+        {% include "components/access_ending.html" %}
         {% block content %}{% endblock %}
         <footer class="app-footer">
           <span>{{ brand.name }} · {{ brand.tagline }}</span>
