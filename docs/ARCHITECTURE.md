@@ -26,18 +26,19 @@ flowchart TB
 
 ## Layers
 
-`INSTALLED_APPS` lists the apps from the lowest layer to the highest. An app may import only from apps listed before it, so there are no circular dependencies.
+`INSTALLED_APPS` lists the apps from the lowest layer to the highest. An app may import only from apps listed before it, so there are no circular dependencies. The rule is a contract in `pyproject.toml` ([import-linter](https://import-linter.readthedocs.io/)), checked by `apps/core/tests/test_architecture.py` on every test run; test code may import from any app.
 
 | Layer | Apps | Responsibility |
 |---|---|---|
 | 0 | `core` | Base model, security headers (with per-page CSP additions), pagination, template tags, health check, PDF and CSV helpers; shared API code (errors, permissions, pagination, sorting, file renderers) |
 | 1 | `organization`, `audit`, `accounts` | School group and branches; the activity log; users, roles and sign-in |
-| 2 | `academics`, `students` | Years, classrooms, subjects, teacher assignments; students, enrollments and guardians |
+| 2 | `academics`, `students` | Years, terms, grades, classrooms, subjects, teacher assignments, periods and timetables; students, enrollments, guardians, CSV import and year-end promotion |
 | 3 | `communication`, `fees`, `attendance`, `exams` | Announcements and notifications; fee plans, invoices, payments, receipts and payment providers; daily registers and leave; exams, marks and the result workflow |
 | 4 | `reports`, `demo` | Dashboards, reports and report-card PDFs that read from everything; sample data |
 
 Two places needed care to keep this rule:
 
+- **Terms and exams:** `academics` moves exams between terms when a year's terms change, reaching the Exam model through `Term`'s reverse relation instead of importing `exams`.
 - **Enrollment's "no retroactive joins" rule** needs to know whether registers or published exams exist. `students` is below `attendance` and `exams`, so it reads them through the classroom's reverse relations (`classroom.attendance_sessions`, `classroom.exams`) instead of importing those apps.
 - **The activity-log page** lives in `reports`, not `audit`. `audit` stays a small piece of infrastructure (model, `audit()`, `events()`) that `accounts` and every app above it can use.
 - **The branches API endpoint** lives in `academics`, not `organization`, because creating a branch writes the activity log and `organization` sits below `audit`.
@@ -102,7 +103,7 @@ Dashboard aggregates over every attendance row (the 30-day trend, students below
 
 ## Security layers
 
-- **Middleware:** `SecurityHeadersMiddleware` adds a strict Content-Security-Policy, referrer and permissions policies, and `no-store` for signed-in pages and every API response. `ForcePasswordChangeMiddleware` holds new accounts on the password page.
+- **Middleware:** `RequestIDMiddleware` gives each request an id (the `X-Request-ID` header, stored on the activity-log entries it writes). `SecurityHeadersMiddleware` adds a strict Content-Security-Policy, referrer and permissions policies, and `no-store` for signed-in pages and every API response. `ForcePasswordChangeMiddleware` holds new accounts on the password page.
 - **Views:** `@role_required(*User.MANAGERS)` returns 403 for the wrong role. API views use the matching `role_in(...)` permission, which also enforces the first password change.
 - **Tokens:** API access tokens last 15 minutes. Refresh tokens rotate and are blacklisted after use, and a password change or deactivation revokes them.
 - **Selectors:** out-of-scope records return 404, so a changed ID in the URL reveals nothing.
@@ -125,7 +126,8 @@ Server-rendered Django templates with no build step:
 - `static/css/tokens.css` defines every colour, font and radius. Dark mode redefines only those tokens.
 - `base.css`, `layout.css` and `components.css` hold the rest. Templates combine classes; pages add no CSS of their own.
 - `static/img/icons.svg` is one icon sprite, drawn with `{% icon %}`.
-- `static/js/` adds small enhancements: the mobile menu, confirmations, printing, "mark all present" and the theme toggle. Every page works without JavaScript.
+- `static/js/` adds small enhancements: the mobile menu, confirmations, printing, the theme toggle (charts redraw with it). Every page works without JavaScript.
+- **htmx** (vendored, hash-checked) saves timetable cells and the attendance register in place and filters lists as you type. Its config turns off `eval`, inline scripts and injected styles; every htmx form is also a plain form ([ADR 0011](adr/0011-timetable-and-htmx.md)).
 - There are no inline scripts, so the Content-Security-Policy can forbid them.
 
 ## Tests

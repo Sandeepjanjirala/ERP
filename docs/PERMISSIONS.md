@@ -11,6 +11,13 @@ Permissions are enforced in Django views, filtered querysets, and write services
 | Add parents / set the primary contact | Yes | Own branch | No | No | No | No | No |
 | Edit contact details / deactivate | Branch users | Own teachers, accountants, students, parents | No | No | No | No | No |
 | Create classrooms / subjects / assignments | Yes | Own branch | Read only | No | No | No | No |
+| Grades and periods (bell schedule) | Yes | Own branch | Read only | No | No | No | No |
+| A year's terms | Yes | Read only | Read only | Read only | Read only | Read only | No |
+| Grading scale (save a new version) | Yes | Read only | Read only | No | No | No | No |
+| Edit timetables | All | Own branch | No | No | No | No | No |
+| View timetables | All | Own branch | Own branch | Classes they teach, their own week | Own class | Children's classes | No |
+| Import students from CSV | All | Own branch | No | No | No | No | No |
+| Year-end promotion | All | Own branch | Own branch | No | No | No | No |
 | Record daily attendance | All | Own branch | Read only | Assigned homeroom only | No | No | No |
 | Apply for leave | No | No | No | No | No | Own children | No |
 | Approve / refuse leave | All | Own branch | No | Own homeroom | No | No | No |
@@ -66,3 +73,9 @@ Every endpoint's access for every role is one table in `apps/core/tests/test_api
 - `apps/*/forms.py`: only permitted branches and objects are valid choices.
 - `apps/*/tests/`: forged requests, scope isolation, the account permission matrix (`apps/accounts/tests/test_policies.py`), the rules shared by web and API (`apps/core/tests/test_shared_rules.py`), the API matrix, locked marks, sessions, and concurrent-write tests on PostgreSQL.
 - Django authentication documentation: https://docs.djangoproject.com/en/5.2/topics/auth/default/
+
+## Phase 5 notes
+
+- Terms and the grading scale belong to the whole school group, so only super admins change them. Grades and periods are per branch.
+- The grading scale is versioned: saving creates a new version, and results already published keep theirs ([ADR 0010](adr/0010-versioned-grading-scale.md)).
+- Timetable edits, imports and promotions are checked again in their services (`can_manage_setup`, `can_import`, `can_promote`), so the API and every other route follow the same rules.

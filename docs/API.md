@@ -71,7 +71,7 @@ Password reset by email stays a web flow (`/accounts/password/reset/`), because 
 
 `?page_size=` sets the page size (25 by default, at most 100). A page past the end is a 404. Every list has a fixed order that ends with a unique column, so pages never repeat or skip a row.
 
-**Filters, search and sorting** are listed per endpoint in the docs. For example: `/api/v1/students/?classroom=12&search=ravi`, `/api/v1/exams/?status=submitted&ordering=-date`, `/api/v1/activity/?action=exam.`. A filter value outside your scope (`?branch=<a branch you don't work in>`) is a 400, not an empty list. Sorting is available only on the fields each endpoint documents.
+**Filters, search and sorting** are listed per endpoint in the docs. For example: `/api/v1/students/?classroom=12&search=ravi`, `/api/v1/exams/?status=submitted&ordering=-date`, `/api/v1/activity/?action=exam.&since=2026-11-01`. A filter value outside your scope (`?branch=<a branch you don't work in>`) is a 400, not an empty list. Sorting is available only on the fields each endpoint documents.
 
 **Errors have one shape:**
 
@@ -102,6 +102,9 @@ Roles: **S** super admin, **A** branch admin, **P** principal, **T** teacher, **
 | `/api/v1/organization/` | GET · PATCH | Everyone · S |
 | `/api/v1/branches/` | GET · POST | Everyone · S |
 | `/api/v1/years/` | GET · POST | Everyone · S |
+| `/api/v1/terms/` (`?year=`); `/api/v1/years/{id}/terms/` | GET; GET · PUT (all of a year's terms at once) | Everyone; Everyone · S |
+| `/api/v1/grades/` | GET · POST, PATCH | Everyone · S A |
+| `/api/v1/periods/` | GET · POST, PATCH | Everyone but Ac · S A |
 | `/api/v1/classrooms/` | GET · POST, PATCH | Everyone · S A |
 | `/api/v1/subjects/` | GET · POST, PATCH | S A P T · S A |
 | `/api/v1/assignments/` | GET · POST, PATCH | S A P · S A |
@@ -114,6 +117,11 @@ Roles: **S** super admin, **A** branch admin, **P** principal, **T** teacher, **
 | `/api/v1/students/{id}/guardians/link/`, `.../{link}/make-primary/` | POST | S A |
 | `/api/v1/enrollments/` | GET · POST | S A P T · S A |
 | `/api/v1/classrooms/{id}/register/?date=` | GET · PUT | S A P T · S A, homeroom teacher |
+| `/api/v1/classrooms/{id}/timetable/` | GET · POST (one cell) | Everyone who can see the class but Ac · S A |
+| `/api/v1/timetable/mine/` | GET | T |
+| `/api/v1/classrooms/{id}/promotion/` | GET (preview) · POST | S A P |
+| `/api/v1/student-imports/` (multipart upload), `{id}/`, `{id}/confirm/` | GET, POST | S A |
+| `/api/v1/grading-scales/` | GET · POST (a new version) | Everyone but Ac · S |
 | `/api/v1/exams/` | GET · POST | Everyone (students: published only) · S A T |
 | `/api/v1/exams/{id}/marks/` | GET · PUT | S A P T · S, subject teacher |
 | `/api/v1/exams/{id}/submit/` | POST | S, subject teacher |
@@ -131,7 +139,7 @@ Roles: **S** super admin, **A** branch admin, **P** principal, **T** teacher, **
 | `/api/v1/invoices/{id}/pay-online/` (returns the order and `checkout_url`) | POST | Pa (own children) |
 | `/api/v1/payments/` (`?excess=true`), `/api/v1/payment-orders/` (`?status=review`) | GET | S A Ac · Pa (own children) |
 | `/api/v1/receipts/{id}/pdf/` | GET (PDF) | S A Ac · Pa (own children) |
-| `/api/v1/fee-heads/`, `/api/v1/fee-plans/` | GET | S A Ac |
+| `/api/v1/fee-heads/`, `/api/v1/fee-plans/` | GET · POST, PATCH | S A Ac · S A |
 | `/api/v1/fee-plans/{id}/issue/` | POST | S A Ac |
 | `/api/v1/payments/webhook/{gateway}/` | POST | The payment provider: no sign-in, but every body must carry a valid `X-Razorpay-Signature` |
 
@@ -168,3 +176,10 @@ To add an endpoint:
 ## Money
 
 Every amount is an integer number of paise (`amount_paise: 1250000` is ₹12,500.00). Fee plans are set up on the web; the API reads them and issues invoices from them. Accountants get 403 on academic endpoints (marks, attendance, reports) and see an empty student list.
+
+## Changes in Phase 5
+
+- **Grades are records.** Classroom and fee-plan responses keep `"grade"` (the grade's name, as before) and add `"grade_id"`. **Creating or changing a classroom now takes `grade_id`** (from `/api/v1/grades/`) instead of the grade text; this is the one change existing clients must make.
+- Exams show their `term`, set from the date; an exam date outside every term is a 400 on `date`.
+- Results in a student report have a `grade`, and its summary an overall `grade`, from the scale the exam was published with (null when there is none).
+- Every response carries an `X-Request-ID` header; `/api/v1/activity/?request_id=` finds the entries that request wrote, and `?since=` and `?until=` filter by date.

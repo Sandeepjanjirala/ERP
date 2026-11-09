@@ -30,6 +30,8 @@ The models' fields did not change, so the data moves with Django's own fixture t
 
    `loaddata` also resets the PostgreSQL ID sequences, so new records don't collide with the loaded ones.
 
+   Since Phase 5 the converter also creates the records the old app didn't have: one grade per (branch, grade name), ordered by the number in the name, and two terms per year with each exam placed in the term of its date, the same rules as the Phase 5 migrations.
+
 5. **Check:** sign in with an existing account, open a student report, and compare record counts with the old database. `convert_legacy_data` prints the count per model.
 
 ## What was verified
