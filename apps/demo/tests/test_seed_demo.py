@@ -6,6 +6,7 @@ from django.core.management.base import CommandError
 from django.db.models import Count
 from django.test import TestCase, override_settings
 
+from apps.academics.models import Classroom, Term, TimetableSlot
 from apps.accounts.models import User
 from apps.attendance.models import AttendanceSession, LeaveRequest
 from apps.audit.models import AuditEvent
@@ -29,6 +30,9 @@ class SeedTests(TestCase):
         self.assertEqual(Exam.objects.count(), 24)
         statuses = dict(Exam.objects.values_list("status").annotate(n=Count("id")))
         self.assertEqual(statuses, {"published": 16, "submitted": 4, "draft": 4})
+        # Six periods a day, Monday to Saturday, for every class; each a teacher of that class.
+        self.assertEqual(TimetableSlot.objects.count(), Classroom.objects.count() * 36)
+        self.assertEqual(Term.objects.count(), 2)
         # Every published result carries version 1 of the grading scale (the CBSE bands).
         self.assertEqual(
             set(

@@ -17,8 +17,16 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
-from apps.academics.models import AcademicYear, Classroom, Grade, Subject, TeachingAssignment
-from apps.academics.services import default_terms
+from apps.academics.models import (
+    AcademicYear,
+    Classroom,
+    Grade,
+    Period,
+    Subject,
+    TeachingAssignment,
+    TimetableSlot,
+)
+from apps.academics.services import default_terms, save_lesson, save_setup_record
 from apps.accounts.models import User
 from apps.attendance.models import Attendance, LeaveRequest
 from apps.attendance.services import decide_leave, request_leave, save_register
@@ -137,6 +145,17 @@ EXAMS = [
 FEE_HEADS = [("Tuition", "tuition"), ("Transport", "transport"), ("Exam fee", "exam")]
 TUITION_BY_GRADE = {"Class 10": 18000, "Class 9": 16500, "Class 8": 15000, "Class 7": 14000}
 TUITION_DEFAULT, TRANSPORT, EXAM_FEE = 13000, 6000, 1500
+
+
+# The bell schedule: (start, end) of each period, the same in every branch.
+PERIODS = [
+    (time(8, 30), time(9, 15)),
+    (time(9, 20), time(10, 5)),
+    (time(10, 10), time(10, 55)),
+    (time(11, 10), time(11, 55)),
+    (time(12, 0), time(12, 45)),
+    (time(13, 30), time(14, 15)),
+]
 
 
 def school_days(start, end):
@@ -320,6 +339,8 @@ class Command(BaseCommand):
         self.progress(f"{spec['name']}: daily registers since {self.history_start:%d %b}")
         self.seed_leave(roster)
         self.seed_fees(branch, admin, accountant, classrooms)
+        self.seed_timetable(branch, admin, classrooms)
+        self.progress(f"{spec['name']}: periods and weekly timetables")
         self.progress(f"{spec['name']}: fee invoices, payments and receipts")
         self.branches.append((branch, principal, teachers[0], classrooms[0]))
 
@@ -407,6 +428,23 @@ class Command(BaseCommand):
         invoice = Invoice.objects.filter(branch=branch, title="Term 2 fees").order_by("pk").first()
         if invoice:
             grant_concession(admin, invoice, 100000, "Sibling discount")
+
+    def seed_timetable(self, branch, admin, classrooms):
+        """Each branch's periods, and a full week for every class through save_lesson (so the
+        clash rules apply). Subjects rotate by period, day and class: with one teacher per
+        subject, no teacher is ever in two classes at once."""
+        periods = [
+            save_setup_record(
+                admin, "period", Period(branch=branch, number=n, starts_at=starts, ends_at=ends)
+            )
+            for n, (starts, ends) in enumerate(PERIODS, start=1)
+        ]
+        for index, classroom in enumerate(classrooms):
+            teaching = list(classroom.teaching.select_related("subject").order_by("subject__name"))
+            for day in TimetableSlot.Day.values:
+                for number, period in enumerate(periods):
+                    assignment = teaching[(number + day + index) % len(teaching)]
+                    save_lesson(admin, classroom, day, period, assignment)
 
     def seed_leave(self, roster):
         """A few leave requests per branch: one approved (it excuses recorded absences), one
