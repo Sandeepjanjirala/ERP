@@ -44,6 +44,9 @@ class BrowserTestCase(StaticLiveServerTestCase):
             raise SkipTest("Playwright isn't installed.")
         # Playwright's sync API runs an event loop; Django's ORM calls in the test are still
         # plain synchronous code, so this check is safe to switch off here.
+        # Only while these tests run: it is restored in tearDownClass (the deploy check rightly
+        # refuses it, and other tests run in the same process).
+        cls.async_unsafe = os.environ.get("DJANGO_ALLOW_ASYNC_UNSAFE")
         os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
         super().setUpClass()
         cls.playwright = sync_playwright().start()
@@ -52,13 +55,22 @@ class BrowserTestCase(StaticLiveServerTestCase):
         except Exception as error:  # the browser isn't installed
             cls.playwright.stop()
             super().tearDownClass()
+            cls.restore_environment()
             raise SkipTest(f"Chromium for Playwright isn't installed: {error}") from None
+
+    @classmethod
+    def restore_environment(cls):
+        if cls.async_unsafe is None:
+            os.environ.pop("DJANGO_ALLOW_ASYNC_UNSAFE", None)
+        else:
+            os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = cls.async_unsafe
 
     @classmethod
     def tearDownClass(cls):
         cls.browser.close()
         cls.playwright.stop()
         super().tearDownClass()
+        cls.restore_environment()
 
     def setUp(self):
         SchoolTestCase.setUpTestData.__func__(type(self))
