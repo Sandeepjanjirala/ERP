@@ -2,6 +2,7 @@ import secrets
 from datetime import date
 
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.validators import validate_email
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -112,19 +113,48 @@ def _row_messages(exc):
     return exc.messages
 
 
-def _import_row(actor, branch, row, classes):
-    """Admit one student (and add or link their guardian) through the ordinary services.
-    Returns the usernames of the accounts it created."""
-    classroom = classes.get(row["classroom"].casefold())
-    if classroom is None:
-        raise ValidationError(
+def _row_problems(row, branch, classes):
+    """Everything wrong with a row's own columns, all at once, so the preview lists every problem
+    of the row, not just the first. Checks needing the database (a taken email, a completed
+    register on the joining date) come from the services afterwards."""
+    problems = []
+    if row["classroom"].casefold() not in classes:
+        problems.append(
             f"No class “{row['classroom']}” in {branch.name} that year. "
             "Write the grade and section as the school does, e.g. “Class 9-A”."
         )
     try:
-        joined_on = date.fromisoformat(row["joined_on"])
+        date.fromisoformat(row["joined_on"])
     except ValueError:
-        raise ValidationError("joined on: write the date as YYYY-MM-DD, e.g. 2026-06-01.") from None
+        problems.append("joined on: write the date as YYYY-MM-DD, e.g. 2026-06-01.")
+    for column in ("admission_number", "first_name", "email"):
+        if not row[column]:
+            problems.append(f"{column.replace('_', ' ')}: this column can't be empty.")
+    for column in ("email", "guardian_email"):
+        if row[column]:
+            try:
+                validate_email(row[column])
+            except ValidationError:
+                problems.append(
+                    f"{column.replace('_', ' ')}: “{row[column]}” isn't an email address."
+                )
+    guardian_columns = [row[f"guardian_{part}"] for part in ("first_name", "last_name", "phone")]
+    if not row["guardian_email"] and (any(guardian_columns) or row["relationship"]):
+        problems.append("Give the guardian's email, or leave all guardian columns empty.")
+    if (
+        row["relationship"]
+        and row["relationship"].lower() not in StudentGuardian.Relationship.values
+    ):
+        problems.append("relationship: use mother, father or guardian.")
+    return problems
+
+
+def _import_row(actor, branch, row, classes):
+    """Admit one student (and add or link their guardian) through the ordinary services.
+    Returns the usernames of the accounts it created."""
+    if problems := _row_problems(row, branch, classes):
+        raise ValidationError(problems)
+    classroom = classes[row["classroom"].casefold()]
     student_user = User(
         username=row["admission_number"].lower(),
         email=row["email"],
@@ -141,17 +171,12 @@ def _import_row(actor, branch, row, classes):
         secrets.token_urlsafe(24),
         row["admission_number"],
         classroom,
-        joined_on,
+        date.fromisoformat(row["joined_on"]),
     )
     created = [student_user.username]
-    guardian_fields = [row[f"guardian_{part}"] for part in ("first_name", "last_name", "phone")]
     if not row["guardian_email"]:
-        if any(guardian_fields) or row["relationship"]:
-            raise ValidationError("Give the guardian's email, or leave all guardian columns empty.")
         return created
     relationship = (row["relationship"] or StudentGuardian.Relationship.GUARDIAN).lower()
-    if relationship not in StudentGuardian.Relationship.values:
-        raise ValidationError("relationship: use mother, father or guardian.")
     parent = User.objects.filter(email__iexact=row["guardian_email"]).first()
     if parent:
         # A parent already known (a brother or sister, or an earlier row): link, don't create.

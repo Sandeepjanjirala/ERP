@@ -115,6 +115,28 @@ class ImportTests(ApiTestCase):
         with self.assertRaisesMessage(ValidationError, "Fix the problems"):
             confirm_import(self.admin, batch)
 
+    def test_a_row_lists_all_its_problems_at_once(self):
+        batch = self.check(
+            [
+                row(
+                    1,
+                    email="not-an-email",
+                    classroom="9-Z",
+                    joined_on="tomorrow",
+                    relationship="aunt",
+                )
+            ]
+        )
+        problems = " | ".join(batch.errors["2"])
+        self.assertEqual(len(batch.errors["2"]), 4, problems)
+        for part in (
+            "isn't an email address",
+            "No class “9-Z”",
+            "YYYY-MM-DD",
+            "mother, father or guardian",
+        ):
+            self.assertIn(part, problems)
+
     def test_confirming_imports_every_row_and_invites_new_accounts(self):
         batch = self.check(
             [
