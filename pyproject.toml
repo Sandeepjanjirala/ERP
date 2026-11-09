@@ -42,3 +42,30 @@ omit = ["*/migrations/*", "*/tests/*", "apps/core/testing.py"]
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
+
+[tool.importlinter]
+# The layering rule in docs/ARCHITECTURE.md, checked in CI: an app imports only from apps below
+# it (the order of INSTALLED_APPS). Test code may import from any app.
+root_package = "apps"
+
+[[tool.importlinter.contracts]]
+name = "Apps import only from the apps below them"
+type = "layers"
+layers = [
+    "apps.demo",
+    "apps.reports",
+    "apps.exams",
+    "apps.attendance",
+    "apps.fees",
+    "apps.communication",
+    "apps.students",
+    "apps.academics",
+    "apps.accounts",
+    "apps.audit",
+    "apps.organization",
+    "apps.core",
+]
+ignore_imports = [
+    "apps.*.tests.** -> apps.**",
+    "apps.core.testing -> apps.**",
+]
