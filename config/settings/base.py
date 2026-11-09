@@ -40,7 +40,8 @@ def database_config(url, default_sslmode):
     if not url:
         return {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+            # SQLITE_PATH points a rehearsal or a test at another file (a copy, never the original).
+            "NAME": Path(os.getenv("SQLITE_PATH") or BASE_DIR / "db.sqlite3"),
             "OPTIONS": {"timeout": 20},
         }
     parsed = urlparse(url)
