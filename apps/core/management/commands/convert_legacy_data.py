@@ -14,6 +14,7 @@ Primary keys, password hashes and relations are kept. See docs/UPGRADING.md.
 
 import json
 import re
+from datetime import date, timedelta
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
@@ -59,11 +60,12 @@ def convert(records):
             )
         converted.append({**record, "model": new_label, "fields": fields})
         counts[new_label] = counts.get(new_label, 0) + 1
-    grades = link_grades(converted)
-    if grades:
-        # Grades go before the classrooms that point at them.
-        converted[:0] = grades
-        counts["academics.grade"] = len(grades)
+    grades, terms = link_grades(converted), link_terms(converted)
+    # New records go first, before the classrooms and exams that point at them.
+    converted[:0] = grades + terms
+    for label, added in (("academics.grade", grades), ("academics.term", terms)):
+        if added:
+            counts[label] = len(added)
     return converted, counts
 
 
@@ -112,6 +114,51 @@ def link_grades(records):
         fields = record["fields"]
         fields["grade"] = ids[fields["branch"], fields["grade"]]
     return grades
+
+
+def link_terms(records):
+    """Since Phase 5 every exam belongs to a term. Give each year Term 1 and Term 2, splitting it
+    in half as migration academics 0006 does, and put each exam in the term of its date.
+    Returns the new Term records."""
+    years = {r["pk"]: r["fields"] for r in records if r["model"] == "academics.academicyear"}
+    terms, spans = [], {}
+    for year_pk, year in years.items():
+        starts_on, ends_on = (
+            date.fromisoformat(year["starts_on"]),
+            date.fromisoformat(year["ends_on"]),
+        )
+        middle = starts_on + timedelta(days=(ends_on - starts_on).days // 2)
+        for name, first, last in (
+            ("Term 1", starts_on, middle),
+            ("Term 2", middle + timedelta(days=1), ends_on),
+        ):
+            pk = len(terms) + 1
+            terms.append(
+                {
+                    "model": "academics.term",
+                    "pk": pk,
+                    "fields": {
+                        "year": year_pk,
+                        "name": name,
+                        "starts_on": first.isoformat(),
+                        "ends_on": last.isoformat(),
+                    },
+                }
+            )
+            spans.setdefault(year_pk, []).append((first, last, pk))
+    classroom_years = {
+        r["pk"]: r["fields"]["year"] for r in records if r["model"] == "academics.classroom"
+    }
+    for record in records:
+        if record["model"] != "exams.exam":
+            continue
+        fields = record["fields"]
+        day = date.fromisoformat(fields["date"])
+        year_spans = spans.get(classroom_years.get(fields["classroom"]), [])
+        fields["term"] = next((pk for first, last, pk in year_spans if first <= day <= last), None)
+        if fields["term"] is None:
+            raise CommandError(f"Exam {record['pk']} ({day}) is outside its academic year.")
+    return terms
 
 
 class Command(BaseCommand):

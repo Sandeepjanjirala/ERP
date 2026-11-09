@@ -13,6 +13,7 @@ from apps.academics.models import Classroom
 from apps.accounts.models import User
 from apps.attendance.models import Attendance
 from apps.core.management.commands.convert_legacy_data import convert
+from apps.exams.models import Exam
 from apps.students.models import Enrollment
 
 PASSWORD = "Legacy-account-password-5521!"
@@ -31,6 +32,8 @@ def legacy_export():
         {"model": "school.enrollment", "pk": 11, "fields": {"student": 9, "classroom": 5, "year": 3, "joined_on": "2026-04-01", "left_on": None}},
         {"model": "school.attendancesession", "pk": 13, "fields": {"classroom": 5, "date": "2026-06-01", "version": 2, "recorded_by": 40, "updated_at": "2026-06-01T10:00:00Z"}},
         {"model": "school.attendance", "pk": 17, "fields": {"session": 13, "enrollment": 11, "status": "L"}},
+        {"model": "school.subject", "pk": 21, "fields": {"branch": 7, "name": "Maths", "code": "maths"}},
+        {"model": "school.exam", "pk": 23, "fields": {"classroom": 5, "subject": 21, "title": "Unit test", "date": "2026-11-20", "max_marks": "25.00", "pass_marks": "9.00", "status": "published", "version": 2, "published_by": None, "published_at": None}},
         {"model": "school.loginattempt", "pk": "abc", "fields": {"count": 3, "started_at": "2026-06-01T10:00:00Z"}},
     ]  # fmt: skip
 
@@ -52,6 +55,11 @@ class LegacyUpgradeTests(TestCase):
         self.assertEqual(Enrollment.objects.get(pk=11).student.admission_number, "OLD-001")
         record = Attendance.objects.get(pk=17)
         self.assertEqual((record.status, record.session.version), ("L", 2))
+        # Phase 5: the grade text became a Grade, and the exam is in the term of its date.
+        classroom = Classroom.objects.get(pk=5)
+        self.assertEqual((classroom.grade.name, classroom.grade.order), ("Class 9", 9))
+        exam = Exam.objects.get(pk=23)
+        self.assertEqual((exam.term.name, exam.status, exam.version), ("Term 2", "published", 2))
 
     def test_throttle_counters_are_dropped_and_unknown_models_rejected(self):
         converted, counts = convert(legacy_export())
