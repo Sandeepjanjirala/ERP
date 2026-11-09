@@ -18,9 +18,11 @@ EduNexa runs the daily work of a school group: branches, classrooms and teachers
 ## What it does
 
 - **Seven roles:** super admin, branch admin, principal, teacher, accountant, student and parent. Each sees only its own branch, classes, records or children; accountants see fees and nothing academic.
-- **Daily attendance:** one register per class per day. Every student must be marked, corrections need a reason, and before/after values are logged.
-- **Exams and results:** teachers enter marks, then the workflow runs Draft → Submitted → Published. Only principals publish, and reopening a published exam needs a reason.
+- **Daily attendance:** one register per class per day, one tap per student (or "mark all present"), saved without reloading the page. Every student must be marked, corrections need a reason, before/after values are logged, and families alerted about an absence are told if it is corrected the same day.
+- **Timetable and academic year:** grades and terms per branch and year, each branch's periods, and a weekly timetable per class in which the database refuses a class or a teacher booked twice in one period. Teachers see their week and today's lessons.
+- **Exams and results:** teachers enter marks, then the workflow runs Draft → Submitted → Published. Only principals publish, and reopening a published exam needs a reason. Each exam sits in the term of its date, and results carry a grade (A1 ... E) from a versioned grading scale that never changes a result already published.
 - **Parents:** parent accounts linked to one or more children, with a primary contact. Parents follow attendance and results, download report cards, and apply for leave, which the class teacher approves.
+- **Admissions and year end:** import students and their guardians from a CSV with a full preview (all rows saved together, or none), and move a class on at the end of the year in one go (move up, repeat or leave), safe to run twice.
 - **Fees and payments:** fee plans per grade, invoices, concessions, cash/UPI/cheque at the office, and online payment through Razorpay (test mode) or a built-in Sandbox. Receipts are numbered without gaps and emailed as PDFs; overdue families get a weekly reminder; finance staff get a collection report with CSV. No real money moves.
 - **Notifications:** a notification bell and email for absences, published results, leave decisions and announcements, sent in the background.
 - **Dashboards:** for each role, with attendance charts, students below 75% attendance, and what is waiting for you.
@@ -34,17 +36,19 @@ EduNexa runs the daily work of a school group: branches, classrooms and teachers
 | What | How |
 |---|---|
 | No lost updates | Registers and mark sheets carry a version number, and writes lock the classroom row. Two people saving at once gives one save and one "reload" message, tested with real threads on PostgreSQL. |
-| Rules the database enforces | One register per class per day, scores never above the maximum, valid role/branch combinations: these are constraints in the database, not just form checks. |
+| Rules the database enforces | One register per class per day, scores never above the maximum, valid role/branch combinations, no class or teacher booked twice in one timetable period: these are constraints in the database, not just form checks. |
+| Bulk changes that are all or nothing | A CSV import is checked by running every row through the real services and rolling back; confirming replays them in one transaction. Promotion locks the classes and skips students already moved, so a double click or two leaders at once move each student once. See [ADR 0012](docs/adr/0012-import-and-promotion.md). |
 | Business logic outside views | Each domain app has `selectors` (reads already limited to the user's scope), `policies` (who may do what) and `services` (writes with transactions, locks and audit). Views only parse input and render output. |
 | One set of rules for web and API | The web pages and the REST API call the same selectors, policies and services, and every service checks its own policy, so the two can't disagree. See [ADR 0006](docs/adr/0006-rest-api.md). |
 | Careful API security | 15-minute access tokens; refresh tokens that rotate and are blacklisted after use; a password change or deactivation revokes tokens; one sign-in limit shared with the web; out-of-scope records are 404. |
 | Background jobs done properly | Celery and Redis. Jobs are queued only after the database commits, are safe to run twice (each notification has a unique key), and re-check the facts before acting. CI starts a real worker and checks it takes jobs. See [ADR 0007](docs/adr/0007-background-jobs-and-caching.md). |
 | Payments done carefully | Money in integer paise. A payment is recorded only on a provider-signed webhook (HMAC, constant-time check) or a verified checkout whose amount is fetched from the provider. A repeated event records nothing; money beyond the balance is kept as excess, never discarded. Receipt numbers come from a locked counter inside the payment's transaction, so they are gapless. See [ADR 0008](docs/adr/0008-payments.md). |
+| Data migrations tested on real copies | Turning grade text into records and placing every exam in a term ran on copies of existing databases with every row compared before and after, and the migrations run backwards too. See [ADR 0009](docs/adr/0009-grades-and-terms.md). |
 | Caching that can't go stale | Dashboard numbers are cached in Redis under keys that include a fingerprint of the registers, so any change gives a new key. |
 | No N+1 queries | A test measures each API list's SQL queries with few rows and with many; the count must not change. |
-| Layered apps | Eleven apps ordered by dependency, with no circular imports. See [ARCHITECTURE.md](docs/ARCHITECTURE.md). |
+| Layered apps | Eleven apps ordered by dependency, with no circular imports, enforced by an import-linter contract on every test run. See [ARCHITECTURE.md](docs/ARCHITECTURE.md). |
 | Production safety | Settings per environment. Production refuses to start without a secret key and PostgreSQL, and Django's `check --deploy` runs in CI. |
-| Tested | 379 tests (plus 749 table-driven cases, such as every API endpoint for every role) with 95% branch coverage. CI runs them on PostgreSQL along with lint, a migration check, an OpenAPI schema check, a real Celery worker taking a job through Redis, and a Docker build. |
+| Tested | 446 tests (plus 938 table-driven cases, such as every API endpoint for every role) with 95% branch coverage. CI runs them on PostgreSQL along with lint, a migration check, an OpenAPI schema check, a real Celery worker taking a job through Redis, and a Docker build. |
 
 ## Run it on your computer
 
@@ -143,7 +147,7 @@ Initial passwords must be shared privately, and everyone must change theirs at f
 - [Architecture](docs/ARCHITECTURE.md): how the code is organised and how a request flows.
 - [REST API](docs/API.md): signing in, conventions, errors and every endpoint.
 - [Permissions](docs/PERMISSIONS.md): the full role-by-action access matrix.
-- [Data rules](docs/DATA_RULES.md): attendance, results and fee rules.
+- [Data rules](docs/DATA_RULES.md): attendance, results, grading, fees, timetable, import and promotion rules.
 - [Deployment](docs/DEPLOYMENT.md): production settings and release steps.
 - [Upgrading](docs/UPGRADING.md): moving data from the single-app version, tested.
 - [Decision records](docs/adr/): why the main technical choices were made.
@@ -151,4 +155,4 @@ Initial passwords must be shared privately, and everyone must change theirs at f
 
 ## Status
 
-Phases 1 to 4 are complete: the foundation and rebrand, the REST API, background jobs with the parent portal, and fees with online payments (test mode). Next are timetables and academic operations, then a live demo. See the [roadmap](docs/DESIGN.md#14-roadmap).
+Phases 1 to 5 are complete: the foundation and rebrand, the REST API, background jobs with the parent portal, fees with online payments (test mode), and academic operations (grades and terms, a versioned grading scale, timetables, CSV import and year-end promotion). Next is a live demo. See the [roadmap](docs/DESIGN.md#14-roadmap).

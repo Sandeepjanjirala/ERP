@@ -1,6 +1,7 @@
 from celery import shared_task
 from django.urls import reverse
 
+from apps.accounts.models import User
 from apps.communication.models import Notification
 from apps.communication.services import notify
 from apps.students.models import Student
@@ -17,7 +18,7 @@ def alert_absent_families(session_id, enrollment_ids):
     Safe to run twice (one alert per student per day). A student whose register was corrected
     to present before this ran is skipped.
     """
-    session = AttendanceSession.objects.select_related("classroom").get(pk=session_id)
+    session = AttendanceSession.objects.select_related("classroom__grade").get(pk=session_id)
     still_absent = Attendance.objects.filter(
         session=session, enrollment_id__in=enrollment_ids, status=Attendance.Status.ABSENT
     ).select_related("enrollment__student__user")
@@ -32,6 +33,34 @@ def alert_absent_families(session_id, enrollment_ids):
             f"{student.user.display_name} was marked absent today",
             f"Class {classroom.grade}-{classroom.section}, {session.date:%d %b %Y}. "
             "If you weren't expecting this, please contact the school.",
+            url=reverse("student_report", args=[student.pk]),
+            email=True,
+        )
+    return sent
+
+
+@shared_task
+def correct_absence_alerts(session_id, enrollment_ids):
+    """Today's register was corrected: tell whoever got an absence alert for these students that
+    they are not absent after all. Only people who were alerted hear about it; once each."""
+    session = AttendanceSession.objects.get(pk=session_id)
+    corrected = (
+        Attendance.objects.filter(session=session, enrollment_id__in=enrollment_ids)
+        .exclude(status=Attendance.Status.ABSENT)
+        .select_related("enrollment__student__user")
+    )
+    sent = 0
+    for record in corrected:
+        alert = f"absence:{record.enrollment_id}:{session.date.isoformat()}"
+        alerted = User.objects.filter(notifications__key=alert)
+        student = record.enrollment.student
+        sent += notify(
+            alerted,
+            Notification.Kind.ABSENCE,
+            f"absence-corrected:{record.enrollment_id}:{session.date.isoformat()}",
+            f"Correction: {student.user.display_name} is not absent today",
+            f"The register for {session.date:%d %b %Y} was corrected: "
+            f"{record.get_status_display().lower()}. Please ignore the earlier absence alert.",
             url=reverse("student_report", args=[student.pk]),
             email=True,
         )

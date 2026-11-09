@@ -2,21 +2,26 @@
 
 from decimal import Decimal
 
-from django.db.models import Q
+from django.db.models import Count, Q
 
 from apps.academics.models import TeachingAssignment
 from apps.academics.selectors import classrooms
 from apps.accounts.models import User
 from apps.students.selectors import roster
 
-from .models import Exam
+from .models import Exam, GradingScale
 
 
 def exams(user):
     if user.role not in User.ACADEMIC:
         return Exam.objects.none()  # accountants work with fees, not marks
     qs = Exam.objects.filter(classroom__in=classrooms(user)).select_related(
-        "classroom__branch", "classroom__year", "subject", "published_by"
+        "classroom__branch",
+        "classroom__year",
+        "classroom__grade",
+        "term",
+        "subject",
+        "published_by",
     )
     # Families see published exams only, and only those their child sat.
     if user.role == User.Role.STUDENT:
@@ -61,3 +66,43 @@ def mark_summary(marks):
         "percentage": round(earned / possible * 100, 1) if possible else None,
         "passed": sum(m.passed for m in marks),
     }
+
+
+def current_scale():
+    """The newest version of the grading scale, with its bands, or None before one is saved."""
+    return GradingScale.objects.prefetch_related("bands").order_by("-version").first()
+
+
+def grading_scales():
+    """Every version, newest first, with how many exams were published with it."""
+    return (
+        GradingScale.objects.select_related("created_by")
+        .prefetch_related("bands")
+        .annotate(exam_count=Count("exams"))
+        .order_by("-version")
+    )
+
+
+def with_grades(marks, current=None):
+    """Give each mark a `grade_label` (see Mark.grade): its exam's frozen scale once published,
+    otherwise `current`."""
+    for mark in marks:
+        mark.grade_label = mark.grade(current)
+    return marks
+
+
+def overall_grade(marks, percentage):
+    """The band of an overall percentage, by the scale of the most recently published exam among
+    `marks`, so it changes only when results do, never with a later scale. None if no published
+    exam carries a scale."""
+    graded = [
+        m.exam
+        for m in marks
+        if m.exam.status == Exam.Status.PUBLISHED and m.exam.grading_scale_id is not None
+    ]
+    if not graded or percentage is None:
+        return None
+    latest = max(
+        graded, key=lambda exam: (exam.published_at is not None, exam.published_at, exam.pk)
+    )
+    return latest.grading_scale.band_for(percentage)

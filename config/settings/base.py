@@ -99,6 +99,7 @@ INSTALLED_APPS = [
     "apps.demo",
 ]
 MIDDLEWARE = [
+    "apps.core.request_id.RequestIDMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",

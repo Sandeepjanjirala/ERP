@@ -1,4 +1,5 @@
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 from rest_framework import generics, mixins, status, viewsets
 from rest_framework.response import Response
 
@@ -8,9 +9,18 @@ from apps.organization.api.serializers import BranchSerializer
 from apps.organization.models import Branch, Organization
 from apps.organization.selectors import branches
 
-from ..models import AcademicYear, Classroom, Subject, TeachingAssignment
-from ..selectors import assignments, classrooms, subjects
-from ..services import save_setup_record, update_setup_record
+from ..models import (
+    AcademicYear,
+    Classroom,
+    Grade,
+    Period,
+    Subject,
+    TeachingAssignment,
+    Term,
+    TimetableSlot,
+)
+from ..selectors import assignments, classrooms, grades, periods, subjects, teacher_lessons
+from ..services import save_lesson, save_setup_record, save_terms, update_setup_record
 from . import filters
 from .serializers import (
     AcademicYearCreateSerializer,
@@ -19,13 +29,24 @@ from .serializers import (
     ClassroomSerializer,
     ClassroomUpdateSerializer,
     ClassroomWriteSerializer,
+    GradeSerializer,
+    GradeUpdateSerializer,
+    GradeWriteSerializer,
+    LessonSerializer,
+    LessonWriteSerializer,
     OrganizationSerializer,
+    PeriodSerializer,
+    PeriodUpdateSerializer,
+    PeriodWriteSerializer,
     SubjectSerializer,
     SubjectUpdateSerializer,
     SubjectWriteSerializer,
     TeachingAssignmentSerializer,
     TeachingAssignmentUpdateSerializer,
     TeachingAssignmentWriteSerializer,
+    TermSerializer,
+    TimetableSerializer,
+    YearTermsSerializer,
 )
 
 
@@ -113,6 +134,33 @@ class AcademicYearViewSet(SetupViewSet):
     http_method_names = ["get", "post", "head", "options"]
 
 
+class TermViewSet(viewsets.ReadOnlyModelViewSet):
+    """Terms of every year, in date order. Each exam belongs to the term its date falls in.
+    Super admins change a year's terms together: PUT /api/v1/years/{id}/terms/."""
+
+    serializer_class = TermSerializer
+    queryset = Term.objects.select_related("year").order_by("starts_on", "pk")
+    filterset_fields = ["year"]
+
+
+@extend_schema_view(
+    create=extend_schema(responses={201: GradeSerializer}),
+    partial_update=extend_schema(responses=GradeSerializer),
+)
+class GradeViewSet(SetupViewSet):
+    """The grades each branch teaches, in order (Class 1 is 1). Managers add and rename them."""
+
+    setup_kind = "grade"
+    serializer_class = GradeSerializer
+    create_serializer_class = GradeWriteSerializer
+    update_serializer_class = GradeUpdateSerializer
+    queryset = Grade.objects.none()  # for the schema; get_queryset() is the real scope
+    filterset_class = filters.GradeFilter
+
+    def get_queryset(self):
+        return grades(self.request.user).order_by("branch__name", "order", "pk")
+
+
 @extend_schema_view(
     create=extend_schema(responses={201: ClassroomSerializer}),
     partial_update=extend_schema(responses=ClassroomSerializer),
@@ -128,7 +176,9 @@ class ClassroomViewSet(SetupViewSet):
     filterset_class = filters.ClassroomFilter
 
     def get_queryset(self):
-        return classrooms(self.request.user).order_by("branch__name", "grade", "section", "pk")
+        return classrooms(self.request.user).order_by(
+            "branch__name", "grade__order", "section", "pk"
+        )
 
 
 @extend_schema_view(
@@ -165,7 +215,9 @@ class TeachingAssignmentViewSet(SetupViewSet):
     read_roles = User.LEADERS
 
     def get_queryset(self):
-        return assignments(self.request.user).order_by("classroom__grade", "subject__name", "pk")
+        return assignments(self.request.user).order_by(
+            "classroom__grade__order", "subject__name", "pk"
+        )
 
 
 class OrganizationView(generics.RetrieveUpdateAPIView):
@@ -191,3 +243,101 @@ class OrganizationView(generics.RetrieveUpdateAPIView):
         organization.name = serializer.validated_data.get("name", organization.name)
         save_setup_record(request.user, "organization", organization)
         return Response(self.get_serializer(organization).data)
+
+
+class YearTermsView(generics.GenericAPIView):
+    """A year's terms. PUT replaces them all at once (super admins)."""
+
+    serializer_class = YearTermsSerializer
+
+    def get_permissions(self):
+        if self.request.method == "PUT":
+            return [role_in(User.Role.SUPER)()]
+        return [IsSignedIn()]
+
+    def payload(self, year):
+        return {"terms": TermSerializer(year.terms.all(), many=True).data}
+
+    @extend_schema(responses=inline_serializer("YearTerms", {"terms": TermSerializer(many=True)}))
+    def get(self, request, pk):
+        return Response(self.payload(get_object_or_404(AcademicYear, pk=pk)))
+
+    @extend_schema(
+        responses=inline_serializer("YearTermsSaved", {"terms": TermSerializer(many=True)})
+    )
+    def put(self, request, pk):
+        year = get_object_or_404(AcademicYear, pk=pk)
+        body = self.get_serializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        save_terms(request.user, year, body.validated_data["terms"])
+        return Response(self.payload(year))
+
+
+@extend_schema_view(
+    create=extend_schema(responses={201: PeriodSerializer}),
+    partial_update=extend_schema(responses=PeriodSerializer),
+)
+class PeriodViewSet(SetupViewSet):
+    """Each branch's periods (its bell schedule). Managers add and change them."""
+
+    setup_kind = "period"
+    serializer_class = PeriodSerializer
+    create_serializer_class = PeriodWriteSerializer
+    update_serializer_class = PeriodUpdateSerializer
+    queryset = Period.objects.none()  # for the schema; get_queryset() is the real scope
+    read_roles = User.ACADEMIC
+
+    def get_queryset(self):
+        return periods(self.request.user).order_by("branch__name", "number", "pk")
+
+
+class ClassroomTimetableView(generics.GenericAPIView):
+    """A class's weekly timetable. POST sets or clears one cell (managers of the branch)."""
+
+    serializer_class = LessonWriteSerializer
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return [role_in(*User.MANAGERS)()]
+        return [role_in(*User.ACADEMIC)()]
+
+    def payload(self, classroom):
+        lessons = classroom.timetable.select_related(
+            "period", "subject", "teacher", "classroom__grade"
+        )
+        return TimetableSerializer(
+            {"periods": Period.objects.filter(branch_id=classroom.branch_id), "lessons": lessons}
+        ).data
+
+    @extend_schema(responses=TimetableSerializer)
+    def get(self, request, pk):
+        return Response(self.payload(get_object_or_404(classrooms(request.user), pk=pk)))
+
+    @extend_schema(responses=TimetableSerializer)
+    def post(self, request, pk):
+        classroom = get_object_or_404(classrooms(request.user), pk=pk)
+        body = self.get_serializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        data = body.validated_data
+        period = get_object_or_404(
+            Period.objects.filter(branch_id=classroom.branch_id), pk=data["period"]
+        )
+        assignment = None
+        if data["assignment"] is not None:
+            assignment = get_object_or_404(
+                classroom.teaching.select_related("subject", "teacher"), pk=data["assignment"]
+            )
+        save_lesson(request.user, classroom, data["weekday"], period, assignment)
+        return Response(self.payload(classroom))
+
+
+class MyTimetableView(generics.ListAPIView):
+    """A teacher's lessons in every class, in weekly order."""
+
+    serializer_class = LessonSerializer
+    permission_classes = [role_in(User.Role.TEACHER)]
+    pagination_class = None
+    queryset = TimetableSlot.objects.none()  # for the schema; get_queryset() is the real list
+
+    def get_queryset(self):
+        return teacher_lessons(self.request.user).select_related("teacher")

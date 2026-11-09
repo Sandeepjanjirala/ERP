@@ -21,6 +21,7 @@
       <a href="{% url 'attendance' %}"{% aria_current 'attendance' %}>{% icon 'calendar-check' %}<span>Daily attendance</span></a>
     {% endif %}
     {% if not user.is_accountant %}
+      <a href="{% url 'timetable' %}"{% aria_current 'timetable' 'my_timetable' 'classroom_timetable' %}>{% icon 'calendar' %}<span>Timetable</span></a>
       <a href="{% url 'exams' %}"{% aria_current 'exams' 'exam_create' 'exam_detail' %}>{% icon 'clipboard' %}<span>Exams &amp; marks</span></a>
       <a href="{% url 'leave_requests' %}"{% aria_current 'leave_requests' 'leave_create' %}>{% icon 'calendar-off' %}<span>Leave requests</span></a>
     {% endif %}
@@ -40,7 +41,9 @@
     {% if user.is_leader %}
       <p class="nav-label">Administration</p>
       <a href="{% url 'users' %}"{% aria_current 'users' 'user_create' 'user_edit' %}>{% icon 'user-check' %}<span>People &amp; access</span></a>
-      <a href="{% url 'setup' %}"{% aria_current 'setup' 'setup_create' 'setup_edit' 'enrollment_create' %}>{% icon 'sliders' %}<span>Academic setup</span></a>
+      <a href="{% url 'setup' %}"{% aria_current 'setup' 'setup_create' 'setup_edit' 'enrollment_create' 'year_terms' %}>{% icon 'sliders' %}<span>Academic setup</span></a>
+      <a href="{% url 'promotion' %}"{% aria_current 'promotion' %}>{% icon 'trending-up' %}<span>Year-end promotion</span></a>
+      <a href="{% url 'grading_scale' %}"{% aria_current 'grading_scale' %}>{% icon 'award' %}<span>Grading scale</span></a>
       <a href="{% url 'audit' %}"{% aria_current 'audit' %}>{% icon 'clock' %}<span>Activity log</span></a>
     {% endif %}
   </nav>

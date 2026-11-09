@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError
 
 from apps.attendance.models import AttendanceSession
 from apps.attendance.services import save_register
-from apps.attendance.tasks import alert_absent_families
+from apps.attendance.tasks import alert_absent_families, correct_absence_alerts
 from apps.communication.models import Notification
 from apps.core.testing import SchoolTestCase
 
@@ -60,3 +60,45 @@ class AbsenceAlertTests(SchoolTestCase):
         with self.assertRaises(ValidationError):
             self.save({self.e1.pk: "A"})  # Bob is missing: the service refuses the register
         self.assertEqual(alerted(), [])
+
+
+class AbsenceCorrectionTests(SchoolTestCase):
+    """An absence corrected the same day: those who were alerted are told it was a mistake."""
+
+    def save(self, statuses, version=0, reason="", day=None):
+        with self.captureOnCommitCallbacks(execute=True):
+            return save_register(self.teacher, self.c, day or self.today, statuses, version, reason)
+
+    def corrected(self):
+        return sorted(
+            Notification.objects.filter(key__startswith="absence-corrected:").values_list(
+                "recipient__username", flat=True
+            )
+        )
+
+    def test_the_alerted_family_hears_the_correction(self):
+        session = self.save({self.e1.pk: "A", self.e2.pk: "P"})
+        mail.outbox.clear()
+        self.save({self.e1.pk: "L", self.e2.pk: "P"}, session.version, "Alice was late, not absent")
+        self.assertEqual(self.corrected(), ["alice", "parent"])
+        note = Notification.objects.get(recipient=self.parent, key__startswith="absence-corrected:")
+        self.assertEqual(note.title, "Correction: alice is not absent today")
+        self.assertIn("late", note.body)
+        self.assertEqual(
+            sorted(m.to[0] for m in mail.outbox), ["alice@example.com", "parent@example.com"]
+        )
+
+    def test_only_those_who_were_alerted(self):
+        # Bob's family was never alerted (his first status was present), so nobody is corrected.
+        session = self.save({self.e1.pk: "P", self.e2.pk: "P"})
+        self.save({self.e1.pk: "P", self.e2.pk: "E"}, session.version, "Leave approved")
+        self.assertEqual(self.corrected(), [])
+
+    def test_once_and_only_for_today(self):
+        session = self.save({self.e1.pk: "A", self.e2.pk: "P"})
+        self.save({self.e1.pk: "P", self.e2.pk: "P"}, session.version, "Mistake")
+        self.assertEqual(correct_absence_alerts(session.pk, [self.e1.pk]), 0)  # a retried job
+        old_day = self.today - timedelta(days=2)
+        old = self.save({self.e1.pk: "A", self.e2.pk: "P"}, day=old_day)
+        self.save({self.e1.pk: "P", self.e2.pk: "P"}, old.version, "Old fix", day=old_day)
+        self.assertEqual(len(self.corrected()), 2)  # the old register sent nothing more

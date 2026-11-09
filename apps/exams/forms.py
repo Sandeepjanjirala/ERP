@@ -67,3 +67,21 @@ class MarkSheetForm(forms.Form):
             if d.get(absent.name) and d.get(score.name) is not None:
                 self.add_error(score.name, "Use either a score or absent, not both.")
         return d
+
+
+class BandRowForm(forms.Form):
+    """One band of a new scale version: its label and the percentage it starts at."""
+
+    label = forms.CharField(max_length=10, required=False)
+    min_percent = forms.DecimalField(
+        min_value=0, max_value=100, decimal_places=2, required=False, label="From (%)"
+    )
+
+    def clean(self):
+        data = super().clean()
+        if bool(data.get("label")) != (data.get("min_percent") is not None):
+            raise forms.ValidationError("Give the band a label and the percentage it starts at.")
+        return data
+
+
+BandFormSet = forms.formset_factory(BandRowForm, extra=3)

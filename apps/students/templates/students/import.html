@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block actions %}
+  <a class="btn btn-secondary" href="{% url 'student_import_template' %}">{% icon 'download' %}Template CSV</a>
+{% endblock %}
+
+{% block content %}
+  <div class="grid-two">
+    <section class="card">
+      <h2>Upload a file</h2>
+      <p class="form-intro">Every row is checked first and nothing is saved until you confirm the preview. Confirming imports all rows together, or none if anything has changed.</p>
+      <form method="post" enctype="multipart/form-data" class="form-stack">
+        {% csrf_token %}
+        {{ form }}
+        <div class="form-actions"><button class="btn" type="submit">{% icon 'search' %}Check the file</button></div>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Columns</h2>
+      <p class="form-intro">The first row names the columns. Required: admission_number, first_name, last_name, email, classroom (grade and section, e.g. “Class 9-A”) and joined_on (YYYY-MM-DD). The guardian columns are optional; a guardian email already known in the branch is linked, not created again.</p>
+      <div class="chips">{% for column in columns %}<span class="chip">{{ column }}</span>{% endfor %}</div>
+      <p class="footnote">New accounts are sent a link to set their own password; nobody is emailed a password.</p>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Recent imports</h2>
+    <div class="list">
+      {% for batch in recent %}
+        <a class="list-item" href="{% url 'student_import_preview' batch.pk %}">
+          <span class="list-item-body"><strong>{{ batch.filename }}</strong><small>{{ batch.rows|length }} rows · {{ batch.branch.name }} · {{ batch.created_at|date:"d M Y, H:i" }} · {{ batch.created_by.display_name }}</small></span>
+          <span class="badge {% if batch.status == 'imported' %}badge-success{% elif batch.errors %}badge-warning{% else %}badge-info{% endif %}">{% if batch.errors and batch.status != 'imported' %}Has problems{% else %}{{ batch.get_status_display }}{% endif %}</span>
+        </a>
+      {% empty %}
+        <p class="empty">No imports yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}

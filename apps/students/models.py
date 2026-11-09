@@ -6,6 +6,7 @@ from django.db.models import F, Q
 from apps.academics.models import AcademicYear, Classroom
 from apps.accounts.models import User
 from apps.core.models import ValidatedModel
+from apps.organization.models import Branch
 
 
 class Student(ValidatedModel):
@@ -120,3 +121,42 @@ class StudentGuardian(ValidatedModel):
 
     def __str__(self):
         return f"{self.guardian} · {self.get_relationship_display()} of {self.student}"
+
+
+class ImportBatch(models.Model):
+    """An uploaded CSV of students, checked row by row before anything is saved.
+
+    `rows` are the parsed rows and `errors` maps a row number to its problems, both from the dry
+    run that checked every row with the real services. Confirming imports every row in one
+    transaction, or none of them.
+    """
+
+    class Status(models.TextChoices):
+        CHECKED = "checked", "Checked, not imported"
+        IMPORTED = "imported", "Imported"
+
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="+")
+    year = models.ForeignKey(AcademicYear, on_delete=models.PROTECT, related_name="+")
+    filename = models.CharField(max_length=200)
+    rows = models.JSONField(default=list)
+    errors = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.CHECKED)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    imported_at = models.DateTimeField(null=True, blank=True)
+    # Usernames of the accounts this import created: only they are sent a "set your password" link.
+    accounts = models.JSONField(default=list, blank=True)
+    # When the "set your password" emails went out, so a retried job sends nothing twice.
+    invites_sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+
+    def __str__(self):
+        return f"{self.filename} ({len(self.rows)} rows)"
+
+    @property
+    def ready(self):
+        return self.status == self.Status.CHECKED and not self.errors

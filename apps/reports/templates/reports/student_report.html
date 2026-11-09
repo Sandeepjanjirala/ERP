@@ -41,7 +41,13 @@
 
   <div class="grid-stats">
     {% include "components/stat_card.html" with label="Published assessments" value=summary.count hint="Results available to the student" only %}
-    {% include "components/stat_card.html" with label="Overall percentage" value=summary.percentage unit="%" hint="Total marks earned ÷ maximum" only %}
+    {% if summary.grade %}
+      {% with grade_hint="Grade "|add:summary.grade|add:" · total earned ÷ maximum" %}
+        {% include "components/stat_card.html" with label="Overall percentage" value=summary.percentage unit="%" hint=grade_hint only %}
+      {% endwith %}
+    {% else %}
+      {% include "components/stat_card.html" with label="Overall percentage" value=summary.percentage unit="%" hint="Total marks earned ÷ maximum" only %}
+    {% endif %}
     {% with attendance_days=attendance_summary.total|stringformat:"s"|add:" days recorded" %}
       {% include "components/stat_card.html" with label="Attendance" value=attendance_summary.rate unit="%" hint=attendance_days only %}
     {% endwith %}
@@ -58,16 +64,18 @@
     <div class="table-wrap">
       <table class="table">
         <thead>
-          <tr><th>Subject</th><th>Assessment</th><th>Date</th><th class="num">Score</th><th class="num">Maximum</th><th>Result</th></tr>
+          <tr><th>Subject</th><th>Assessment</th><th>Term</th><th>Date</th><th class="num">Score</th><th class="num">Maximum</th><th>Grade</th><th>Result</th></tr>
         </thead>
         <tbody>
           {% for mark in marks %}
             <tr>
               <td><strong>{{ mark.exam.subject.name }}</strong></td>
               <td>{{ mark.exam.title }}</td>
+              <td>{{ mark.exam.term.name }}</td>
               <td>{{ mark.exam.date|date:"d M Y" }}</td>
               <td class="num">{% if mark.absent %}Absent{% else %}{{ mark.score }}{% endif %}</td>
               <td class="num">{{ mark.exam.max_marks }}</td>
+              <td>{{ mark.grade_label|default:"—" }}</td>
               <td>
                 {% if mark.passed %}
                   <span class="badge badge-success">Pass</span>
@@ -77,7 +85,7 @@
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="6" class="empty">Results will appear after the principal publishes them.</td></tr>
+            <tr><td colspan="8" class="empty">Results will appear after the principal publishes them.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -155,5 +163,5 @@
     </div>
   </section>
 
-  <p class="footnote">Only published results are included. Absent exam attempts count as zero. Overall percentage is weighted by each exam’s maximum marks. A teacher’s report is limited to their permitted classes and subjects.</p>
+  <p class="footnote">Grades use the grading scale each exam was published with. Only published results are included. Absent exam attempts count as zero. Overall percentage is weighted by each exam’s maximum marks. A teacher’s report is limited to their permitted classes and subjects.</p>
 {% endblock %}

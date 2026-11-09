@@ -17,7 +17,16 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
-from apps.academics.models import AcademicYear, Classroom, Subject, TeachingAssignment
+from apps.academics.models import (
+    AcademicYear,
+    Classroom,
+    Grade,
+    Period,
+    Subject,
+    TeachingAssignment,
+    TimetableSlot,
+)
+from apps.academics.services import default_terms, save_lesson, save_setup_record
 from apps.accounts.models import User
 from apps.attendance.models import Attendance, LeaveRequest
 from apps.attendance.services import decide_leave, request_leave, save_register
@@ -25,7 +34,13 @@ from apps.communication.models import Announcement
 from apps.communication.services import publish_announcement
 from apps.core.jobs import jobs_paused
 from apps.exams.models import Exam
-from apps.exams.services import create_exam, save_marks, transition_exam
+from apps.exams.services import (
+    DEFAULT_BANDS,
+    create_exam,
+    save_grading_scale,
+    save_marks,
+    transition_exam,
+)
 from apps.fees.models import FeeHead, FeePlan, Invoice, Payment, Receipt
 from apps.fees.services import (
     grant_concession,
@@ -132,6 +147,17 @@ TUITION_BY_GRADE = {"Class 10": 18000, "Class 9": 16500, "Class 8": 15000, "Clas
 TUITION_DEFAULT, TRANSPORT, EXAM_FEE = 13000, 6000, 1500
 
 
+# The bell schedule: (start, end) of each period, the same in every branch.
+PERIODS = [
+    (time(8, 30), time(9, 15)),
+    (time(9, 20), time(10, 5)),
+    (time(10, 10), time(10, 55)),
+    (time(11, 10), time(11, 55)),
+    (time(12, 0), time(12, 45)),
+    (time(13, 30), time(14, 15)),
+]
+
+
 def school_days(start, end):
     """Monday to Saturday, as most Indian schools work."""
     days = (start + timedelta(days=n) for n in range((end - start).days + 1))
@@ -166,13 +192,19 @@ class Command(BaseCommand):
         self.today = timezone.localdate()
 
         org = Organization.objects.create(name=GROUP_NAME)
-        User.objects.create_superuser(
+        superadmin = User.objects.create_superuser(
             "superadmin", "superadmin@example.invalid", self.password, first_name="Sandeep"
+        )
+        # The CBSE bands as version 1, before any result is published with it.
+        save_grading_scale(
+            superadmin,
+            [{"label": label, "min_percent": minimum} for label, minimum in DEFAULT_BANDS],
         )
         start = self.today.year if self.today.month >= 4 else self.today.year - 1
         self.year = AcademicYear.objects.create(
             name=f"{start}–{start + 1}", starts_on=date(start, 4, 1), ends_on=date(start + 1, 3, 31)
         )
+        default_terms(self.year)  # Term 1 from April, Term 2 from October
         self.history_start = max(
             self.year.starts_on, self.today - timedelta(days=self.size.history_days)
         )
@@ -246,11 +278,16 @@ class Command(BaseCommand):
             Subject.objects.create(branch=branch, name=name, code=name.lower().replace(" ", "-"))
             for name in SUBJECTS[: size.subjects]
         ]
+        # Every grade the branch teaches, in order (Class 6 is 6), so promotion knows what is next.
+        grades = {
+            name: Grade.objects.create(branch=branch, name=name, order=int(name.split()[-1]))
+            for name in GRADES
+        }
         classrooms = [
             Classroom.objects.create(
                 branch=branch,
                 year=self.year,
-                grade=grade,
+                grade=grades[grade],
                 section="A",
                 homeroom_teacher=teachers[n % len(teachers)],
             )
@@ -302,6 +339,8 @@ class Command(BaseCommand):
         self.progress(f"{spec['name']}: daily registers since {self.history_start:%d %b}")
         self.seed_leave(roster)
         self.seed_fees(branch, admin, accountant, classrooms)
+        self.seed_timetable(branch, admin, classrooms)
+        self.progress(f"{spec['name']}: periods and weekly timetables")
         self.progress(f"{spec['name']}: fee invoices, payments and receipts")
         self.branches.append((branch, principal, teachers[0], classrooms[0]))
 
@@ -353,7 +392,8 @@ class Command(BaseCommand):
                 admin,
                 FeePlan(branch=branch, year=self.year, grade=classroom.grade),
                 {
-                    heads["tuition"]: TUITION_BY_GRADE.get(classroom.grade, TUITION_DEFAULT) * 100,
+                    heads["tuition"]: TUITION_BY_GRADE.get(classroom.grade.name, TUITION_DEFAULT)
+                    * 100,
                     heads["transport"]: TRANSPORT * 100,
                     heads["exam"]: EXAM_FEE * 100,
                 },
@@ -388,6 +428,23 @@ class Command(BaseCommand):
         invoice = Invoice.objects.filter(branch=branch, title="Term 2 fees").order_by("pk").first()
         if invoice:
             grant_concession(admin, invoice, 100000, "Sibling discount")
+
+    def seed_timetable(self, branch, admin, classrooms):
+        """Each branch's periods, and a full week for every class through save_lesson (so the
+        clash rules apply). Subjects rotate by period, day and class: with one teacher per
+        subject, no teacher is ever in two classes at once."""
+        periods = [
+            save_setup_record(
+                admin, "period", Period(branch=branch, number=n, starts_at=starts, ends_at=ends)
+            )
+            for n, (starts, ends) in enumerate(PERIODS, start=1)
+        ]
+        for index, classroom in enumerate(classrooms):
+            teaching = list(classroom.teaching.select_related("subject").order_by("subject__name"))
+            for day in TimetableSlot.Day.values:
+                for number, period in enumerate(periods):
+                    assignment = teaching[(number + day + index) % len(teaching)]
+                    save_lesson(admin, classroom, day, period, assignment)
 
     def seed_leave(self, roster):
         """A few leave requests per branch: one approved (it excuses recorded absences), one

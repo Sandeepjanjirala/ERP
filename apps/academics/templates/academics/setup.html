@@ -9,6 +9,8 @@
       <a class="btn btn-secondary" href="{% url 'setup_create' 'year' %}">{% icon 'plus' %}Academic year</a>
     {% endif %}
     {% if user.is_manager %}
+      <a class="btn btn-secondary" href="{% url 'setup_create' 'grade' %}">{% icon 'plus' %}Grade</a>
+      <a class="btn btn-secondary" href="{% url 'setup_create' 'period' %}">{% icon 'plus' %}Period</a>
       <a class="btn" href="{% url 'setup_create' 'classroom' %}">{% icon 'plus' %}Classroom</a>
       <a class="btn btn-secondary" href="{% url 'setup_create' 'subject' %}">{% icon 'plus' %}Subject</a>
       <a class="btn btn-secondary" href="{% url 'setup_create' 'assignment' %}">{% icon 'user-check' %}Assign subject teacher</a>
@@ -73,10 +75,42 @@
             <div class="list-item-body">
               <strong>{{ year.name }}</strong>
               <p>{{ year.starts_on|date:"d M Y" }} — {{ year.ends_on|date:"d M Y" }}</p>
+              {% for term in year.terms.all %}
+                <small>
+                  {{ term.name }}: {{ term.starts_on|date:"d M" }} – {{ term.ends_on|date:"d M Y" }}
+                </small>
+              {% empty %}
+                <small>No terms yet: exams can't be created in this year until one is added.</small>
+              {% endfor %}
             </div>
+            {% if user.system_admin %}<a href="{% url 'year_terms' year.pk %}">Edit terms</a>{% endif %}
           </div>
         {% empty %}
           <p class="empty">No academic years yet.</p>
+        {% endfor %}
+      </div>
+
+      <h2 class="section-title">Grades</h2>
+      <div class="chips">
+        {% for grade in grades %}
+          <span class="chip">
+            {{ grade.order }}. {{ grade.name }} · {{ grade.branch.name }}
+            {% if user.is_manager %}<a href="{% url 'setup_edit' 'grade' grade.pk %}">Edit</a>{% endif %}
+          </span>
+        {% empty %}
+          <p>Add the grades each branch teaches, such as Class 1 to Class 10.</p>
+        {% endfor %}
+      </div>
+
+      <h2 class="section-title">Periods</h2>
+      <div class="chips">
+        {% for period in periods %}
+          <span class="chip">
+            {{ period }} · {{ period.branch.name }}
+            {% if user.is_manager %}<a href="{% url 'setup_edit' 'period' period.pk %}">Edit</a>{% endif %}
+          </span>
+        {% empty %}
+          <p>Add each branch's periods (its bell schedule) to plan timetables.</p>
         {% endfor %}
       </div>
 

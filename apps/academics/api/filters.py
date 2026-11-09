@@ -2,7 +2,7 @@ import django_filters
 
 from apps.organization.api.filters import scoped_branches
 
-from ..models import AcademicYear, Classroom, Subject, TeachingAssignment
+from ..models import AcademicYear, Classroom, Grade, Subject, TeachingAssignment
 from ..selectors import classrooms
 
 
@@ -17,6 +17,14 @@ class ClassroomFilter(django_filters.FilterSet):
     class Meta:
         model = Classroom
         fields = ["branch", "year"]
+
+
+class GradeFilter(django_filters.FilterSet):
+    branch = django_filters.ModelChoiceFilter(queryset=scoped_branches)
+
+    class Meta:
+        model = Grade
+        fields = ["branch"]
 
 
 class SubjectFilter(django_filters.FilterSet):

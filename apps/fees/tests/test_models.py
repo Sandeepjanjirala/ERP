@@ -7,6 +7,7 @@ from django.db import IntegrityError, transaction
 from django.test import SimpleTestCase
 from django.utils import timezone
 
+from apps.academics.models import Grade
 from apps.core.testing import SchoolTestCase
 from apps.fees.models import FeeHead, FeePlan, FeePlanItem, Invoice, Payment, rupees
 
@@ -42,11 +43,16 @@ class FeeModelTests(SchoolTestCase):
 
     def test_plan_rules(self):
         tuition = FeeHead.objects.create(branch=self.a, name="Tuition", code="tuition")
-        plan = FeePlan.objects.create(branch=self.a, year=self.year, grade="9")
+        plan = FeePlan.objects.create(branch=self.a, year=self.year, grade=self.grade9)
         with self.assertRaises(ValidationError):
-            FeePlan.objects.create(branch=self.a, year=self.year, grade="9")  # one per grade
+            FeePlan.objects.create(
+                branch=self.a, year=self.year, grade=self.grade9
+            )  # one per grade
+        empty = Grade.objects.create(branch=self.a, name="Class 42", order=42)
         with self.assertRaisesMessage(ValidationError, "No classroom"):
-            FeePlan.objects.create(branch=self.a, year=self.year, grade="Class 42")
+            FeePlan.objects.create(branch=self.a, year=self.year, grade=empty)
+        with self.assertRaisesMessage(ValidationError, "grade of this branch"):
+            FeePlan.objects.create(branch=self.a, year=self.year, grade=self.foreign_grade9)
         south = FeeHead.objects.create(branch=self.b, name="Bus", code="bus")
         with self.assertRaisesMessage(ValidationError, "plan's branch"):
             FeePlanItem.objects.create(plan=plan, head=south, amount_paise=100)

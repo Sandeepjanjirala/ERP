@@ -15,10 +15,16 @@ class ResultSerializer(serializers.ModelSerializer):
     exam_title = serializers.CharField(source="exam.title")
     subject = serializers.CharField(source="exam.subject.name")
     classroom = ClassroomSummarySerializer(source="exam.classroom")
+    term = serializers.CharField(source="exam.term.name")
     date = serializers.DateField(source="exam.date")
     max_marks = serializers.DecimalField(source="exam.max_marks", max_digits=6, decimal_places=2)
     percentage = serializers.DecimalField(max_digits=5, decimal_places=1)
     passed = serializers.BooleanField()
+    grade = serializers.CharField(
+        source="grade_label",
+        allow_null=True,
+        help_text="By the scale the exam was published with; null if it had none",
+    )
 
     class Meta:
         model = Mark
@@ -27,12 +33,14 @@ class ResultSerializer(serializers.ModelSerializer):
             "exam_title",
             "subject",
             "classroom",
+            "term",
             "date",
             "score",
             "absent",
             "max_marks",
             "percentage",
             "passed",
+            "grade",
         ]
 
 
@@ -42,6 +50,13 @@ class MarkSummarySerializer(serializers.Serializer):
     possible = serializers.DecimalField(max_digits=10, decimal_places=2)
     percentage = serializers.DecimalField(max_digits=5, decimal_places=1, allow_null=True)
     passed = serializers.IntegerField()
+
+
+class ReportSummarySerializer(MarkSummarySerializer):
+    grade = serializers.CharField(
+        allow_null=True,
+        help_text="Overall grade, by the scale of the most recently published exam",
+    )
 
 
 class AttendanceSummarySerializer(serializers.Serializer):
@@ -126,7 +141,16 @@ class AuditEventSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AuditEvent
-        fields = ["id", "created_at", "actor", "branch", "action", "target", "details"]
+        fields = [
+            "id",
+            "created_at",
+            "actor",
+            "branch",
+            "action",
+            "target",
+            "details",
+            "request_id",
+        ]
 
 
 class StudentReportSerializer(serializers.Serializer):
@@ -135,5 +159,5 @@ class StudentReportSerializer(serializers.Serializer):
     years = AcademicYearSerializer(many=True)
     enrollments = EnrollmentSerializer(many=True)
     results = ResultSerializer(many=True, source="marks")
-    summary = MarkSummarySerializer()
+    summary = ReportSummarySerializer()
     attendance = AttendanceSummarySerializer(source="attendance_summary")

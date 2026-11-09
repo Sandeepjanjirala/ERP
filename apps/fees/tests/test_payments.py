@@ -87,7 +87,9 @@ class CounterPaymentTests(FeesTestCase):
     def test_each_branch_numbers_its_own_receipts(self):
         bus = FeeHead.objects.create(branch=self.b, name="Bus", code="bus")
         plan = save_fee_plan(
-            self.root, FeePlan(branch=self.b, year=self.year, grade="9"), {bus: 1000}
+            self.root,
+            FeePlan(branch=self.b, year=self.year, grade=self.foreign_grade9),
+            {bus: 1000},
         )
         [south] = issue_invoices(self.root, plan, "Term 1", self.today)[0]
         north = record_counter_payment(self.accountant, self.alices(), 100, "cash")

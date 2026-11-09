@@ -1,11 +1,13 @@
 from django import forms
 from django.utils import timezone
 
-from apps.academics.models import Classroom
+from apps.academics.models import AcademicYear, Classroom
 from apps.academics.selectors import classrooms
 from apps.accounts.forms import AccountForm, NewAccountForm, choices_for
 from apps.accounts.models import User
 from apps.core.forms import DateInput
+from apps.organization.models import Branch
+from apps.organization.selectors import branches
 
 from .models import Enrollment, Student, StudentGuardian
 from .selectors import students
@@ -96,3 +98,53 @@ class LinkGuardianForm(GuardianChoices):
             .order_by("first_name", "username")
         )
         self.order_fields(["parent", "relationship", "make_primary"])
+
+
+class ImportForm(forms.Form):
+    """Which branch and year the classes in the file belong to, and the file."""
+
+    branch = forms.ModelChoiceField(queryset=Branch.objects.none())
+    year = forms.ModelChoiceField(
+        queryset=AcademicYear.objects.all(), help_text="The year of the classes in the file."
+    )
+    file = forms.FileField(
+        help_text="A CSV saved as UTF-8: at most 500 rows and 2 MB.",
+        widget=forms.ClearableFileInput(attrs={"accept": ".csv,text/csv"}),
+    )
+
+    def __init__(self, *args, actor, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["branch"].queryset = branches(actor)
+        if not actor.system_admin:
+            self.fields["branch"].initial = actor.branch_id
+        current = AcademicYear.objects.filter(
+            starts_on__lte=timezone.localdate(), ends_on__gte=timezone.localdate()
+        ).first()
+        self.fields["year"].initial = current.pk if current else None
+
+
+class PromotionForm(forms.Form):
+    """The class finishing its year, next year's class it moves up to, and optionally next year's
+    class of the same grade for students who repeat."""
+
+    source = forms.ModelChoiceField(
+        queryset=Classroom.objects.none(), label="Class finishing the year"
+    )
+    target = forms.ModelChoiceField(
+        queryset=Classroom.objects.none(),
+        required=False,
+        label="Moves up to",
+        help_text="Not needed after the last grade, when everyone leaves.",
+    )
+    repeat = forms.ModelChoiceField(
+        queryset=Classroom.objects.none(),
+        required=False,
+        label="Repeats in",
+        help_text="Only needed if a student repeats the grade.",
+    )
+
+    def __init__(self, *args, actor, **kwargs):
+        super().__init__(*args, **kwargs)
+        scope = classrooms(actor).order_by("-year__starts_on", "grade__order", "section")
+        for name in ("source", "target", "repeat"):
+            self.fields[name].queryset = scope

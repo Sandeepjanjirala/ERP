@@ -18,7 +18,7 @@
   </nav>
 
   {% if not user.is_parent %}
-    <form class="filter-bar" method="get">
+    <form class="filter-bar" method="get" hx-get="{{ request.path }}" hx-trigger="input delay:300ms, change, submit" hx-target="#results" hx-select="#results" hx-swap="outerHTML" hx-push-url="true">
       <input type="hidden" name="show" value="{{ shown }}">
       <div>
         <label for="q">Student or invoice number</label>
@@ -28,6 +28,7 @@
     </form>
   {% endif %}
 
+  <div id="results">
   <section class="card">
     <div class="table-wrap">
       <table class="table">
@@ -58,4 +59,5 @@
     </div>
   </section>
   {% include "components/pagination.html" %}
+  </div>
 {% endblock %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block content %}
+  <section class="card">
+    <p class="form-intro">
+      {{ year.name }} runs from {{ year.starts_on|date:"d M Y" }} to {{ year.ends_on|date:"d M Y" }}.
+      Terms must fall inside it and must not overlap. Every exam belongs to the term its date falls in,
+      so exams move with the dates you set here; nothing is saved if an exam would be left outside every term.
+    </p>
+    <form method="post" class="form-stack">
+      {% csrf_token %}
+      {{ formset.management_form }}
+      {% if formset.non_form_errors %}
+        <div class="callout callout-warning" role="alert">{% icon 'alert' %}<div>{% for error in formset.non_form_errors %}<p>{{ error }}</p>{% endfor %}</div></div>
+      {% endif %}
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Term</th><th>Starts</th><th>Ends</th><th>Remove</th></tr></thead>
+          <tbody>
+            {% for form in formset %}
+              <tr>
+                <td>
+                  {{ form.id }}
+                  <label class="visually-hidden" for="{{ form.name.id_for_label }}">Term name</label>{{ form.name }}
+                  {% if form.non_field_errors %}<small class="errorlist">{{ form.non_field_errors|join:" " }}</small>{% endif %}
+                </td>
+                <td><label class="visually-hidden" for="{{ form.starts_on.id_for_label }}">Starts</label>{{ form.starts_on }}{{ form.starts_on.errors }}</td>
+                <td><label class="visually-hidden" for="{{ form.ends_on.id_for_label }}">Ends</label>{{ form.ends_on }}{{ form.ends_on.errors }}</td>
+                <td><label class="visually-hidden" for="{{ form.DELETE.id_for_label }}">Remove this term</label>{{ form.DELETE }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="footnote">Leave a row empty to ignore it. To add more terms, save and the page offers new empty rows.</p>
+      <div class="form-actions">
+        <button class="btn" type="submit">{% icon 'check' %}Save terms</button>
+        <a href="{% url 'setup' %}">Back to academic setup</a>
+      </div>
+    </form>
+  </section>
+{% endblock %}

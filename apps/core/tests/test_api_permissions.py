@@ -34,7 +34,7 @@ class ApiPermissionMatrixTests(ApiTestCase):
         # Alice's invoice, part paid, so the fee endpoints have a record to act on.
         head = FeeHead.objects.create(branch=cls.a, name="Tuition", code="tuition")
         cls.plan = save_fee_plan(
-            cls.admin, FeePlan(branch=cls.a, year=cls.year, grade="9"), {head: 100000}
+            cls.admin, FeePlan(branch=cls.a, year=cls.year, grade=cls.grade9), {head: 100000}
         )
         created, _ = issue_invoices(cls.admin, cls.plan, "Term 1", cls.today + timedelta(days=30))
         cls.invoice = next(i for i in created if i.student_id == cls.e1.student_id)
@@ -57,8 +57,15 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("/api/v1/organization/", ALL),
             ("/api/v1/branches/", ALL),
             ("/api/v1/years/", ALL),
+            ("/api/v1/grades/", ALL),
+            ("/api/v1/terms/", ALL),
+            (f"/api/v1/years/{self.year.pk}/terms/", ALL),
             ("/api/v1/classrooms/", ALL),
             ("/api/v1/exams/", ACADEMIC),
+            ("/api/v1/grading-scales/", ACADEMIC),
+            ("/api/v1/periods/", ACADEMIC),
+            (f"/api/v1/classrooms/{self.c.pk}/timetable/", ACADEMIC),
+            ("/api/v1/timetable/mine/", (403, 403, 403, 200, 403, 403, 403)),
             ("/api/v1/announcements/", ALL),
             ("/api/v1/leave-requests/", ACADEMIC),
             ("/api/v1/notifications/", ALL),
@@ -68,6 +75,8 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("/api/v1/subjects/", STAFF),
             ("/api/v1/students/", STAFF),
             ("/api/v1/enrollments/", STAFF),
+            ("/api/v1/student-imports/", MANAGERS),
+            (f"/api/v1/classrooms/{self.c.pk}/promotion/", LEADERS),
             ("/api/v1/dashboard/", STAFF),
             ("/api/v1/reports/performance/", STAFF),
             ("/api/v1/reports/performance/export/", STAFF),
@@ -90,6 +99,19 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("post", "/api/v1/people/", WRITE_MANAGERS),
             ("post", "/api/v1/students/", WRITE_MANAGERS),
             ("post", "/api/v1/enrollments/", WRITE_MANAGERS),
+            # Uploads are multipart only: managers get past the role check, then 415 for JSON.
+            ("post", "/api/v1/student-imports/", (415, 415, 403, 403, 403, 403, 403)),
+            # Leaders get past the role check; with no class to move up to, the body is refused.
+            (
+                "post",
+                f"/api/v1/classrooms/{self.c.pk}/promotion/",
+                (400, 400, 400, 403, 403, 403, 403),
+            ),
+            ("post", "/api/v1/grades/", WRITE_MANAGERS),
+            ("post", "/api/v1/periods/", WRITE_MANAGERS),
+            ("post", f"/api/v1/classrooms/{self.c.pk}/timetable/", WRITE_MANAGERS),
+            # A year's terms are replaced together, by super admins only.
+            ("put", f"/api/v1/years/{self.year.pk}/terms/", (400, 403, 403, 403, 403, 403, 403)),
             ("post", "/api/v1/classrooms/", WRITE_MANAGERS),
             ("post", "/api/v1/subjects/", WRITE_MANAGERS),
             ("post", "/api/v1/assignments/", WRITE_MANAGERS),
@@ -100,6 +122,8 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("post", "/api/v1/years/", WRITE_MANAGERS),
             ("patch", "/api/v1/organization/", (200, 403, 403, 403, 403, 403, 403)),
             ("post", "/api/v1/exams/", (400, 400, 403, 400, 403, 403, 403)),
+            # A new version of the grading scale: super admins only.
+            ("post", "/api/v1/grading-scales/", (400, 403, 403, 403, 403, 403, 403)),
             ("post", "/api/v1/announcements/", (400, 400, 400, 400, 403, 403, 403)),
             # Only parents apply for leave (for their own children).
             ("post", "/api/v1/leave-requests/", (403, 403, 403, 403, 403, 400, 403)),
@@ -123,6 +147,8 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("post", f"/api/v1/invoices/{self.invoice.pk}/concession/", WRITE_MANAGERS),
             ("post", f"/api/v1/invoices/{self.invoice.pk}/cancel/", WRITE_MANAGERS),
             ("post", f"/api/v1/fee-plans/{self.plan.pk}/issue/", WRITE_FINANCE),
+            ("post", "/api/v1/fee-heads/", WRITE_MANAGERS),
+            ("post", "/api/v1/fee-plans/", WRITE_MANAGERS),
             # Only a parent starts an online payment (no body needed: it is the balance).
             (
                 "post",

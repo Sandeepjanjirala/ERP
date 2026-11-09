@@ -65,18 +65,26 @@ class GroupLevelSetupTests(ApiTestCase):
 class BranchSetupTests(ApiTestCase):
     def test_branch_admin_sets_up_a_classroom_subject_and_assignment(self):
         self.as_user(self.admin)
+        grade = self.client.post(
+            "/api/v1/grades/", {"branch": self.a.pk, "name": "10", "order": 10}
+        )
+        self.assertEqual(grade.status_code, 201, grade.content)
         classroom = self.client.post(
             "/api/v1/classrooms/",
             {
                 "branch": self.a.pk,
                 "year": self.year.pk,
-                "grade": "10",
+                "grade_id": grade.json()["id"],
                 "section": "B",
                 "homeroom_teacher": self.other_teacher.pk,
             },
         )
         self.assertEqual(classroom.status_code, 201, classroom.content)
         self.assertEqual(classroom.json()["homeroom_teacher"]["id"], self.other_teacher.pk)
+        # The name stays in `grade`, as before grades were records; `grade_id` is new.
+        self.assertEqual(
+            (classroom.json()["grade"], classroom.json()["grade_id"]), ("10", grade.json()["id"])
+        )
 
         subject = self.client.post(
             "/api/v1/subjects/", {"branch": self.a.pk, "name": "History", "code": "history"}
@@ -93,7 +101,7 @@ class BranchSetupTests(ApiTestCase):
         )
         self.assertEqual(assignment.status_code, 201, assignment.content)
         self.assertEqual(
-            AuditEvent.objects.filter(action__startswith="setup.", branch=self.a).count(), 3
+            AuditEvent.objects.filter(action__startswith="setup.", branch=self.a).count(), 4
         )
 
     def test_choices_are_limited_to_the_branch(self):
@@ -105,12 +113,23 @@ class BranchSetupTests(ApiTestCase):
                 {
                     "branch": self.a.pk,
                     "year": self.year.pk,
-                    "grade": "8",
+                    "grade_id": self.grade9.pk,
                     "section": "C",
                     "homeroom_teacher": self.foreign_teacher.pk,
                 },
                 "homeroom_teacher",
             ),
+            (
+                "/api/v1/classrooms/",
+                {
+                    "branch": self.a.pk,
+                    "year": self.year.pk,
+                    "grade_id": self.foreign_grade9.pk,  # South's grade: out of scope
+                    "section": "D",
+                },
+                "grade_id",
+            ),
+            ("/api/v1/grades/", {"branch": self.b.pk, "name": "11", "order": 11}, "branch"),
             (
                 "/api/v1/assignments/",
                 {

@@ -13,6 +13,8 @@ Primary keys, password hashes and relations are kept. See docs/UPGRADING.md.
 """
 
 import json
+import re
+from datetime import date, timedelta
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
@@ -58,7 +60,105 @@ def convert(records):
             )
         converted.append({**record, "model": new_label, "fields": fields})
         counts[new_label] = counts.get(new_label, 0) + 1
+    grades, terms = link_grades(converted), link_terms(converted)
+    # New records go first, before the classrooms and exams that point at them.
+    converted[:0] = grades + terms
+    for label, added in (("academics.grade", grades), ("academics.term", terms)):
+        if added:
+            counts[label] = len(added)
     return converted, counts
+
+
+def grade_orders(names):
+    """Position of each grade name: the number in it ("Class 10" -> 10) when that number is free,
+    then names without a usable number after the highest, alphabetically. The same rule as
+    migration academics 0003, which converts databases made before Phase 5."""
+    orders, used = {}, set()
+    numbered = sorted(
+        (int(match.group()), name)
+        for name in names
+        if (match := re.search(r"\d+", name)) and int(match.group()) > 0
+    )
+    for number, name in numbered:
+        if number not in used and number <= 32767:
+            orders[name] = number
+            used.add(number)
+    following = max(used, default=0)
+    for name in sorted(names):
+        if name not in orders:
+            following += 1
+            orders[name] = following
+    return orders
+
+
+def link_grades(records):
+    """Since Phase 5 a classroom's grade is a Grade record, not text. Create one Grade per
+    (branch, grade name), ordered as migration academics 0003 orders them, and point each
+    classroom at it. Returns the new Grade records."""
+    classrooms = [r for r in records if r["model"] == "academics.classroom"]
+    names = {}
+    for record in classrooms:
+        names.setdefault(record["fields"]["branch"], set()).add(record["fields"]["grade"])
+    grades, ids = [], {}
+    for branch in sorted(names, key=str):
+        for name, order in sorted(grade_orders(names[branch]).items(), key=lambda pair: pair[1]):
+            ids[branch, name] = len(grades) + 1
+            grades.append(
+                {
+                    "model": "academics.grade",
+                    "pk": ids[branch, name],
+                    "fields": {"branch": branch, "name": name, "order": order},
+                }
+            )
+    for record in classrooms:
+        fields = record["fields"]
+        fields["grade"] = ids[fields["branch"], fields["grade"]]
+    return grades
+
+
+def link_terms(records):
+    """Since Phase 5 every exam belongs to a term. Give each year Term 1 and Term 2, splitting it
+    in half as migration academics 0006 does, and put each exam in the term of its date.
+    Returns the new Term records."""
+    years = {r["pk"]: r["fields"] for r in records if r["model"] == "academics.academicyear"}
+    terms, spans = [], {}
+    for year_pk, year in years.items():
+        starts_on, ends_on = (
+            date.fromisoformat(year["starts_on"]),
+            date.fromisoformat(year["ends_on"]),
+        )
+        middle = starts_on + timedelta(days=(ends_on - starts_on).days // 2)
+        for name, first, last in (
+            ("Term 1", starts_on, middle),
+            ("Term 2", middle + timedelta(days=1), ends_on),
+        ):
+            pk = len(terms) + 1
+            terms.append(
+                {
+                    "model": "academics.term",
+                    "pk": pk,
+                    "fields": {
+                        "year": year_pk,
+                        "name": name,
+                        "starts_on": first.isoformat(),
+                        "ends_on": last.isoformat(),
+                    },
+                }
+            )
+            spans.setdefault(year_pk, []).append((first, last, pk))
+    classroom_years = {
+        r["pk"]: r["fields"]["year"] for r in records if r["model"] == "academics.classroom"
+    }
+    for record in records:
+        if record["model"] != "exams.exam":
+            continue
+        fields = record["fields"]
+        day = date.fromisoformat(fields["date"])
+        year_spans = spans.get(classroom_years.get(fields["classroom"]), [])
+        fields["term"] = next((pk for first, last, pk in year_spans if first <= day <= last), None)
+        if fields["term"] is None:
+            raise CommandError(f"Exam {record['pk']} ({day}) is outside its academic year.")
+    return terms
 
 
 class Command(BaseCommand):

@@ -5,15 +5,17 @@ from apps.core.pdf import Paragraph, Spacer, escape, letterhead, mm, render, sty
 
 def result_rows(marks):
     """The results table: a header row, then one row per published mark."""
-    rows = [["Subject", "Assessment", "Date", "Score", "Maximum", "Result"]]
+    rows = [["Subject", "Assessment", "Term", "Date", "Score", "Maximum", "Grade", "Result"]]
     for mark in marks:
         rows.append(
             [
                 mark.exam.subject.name,
                 mark.exam.title,
+                mark.exam.term.name,
                 f"{mark.exam.date:%d %b %Y}",
                 "Absent" if mark.absent else str(mark.score),
                 str(mark.exam.max_marks),
+                getattr(mark, "grade_label", None) or "-",
                 "Pass" if mark.passed else "Below pass mark",
             ]
         )
@@ -45,13 +47,14 @@ def render_report_card(student, report, school_name):
         Paragraph("Published results", sheet["Heading2"]),
         table(
             result_rows(report["marks"]),
-            [32 * mm, 38 * mm, 24 * mm, 18 * mm, 20 * mm, 38 * mm],
+            [28 * mm, 30 * mm, 18 * mm, 22 * mm, 15 * mm, 17 * mm, 14 * mm, 26 * mm],
         ),
         Spacer(1, 3 * mm),
         Paragraph(
             escape(
                 f"{summary['passed']} of {summary['count']} assessments passed. "
-                f"Overall {summary['percentage'] if summary['percentage'] is not None else '-'}%."
+                f"Overall {summary['percentage'] if summary['percentage'] is not None else '-'}%"
+                + (f", grade {summary['grade']}." if summary.get("grade") else ".")
             ),
             sheet["BodyText"],
         ),

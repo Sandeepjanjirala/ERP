@@ -9,6 +9,11 @@ from .models import Exam
 EXAM_AUTHORS = (User.Role.SUPER, User.Role.ADMIN, User.Role.TEACHER)
 
 
+def can_manage_grading(user):
+    """Only super admins change the grading scale: it applies to the whole school group."""
+    return user.system_admin
+
+
 def can_create_exam(user, classroom, subject):
     if user.system_admin:
         return True

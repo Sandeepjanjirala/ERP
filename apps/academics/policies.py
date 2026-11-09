@@ -1,7 +1,7 @@
 """Who may change the academic setup."""
 
 # Records that belong to the whole school group, not one branch: super admins only.
-GROUP_LEVEL = ("organization", "branch", "year")
+GROUP_LEVEL = ("organization", "branch", "year", "term")
 
 
 def can_manage_setup(actor, kind, branch=None):

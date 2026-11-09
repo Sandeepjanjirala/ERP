@@ -3,17 +3,20 @@ from datetime import date
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
+from django.utils import timezone
 
 from apps.academics.models import AcademicYear
+from apps.academics.selectors import teacher_lessons
 from apps.accounts.decorators import role_required
 from apps.accounts.models import User
-from apps.audit.selectors import events
+from apps.audit.selectors import event_areas, events, filter_events
 from apps.core.pagination import paginate
 from apps.exams.selectors import mark_summary
 from apps.fees.selectors import OPEN, fee_summary, invoices, overdue, payments
 from apps.organization.selectors import branches, school_name, selected_branch
 from apps.students.selectors import guardian_links, students
 
+from .forms import ActivityFilterForm
 from .pdf import render_report_card, report_card_filename
 from .selectors import (
     attendance_trend,
@@ -48,6 +51,7 @@ def dashboard(request):
             "branches": branches(request.user),
             "selected_branch": branch,
             "fees": fee_summary(request.user, branch) if request.user.is_finance else None,
+            "todays_lessons": todays_lessons(request.user),
             "has_trend": bool(trend),
             "charts": {
                 "trend": [
@@ -57,6 +61,18 @@ def dashboard(request):
                 "branches": branch_comparison(request.user),
             },
         },
+    )
+
+
+def todays_lessons(user):
+    """A teacher's lessons today, in period order; None for anyone who isn't a teacher."""
+    if user.role != User.Role.TEACHER:
+        return None
+    today = timezone.localdate()
+    return teacher_lessons(user).filter(
+        weekday=today.isoweekday(),
+        classroom__year__starts_on__lte=today,
+        classroom__year__ends_on__gte=today,
     )
 
 
@@ -155,8 +171,14 @@ def reports(request):
 
 @role_required(*User.LEADERS)
 def audit_log(request):
+    """The activity log with its filters; htmx swaps in only the results as filters change."""
+    scope = events(request.user)
+    form = ActivityFilterForm(request.GET or None, areas=event_areas(scope))
+    filtered = scope
+    if form.is_valid():
+        filtered = filter_events(scope, **form.cleaned_data)
     return render(
         request,
         "reports/activity_log.html",
-        {"title": "Activity log", "page_obj": paginate(request, events(request.user))},
+        {"title": "Activity log", "form": form, "page_obj": paginate(request, filtered)},
     )

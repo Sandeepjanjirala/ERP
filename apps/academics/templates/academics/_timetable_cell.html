@@ -1,0 +1,23 @@
+<td class="timetable-cell{% if error %} has-error{% endif %}" id="cell-{{ day }}-{{ period.pk }}">
+  {% if can_edit %}
+    <form method="post" action="{% url 'timetable_cell' classroom.pk %}"
+          hx-post="{% url 'timetable_cell' classroom.pk %}" hx-trigger="change" hx-target="closest td" hx-swap="outerHTML">
+      {% csrf_token %}
+      <input type="hidden" name="weekday" value="{{ day }}">
+      <input type="hidden" name="period" value="{{ period.pk }}">
+      <label class="visually-hidden" for="lesson-{{ day }}-{{ period.pk }}">Lesson in period {{ period.number }}</label>
+      <select name="assignment" id="lesson-{{ day }}-{{ period.pk }}">
+        <option value="">Free</option>
+        {% for assignment in assignments %}
+          <option value="{{ assignment.pk }}"{% if lesson and lesson.subject_id == assignment.subject_id and lesson.teacher_id == assignment.teacher_id %} selected{% endif %}>{{ assignment.subject.name }} · {{ assignment.teacher.display_name }}</option>
+        {% endfor %}
+      </select>
+      <button class="link-button no-htmx" type="submit">Save</button>
+    </form>
+    {% if error %}<small class="errorlist" role="alert">{{ error }}</small>{% elif saved %}<small class="cell-saved" role="status">Saved</small>{% endif %}
+  {% elif lesson %}
+    <strong>{{ lesson.subject.name }}</strong><small>{{ lesson.teacher.display_name }}</small>
+  {% else %}
+    <small class="empty">Free</small>
+  {% endif %}
+</td>

@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.utils import timezone
@@ -8,8 +10,9 @@ from apps.core.exceptions import Conflict
 from apps.core.jobs import run_after_commit
 from apps.students.selectors import roster
 
-from .models import Exam, Mark
-from .policies import can_create_exam, can_mark, can_publish
+from .models import Exam, GradeBand, GradingScale, Mark
+from .policies import can_create_exam, can_manage_grading, can_mark, can_publish
+from .selectors import current_scale
 from .tasks import announce_results
 
 
@@ -99,14 +102,14 @@ def transition_exam(actor, exam, action, expected_version, reason=""):
     exam.version += 1
     exam.published_by = actor if action == "publish" else None
     exam.published_at = timezone.now() if action == "publish" else None
+    # Publishing freezes the scale in force now; a reopened exam is a draft again, which shows
+    # whatever scale is current until it is published again.
+    exam.grading_scale = current_scale() if action == "publish" else None
     exam.save()
-    audit(
-        actor,
-        exam.classroom.branch,
-        f"exam.{action}",
-        exam,
-        {"from": old, "to": target, "reason": reason},
-    )
+    details = {"from": old, "to": target, "reason": reason}
+    if action == "publish":
+        details["grading_scale"] = exam.grading_scale.version if exam.grading_scale else None
+    audit(actor, exam.classroom.branch, f"exam.{action}", exam, details)
     if action == "publish":
         run_after_commit(announce_results, exam.pk, exam.version)
     return exam
@@ -120,3 +123,58 @@ def create_exam(actor, exam):
     exam.save()
     audit(actor, exam.classroom.branch, "exam.created", exam)
     return exam
+
+
+# The bands most Indian schools use (CBSE): a starting point for the first scale.
+DEFAULT_BANDS = [
+    ("A1", 91), ("A2", 81), ("B1", 71), ("B2", 61), ("C1", 51), ("C2", 41), ("D", 33), ("E", 0),
+]  # fmt: skip
+
+
+def _check_bands(rows):
+    bands = [(row["label"].strip(), Decimal(row["min_percent"])) for row in rows]
+    if len(bands) < 2:
+        raise ValidationError("A grading scale needs at least two bands.")
+    labels = [label for label, _ in bands]
+    if not all(labels):
+        raise ValidationError("Every band needs a label.")
+    if len({label.casefold() for label in labels}) != len(labels):
+        raise ValidationError("Each band needs its own label.")
+    minimums = [minimum for _, minimum in bands]
+    if any(not 0 <= minimum <= 100 for minimum in minimums):
+        raise ValidationError("Band minimums are percentages from 0 to 100.")
+    if len(set(minimums)) != len(minimums):
+        raise ValidationError("Two bands can't start at the same percentage.")
+    if min(minimums) != 0:
+        raise ValidationError("The lowest band must start at 0%, so every result gets a grade.")
+    return sorted(bands, key=lambda band: band[1], reverse=True)
+
+
+@transaction.atomic
+def save_grading_scale(actor, rows):
+    """Save `rows` (label, min_percent) as the next version of the grading scale.
+
+    Earlier versions are never changed: exams already published keep the version they were
+    published with. Drafts and exams awaiting approval show the new version at once.
+    """
+    if not can_manage_grading(actor):
+        raise PermissionDenied
+    bands = _check_bands(rows)
+    latest = GradingScale.objects.select_for_update().order_by("-version").first()
+    scale = GradingScale.objects.create(
+        version=(latest.version if latest else 0) + 1, created_by=actor
+    )
+    GradeBand.objects.bulk_create(
+        GradeBand(scale=scale, label=label, min_percent=minimum) for label, minimum in bands
+    )
+    audit(
+        actor,
+        None,
+        "exams.grading_scale.saved",
+        scale,
+        {
+            "version": scale.version,
+            "bands": [f"{label} from {minimum}%" for label, minimum in bands],
+        },
+    )
+    return scale

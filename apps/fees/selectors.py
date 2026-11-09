@@ -13,7 +13,7 @@ OPEN = (Invoice.Status.ISSUED, Invoice.Status.PARTLY_PAID)
 
 def invoices(user):
     """Finance staff: their branch. Parents: their children's. Nobody else sees fees."""
-    qs = Invoice.objects.select_related("student__user", "branch", "year", "plan")
+    qs = Invoice.objects.select_related("student__user", "branch", "year", "plan__grade")
     if user.role in User.FINANCE:
         return qs.filter(branch__in=branches(user))
     if user.is_parent:
@@ -37,7 +37,7 @@ def fee_plans(user):
         return FeePlan.objects.none()
     return (
         FeePlan.objects.filter(branch__in=branches(user))
-        .select_related("branch", "year")
+        .select_related("branch", "year", "grade")
         .prefetch_related("items__head")
     )
 

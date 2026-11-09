@@ -12,3 +12,7 @@ Short notes on the main technical choices: the context, the decision, and what i
 | [0006](0006-rest-api.md) | A REST API on the same services as the web app | Accepted |
 | [0007](0007-background-jobs-and-caching.md) | Background jobs after commit, idempotent; cache keys that carry a data version | Accepted |
 | [0008](0008-payments.md) | Payments: integer paise, signed webhooks, idempotent capture, gapless receipts | Accepted |
+| [0009](0009-grades-and-terms.md) | Grades and terms as records; exams placed in terms by their date | Accepted |
+| [0010](0010-versioned-grading-scale.md) | A versioned grading scale that never rewrites published results | Accepted |
+| [0011](0011-timetable-and-htmx.md) | Timetable clashes stopped by the database; htmx without loosening the CSP | Accepted |
+| [0012](0012-import-and-promotion.md) | Bulk changes: a dry-run preview, then all or nothing | Accepted |

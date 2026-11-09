@@ -2,7 +2,7 @@
 
 from datetime import timedelta
 
-from apps.academics.models import AcademicYear, Classroom
+from apps.academics.models import AcademicYear, Classroom, Grade
 from apps.accounts.models import User
 from apps.audit.models import AuditEvent
 from apps.core.testing import PASSWORD, ApiTestCase
@@ -77,7 +77,10 @@ class EnrollmentTests(ApiTestCase):
             ends_on=self.year.ends_on + timedelta(days=300),
         )
         self.next_class = Classroom.objects.create(
-            branch=self.a, year=self.next_year, grade="10", section="A"
+            branch=self.a,
+            year=self.next_year,
+            grade=Grade.objects.create(branch=self.a, name="10", order=10),
+            section="A",
         )
 
     def test_list_is_scoped(self):
