@@ -1161,3 +1161,56 @@ details summary {
 .timetable th.today {
   background: var(--color-primary-soft);
 }
+/* One-tap attendance: each status is a radio button drawn as a segment of a button group. The
+   input stays in the page (visually hidden), so keyboard and screen-reader use is unchanged. */
+
+.status-choices {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.status-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.status-option input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.status-option:has(input:focus-visible) {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.status-option:has(input:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  font-weight: 600;
+}
+
+.status-option.status-A:has(input:checked) {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.status-option:has(input:disabled) {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.register-tools {
+  margin-bottom: 0.75rem;
+}

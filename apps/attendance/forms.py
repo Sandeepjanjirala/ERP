@@ -40,9 +40,12 @@ class RegisterForm(forms.Form):
         self.rows = []
         for enrollment in roster:
             key = f"status_{enrollment.pk}"
+            # One tap per student: a button for each status (radio inputs, styled as a group).
             self.fields[key] = forms.ChoiceField(
-                choices=[("", "Choose status"), *Attendance.Status.choices],
+                choices=Attendance.Status.choices,
                 initial=initial_statuses.get(enrollment.pk),
+                widget=forms.RadioSelect(attrs={"class": "status-choice"}),
+                error_messages={"required": "Choose a status."},
             )
             self.rows.append((enrollment, self[key]))
 
