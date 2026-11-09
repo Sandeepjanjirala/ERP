@@ -8,7 +8,7 @@ fills the activity log. A fixed random seed makes names and scores the same on e
 import random
 import secrets
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 from django.conf import settings
@@ -26,6 +26,16 @@ from apps.communication.services import publish_announcement
 from apps.core.jobs import jobs_paused
 from apps.exams.models import Exam
 from apps.exams.services import create_exam, save_marks, transition_exam
+from apps.fees.models import FeeHead, FeePlan, Invoice, Payment, Receipt
+from apps.fees.services import (
+    grant_concession,
+    issue_invoices,
+    record_counter_payment,
+    save_fee_head,
+    save_fee_plan,
+    simulate_sandbox_payment,
+    start_online_payment,
+)
 from apps.organization.models import Branch, Organization
 from apps.students.models import Enrollment, Student
 from apps.students.services import link_guardian
@@ -54,6 +64,8 @@ BRANCHES = [
         "city": "Hyderabad",
         "admin": ("Kiran", "Rao"),
         "principal": ("Lakshmi", "Devi"),
+        "accountant": ("Meena", "Iyer"),
+        "receipt_prefix": "MDP",
         # Teacher n teaches SUBJECTS[n] in every class and is class teacher of GRADES[n].
         "teachers": [
             ("teacher", "Priya", "Sharma"),
@@ -69,6 +81,8 @@ BRANCHES = [
         "city": "Vijayawada",
         "admin": ("Suresh", "Babu"),
         "principal": ("Padma", "Rani"),
+        "accountant": ("Rajesh", "Gupta"),
+        "receipt_prefix": "BZC",
         "teachers": [
             ("teacher", "Venkat", "Rao"),
             ("divya", "Divya", "Menon"),
@@ -110,6 +124,12 @@ EXAMS = [
     ("Unit Test 2", 25, 9, 0.55),
     ("Quarterly Exam", 100, 35, 0.9),
 ]
+
+
+# Fee heads: name, code and the yearly amount in rupees. Tuition rises with the grade.
+FEE_HEADS = [("Tuition", "tuition"), ("Transport", "transport"), ("Exam fee", "exam")]
+TUITION_BY_GRADE = {"Class 10": 18000, "Class 9": 16500, "Class 8": 15000, "Class 7": 14000}
+TUITION_DEFAULT, TRANSPORT, EXAM_FEE = 13000, 6000, 1500
 
 
 def school_days(start, end):
@@ -172,16 +192,17 @@ class Command(BaseCommand):
         )
         self.stdout.write(
             f"{Student.objects.count()} students, {Classroom.objects.count()} classrooms, "
-            f"{Exam.objects.count()} exams, {Attendance.objects.count()} attendance records."
+            f"{Exam.objects.count()} exams, {Attendance.objects.count()} attendance records, "
+            f"{Invoice.objects.count()} fee invoices, {Receipt.objects.count()} receipts."
         )
         self.stdout.write("Demo password for all accounts: " + self.password)
         self.stdout.write(
             "Logins: superadmin, admin.madhapur, principal.madhapur, teacher.madhapur, "
-            "student1.madhapur, parent1.madhapur"
+            "accountant.madhapur, student1.madhapur, parent1.madhapur"
         )
         self.stdout.write(
             "Second branch: admin.benz-circle, principal.benz-circle, teacher.benz-circle, "
-            "student1.benz-circle, parent1.benz-circle"
+            "accountant.benz-circle, student1.benz-circle, parent1.benz-circle"
         )
         self.stdout.write(
             "The password is generated for this installation; it is not stored in project files."
@@ -204,9 +225,16 @@ class Command(BaseCommand):
     def seed_branch(self, org, index, spec):
         code, size = spec["code"], self.size
         branch = Branch.objects.create(
-            organization=org, name=spec["name"], code=code, city=spec["city"]
+            organization=org,
+            name=spec["name"],
+            code=code,
+            city=spec["city"],
+            receipt_prefix=spec["receipt_prefix"],
         )
         admin = self.account(f"admin.{code}", *spec["admin"], User.Role.ADMIN, branch)
+        accountant = self.account(
+            f"accountant.{code}", *spec["accountant"], User.Role.ACCOUNTANT, branch
+        )
         principal = self.account(
             f"principal.{code}", *spec["principal"], User.Role.PRINCIPAL, branch
         )
@@ -273,6 +301,8 @@ class Command(BaseCommand):
         self.seed_attendance(classrooms, roster)
         self.progress(f"{spec['name']}: daily registers since {self.history_start:%d %b}")
         self.seed_leave(roster)
+        self.seed_fees(branch, admin, accountant, classrooms)
+        self.progress(f"{spec['name']}: fee invoices, payments and receipts")
         self.branches.append((branch, principal, teachers[0], classrooms[0]))
 
     def seed_families(self, code, admin, roster):
@@ -304,6 +334,60 @@ class Command(BaseCommand):
             link_guardian(admin, student, parent, relationship)
             previous = (parent, relationship)
         return parents
+
+    def seed_fees(self, branch, admin, accountant, classrooms):
+        """Fee heads and a plan per grade; Term 1 (now overdue) and Term 2 (due soon) invoices.
+
+        About 70% of Term 1 is paid in full and 15% in part, at the counter or online (through
+        the Sandbox, so the signed-webhook path runs), leaving some invoices overdue. Each payment
+        is then dated inside the term, so the history and the collection report look real.
+        """
+        heads = {
+            code: save_fee_head(admin, FeeHead(branch=branch, name=name, code=code))
+            for name, code in FEE_HEADS
+        }
+        span = (self.today - self.history_start).days
+        term1_due = self.history_start + timedelta(days=min(20, max(span - 1, 0)))
+        for classroom in classrooms:
+            plan = save_fee_plan(
+                admin,
+                FeePlan(branch=branch, year=self.year, grade=classroom.grade),
+                {
+                    heads["tuition"]: TUITION_BY_GRADE.get(classroom.grade, TUITION_DEFAULT) * 100,
+                    heads["transport"]: TRANSPORT * 100,
+                    heads["exam"]: EXAM_FEE * 100,
+                },
+            )
+            term1, _ = issue_invoices(
+                accountant, plan, "Term 1 fees", term1_due, issued_on=self.history_start
+            )
+            issue_invoices(accountant, plan, "Term 2 fees", self.today + timedelta(days=21))
+            for invoice in term1:
+                roll = self.rng.random()
+                if roll < 0.7:
+                    amount = invoice.balance_paise
+                elif roll < 0.85:
+                    amount = invoice.balance_paise // 2
+                else:
+                    continue  # unpaid: overdue
+                if self.rng.random() < 0.25:
+                    parent = invoice.student.guardian_links.get(is_primary=True).guardian.user
+                    simulate_sandbox_payment(
+                        parent, start_online_payment(parent, invoice), "captured"
+                    )
+                    payment = invoice.payments.get()
+                else:
+                    method = self.rng.choice(["cash", "cash", "upi", "cheque"])
+                    reference = "" if method == "cash" else f"REF{self.rng.randint(100000, 999999)}"
+                    payment = record_counter_payment(accountant, invoice, amount, method, reference)
+                paid_on = self.history_start + timedelta(days=self.rng.randint(0, span))
+                Payment.objects.filter(pk=payment.pk).update(
+                    paid_at=timezone.make_aware(datetime.combine(paid_on, time(10, 30)))
+                )
+        # One sibling concession per branch, on a Term 2 invoice, granted by the branch admin.
+        invoice = Invoice.objects.filter(branch=branch, title="Term 2 fees").order_by("pk").first()
+        if invoice:
+            grant_concession(admin, invoice, 100000, "Sibling discount")
 
     def seed_leave(self, roster):
         """A few leave requests per branch: one approved (it excuses recorded absences), one
