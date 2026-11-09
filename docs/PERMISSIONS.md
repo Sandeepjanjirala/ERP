@@ -2,31 +2,40 @@
 
 Permissions are enforced in Django views, filtered querysets, and write services. Hiding a navigation link is not the access control. The REST API enforces exactly the same rules with the same code; see [The API](#the-api) below.
 
-| Capability | Super admin | Branch admin | Principal | Teacher | Student | Parent |
-|---|---|---|---|---|---|---|
-| Branch scope | All branches | Own branch | Own branch | Own assigned classes | Own records | Own children |
-| Create branches / academic years | Yes | No | No | No | No | No |
-| Create principal / admin accounts | Yes | No | No | No | No | No |
-| Create teachers and students | Yes | Own branch | No | No | No | No |
-| Add parents / set the primary contact | Yes | Own branch | No | No | No | No |
-| Edit contact details / deactivate | Branch users | Own teachers, students, parents | No | No | No | No |
-| Create classrooms / subjects / assignments | Yes | Own branch | Read only | No | No | No |
-| Record daily attendance | All | Own branch | Read only | Assigned homeroom only | No | No |
-| Apply for leave | No | No | No | No | No | Own children |
-| Approve / refuse leave | All | Own branch | No | Own homeroom | No | No |
-| View student reports and report cards | All | Own branch | Own branch | Assigned scope | Self only | Own children |
-| Create exams | All | Own branch | No | Assigned class+subject | No | No |
-| Enter draft marks | All | No | No | Assigned class+subject | No | No |
-| Submit exams | All | No | No | Assigned class+subject | No | No |
-| Publish / reopen results | All | No | Own branch | No | No | No |
-| Post announcements | Any branch, or all | Own branch | Own branch | Classes they teach | No | No |
-| Read announcements | All | Own branch | Own branch | Own branch | Those for students or their class | Those for parents or their child's class |
-| CSV reports | All | Own branch | Own branch | Assigned scope | No | No |
-| Activity log | All | Own branch | Own branch | No | No | No |
+| Capability | Super admin | Branch admin | Principal | Teacher | Student | Parent | Accountant |
+|---|---|---|---|---|---|---|---|
+| Branch scope | All branches | Own branch | Own branch | Own assigned classes | Own records | Own children | Own branch (fees only) |
+| Create branches / academic years | Yes | No | No | No | No | No | No |
+| Create principal / admin accounts | Yes | No | No | No | No | No | No |
+| Create teachers, accountants and students | Yes | Own branch | No | No | No | No | No |
+| Add parents / set the primary contact | Yes | Own branch | No | No | No | No | No |
+| Edit contact details / deactivate | Branch users | Own teachers, accountants, students, parents | No | No | No | No | No |
+| Create classrooms / subjects / assignments | Yes | Own branch | Read only | No | No | No | No |
+| Record daily attendance | All | Own branch | Read only | Assigned homeroom only | No | No | No |
+| Apply for leave | No | No | No | No | No | Own children | No |
+| Approve / refuse leave | All | Own branch | No | Own homeroom | No | No | No |
+| View student reports and report cards | All | Own branch | Own branch | Assigned scope | Self only | Own children | No |
+| Create exams | All | Own branch | No | Assigned class+subject | No | No | No |
+| Enter draft marks | All | No | No | Assigned class+subject | No | No | No |
+| Submit exams | All | No | No | Assigned class+subject | No | No | No |
+| Publish / reopen results | All | No | Own branch | No | No | No | No |
+| Post announcements | Any branch, or all | Own branch | Own branch | Classes they teach | No | No | No |
+| Read announcements | All | Own branch | Own branch | Own branch | Those for students or their class | Those for parents or their child's class | Those for everyone or staff |
+| CSV reports (results) | All | Own branch | Own branch | Assigned scope | No | No | No |
+| Activity log | All | Own branch | Own branch | No | No | No | No |
+| Fee heads and fee plans | All | Own branch | No | No | No | No | Read only |
+| Issue invoices | All | Own branch | No | No | No | No | Own branch |
+| Record office payments (cash, UPI, cheque) | All | Own branch | No | No | No | No | Own branch |
+| Concessions / cancel an invoice | All | Own branch | No | No | No | No | No |
+| View invoices, payments and receipts | All | Own branch | No | No | No | Own children | Own branch |
+| Pay online | No | No | No | No | No | Own children | No |
+| Fee collections report / payments to check | All | Own branch | No | No | No | No | Own branch |
 
 A homeroom teacher can view all subject assessments in their homeroom class but can edit only subjects explicitly assigned to them. Other teachers see only assessments for their assigned classroom/subject pairs.
 
 Parents see only their own children: their classes, published results, attendance, report cards and leave requests, never a classmate's. A parent account belongs to one branch, and its children must be in that branch. Every selector has an explicit parent rule, and `apps/students/tests/test_parent_scope.py` fails if one is removed.
+
+Accountants handle fees and nothing academic: they see no marks, attendance, exams, leave or student reports, and those selectors return nothing for them (`apps/accounts/tests/test_accountant_scope.py`). Principals and teachers see no fees. Parents see and pay only their own children's invoices; students see no fees.
 
 Students can access only their own published results and attendance. Drafts and submitted exams are absent from student queries and aggregates. A student changing a URL to another student’s ID receives a 404. Forbidden actions generally return 403; out-of-scope records return 404.
 
@@ -51,8 +60,8 @@ Every endpoint's access for every role is one table in `apps/core/tests/test_api
 ## Implementation references
 
 - `apps/*/selectors.py`: branch, classroom, subject, assignment, teacher, student, enrollment, exam, attendance and report scopes.
-- `apps/*/policies.py`: `can_attend`; `can_create_exam`, `can_mark`, `can_publish` and `exam_actions`; `can_manage_account`, `can_change_access` and `staff_roles_for`; `can_enroll`; `can_manage_setup`.
-- `apps/accounts/decorators.py`: `role_required`, with role groups `User.STAFF`, `User.MANAGERS` and `User.LEADERS`.
+- `apps/*/policies.py`: `can_attend`; `can_create_exam`, `can_mark`, `can_publish` and `exam_actions`; `can_manage_account`, `can_change_access` and `staff_roles_for`; `can_enroll`; `can_manage_setup`; `can_set_up_fees`, `can_collect_fees` and `can_pay_online`.
+- `apps/accounts/decorators.py`: `role_required`, with role groups `User.STAFF`, `User.MANAGERS`, `User.LEADERS`, `User.ACADEMIC` (everyone but accountants) and `User.FINANCE` (super admin, branch admin, accountant).
 - `apps/*/services.py`: every write checks its policy itself, inside a transaction, with row locks where needed. A caller that skips the web form, such as the API or a script, is still refused.
 - `apps/*/forms.py`: only permitted branches and objects are valid choices.
 - `apps/*/tests/`: forged requests, scope isolation, the account permission matrix (`apps/accounts/tests/test_policies.py`), the rules shared by web and API (`apps/core/tests/test_shared_rules.py`), the API matrix, locked marks, sessions, and concurrent-write tests on PostgreSQL.

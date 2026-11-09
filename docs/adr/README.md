@@ -11,3 +11,4 @@ Short notes on the main technical choices: the context, the decision, and what i
 | [0005](0005-no-django-admin.md) | No Django admin site | Accepted |
 | [0006](0006-rest-api.md) | A REST API on the same services as the web app | Accepted |
 | [0007](0007-background-jobs-and-caching.md) | Background jobs after commit, idempotent; cache keys that carry a data version | Accepted |
+| [0008](0008-payments.md) | Payments: integer paise, signed webhooks, idempotent capture, gapless receipts | Accepted |

@@ -94,7 +94,7 @@ Password reset by email stays a web flow (`/accounts/password/reset/`), because 
 
 ## Endpoints
 
-Roles: **S** super admin, **A** branch admin, **P** principal, **T** teacher, **St** student, **Pa** parent. Within a role, every list and record is limited to that person's scope, the same as the web pages: their branch, their classes, themselves (students) or their children (parents).
+Roles: **S** super admin, **A** branch admin, **P** principal, **T** teacher, **St** student, **Pa** parent, **Ac** accountant. Within a role, every list and record is limited to that person's scope, the same as the web pages: their branch, their classes, themselves (students) or their children (parents).
 
 | Endpoint | Methods | Who |
 |---|---|---|
@@ -125,6 +125,15 @@ Roles: **S** super admin, **A** branch admin, **P** principal, **T** teacher, **
 | `/api/v1/leave-requests/{id}/approve/`, `.../reject/` | POST | S, A, the class teacher |
 | `/api/v1/announcements/` | GET · POST | Everyone (those meant for them) · S A P, T (their classes) |
 | `/api/v1/notifications/` (`?unread=true`), `unread-count/`, `{id}/read/`, `read-all/` | GET, POST | Everyone (their own) |
+| `/api/v1/invoices/` (`?status=`, `?overdue=true`, `?student=`, `?q=`) | GET | S A Ac · Pa (own children) |
+| `/api/v1/invoices/{id}/payment/` (cash, UPI, cheque) | POST | S A Ac |
+| `/api/v1/invoices/{id}/concession/`, `.../cancel/` | POST | S A |
+| `/api/v1/invoices/{id}/pay-online/` (returns the order and `checkout_url`) | POST | Pa (own children) |
+| `/api/v1/payments/` (`?excess=true`), `/api/v1/payment-orders/` (`?status=review`) | GET | S A Ac · Pa (own children) |
+| `/api/v1/receipts/{id}/pdf/` | GET (PDF) | S A Ac · Pa (own children) |
+| `/api/v1/fee-heads/`, `/api/v1/fee-plans/` | GET | S A Ac |
+| `/api/v1/fee-plans/{id}/issue/` | POST | S A Ac |
+| `/api/v1/payments/webhook/{gateway}/` | POST | The payment provider: no sign-in, but every body must carry a valid `X-Razorpay-Signature` |
 
 The full matrix is a test: [`apps/core/tests/test_api_permissions.py`](../apps/core/tests/test_api_permissions.py). [PERMISSIONS.md](PERMISSIONS.md) explains the rules behind it.
 
@@ -155,3 +164,7 @@ To add an endpoint:
 | `apps/core/tests/test_api_queries.py` | Lists cost the same number of SQL queries for 3 rows or 13 (no N+1) |
 | `apps/core/tests/test_shared_rules.py` | The rules the web and the API share, tested at the service layer |
 | `apps/accounts/tests/test_api_auth.py` | Tokens: rotation, logout, revocation, throttling, docs pages |
+
+## Money
+
+Every amount is an integer number of paise (`amount_paise: 1250000` is ₹12,500.00). Fee plans are set up on the web; the API reads them and issues invoices from them. Accountants get 403 on academic endpoints (marks, attendance, reports) and see an empty student list.

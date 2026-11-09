@@ -30,6 +30,8 @@ Use the host’s environment/secret settings. Never commit production secrets or
 | `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` | SMTP credentials |
 | `EMAIL_USE_TLS` | `1` for STARTTLS |
 | `DEFAULT_FROM_EMAIL` | A sender verified with your email provider |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Optional. Razorpay **test** keys (`rzp_test_...`); EduNexa refuses to start with any other key. Without them, the built-in Sandbox takes test payments. |
+| `RAZORPAY_WEBHOOK_SECRET` | The secret set on the Razorpay webhook pointing at `https://<host>/api/v1/payments/webhook/razorpay/` (events `payment.captured`, `payment.failed`) |
 
 Generate a secret locally without putting it in a shell command history:
 
@@ -97,3 +99,7 @@ Useful official references:
 
 - Django deployment checklist: https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 - Django authentication: https://docs.djangoproject.com/en/5.2/topics/auth/default/
+
+## Payments
+
+Fee payments run in **test mode only**: no real money moves. With no Razorpay keys, the Sandbox checkout says so on the page. Going live needs live keys, a reviewed change to the test-mode guard in `config/settings/base.py`, a live check of the checkout page's Content-Security-Policy, and the Sandbox disabled; these are in the [backlog](BACKLOG.md). The overdue-fee reminders run from Celery beat at 09:00 each day.

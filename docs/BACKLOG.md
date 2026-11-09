@@ -2,6 +2,21 @@
 
 Known limitations and follow-ups that were left out of a phase on purpose. Each item says where it came from and, where it fits, which phase is likely to take it on. When an item is done, remove it in the same commit.
 
+## From Phase 4 (fees and payments)
+
+| Item | Why it was left | Possible fix | Likely phase |
+|---|---|---|---|
+| Refunds are not recorded: excess and review payments are listed for finance staff to refund outside EduNexa | Out of scope for Phase 4, by decision | A refund model against a payment (with the provider's refund API for online payments), audited, reducing `excess` | Later |
+| No late fees | Out of scope for Phase 4 | A late-fee rule per plan, added as an invoice line by the daily job, once per invoice | Later |
+| No instalments: one invoice per plan and title | Out of scope for Phase 4; terms can be issued as separate invoices | Instalment schedules on a plan, issuing one invoice per instalment | Later |
+| INR only | Out of scope for Phase 4; another currency is held for review, never counted | A currency per branch, with amounts stored in that currency's minor units | Later |
+| Payments run in test mode only; the Sandbox stays enabled | Requirement: no real money and no production credentials | Before going live: live keys, a reviewed change to the `rzp_test_` guard, disable the Sandbox, legal and finance sign-off | Later |
+| The Razorpay checkout page's Content-Security-Policy has not been checked live | No Razorpay test keys were used; the page was tested with HTTP mocked | Open the checkout with test keys and adjust the page's `csp_add` if the browser blocks anything | 6 |
+| A fee plan uses the classroom's grade text | A Grade model arrives in Phase 5 | Migrate each plan to the Grade with the same branch and name, then drop the text (see [DATA_RULES.md](DATA_RULES.md#fees)) | 5 |
+| Fee heads and plans can be read but not changed through the API | The web pages cover setup; the API covers daily work (invoices, payments, issuing) | Add create and update endpoints over `save_fee_head` and `save_fee_plan` | 5 or 6 |
+| No collection report endpoint in the API | `/api/v1/payments/` with filters covers the data | Add `/api/v1/reports/collections/` with totals and CSV | 6 |
+| Seeded payment dates are spread across the term by a direct update after the service records them | Services stamp the current time, which is right for real payments | Leave as is (demo only), or let the seed pass a clock | None planned |
+
 ## From Phase 3 (background jobs and parent portal)
 
 | Item | Why it was left | Possible fix | Likely phase |
@@ -14,7 +29,7 @@ Known limitations and follow-ups that were left out of a phase on purpose. Each 
 | Charts keep their colours until the page reloads after a light/dark switch | Chart colours are read once from the design tokens | Redraw charts when the theme toggle fires | 5 |
 | The full demo seed takes about 4 minutes under Docker on Windows (about 1 minute without Docker) | Every row goes through the real services, and Docker Desktop adds latency to each query | Batch the history inside one register per day, or seed inside the container network only | 6 |
 | Production needs `REDIS_URL`, `SITE_URL`, one worker and exactly one `beat` | New processes and settings from Phase 3; documented in [DEPLOYMENT.md](DEPLOYMENT.md) | Set them up and check with `manage.py check_jobs` when deploying | 6 |
-| GitHub CI has not yet run Phases 2 and 3, including the new Redis worker step | Nothing is pushed until after Phase 6 | Push and watch CI | 6 |
+| GitHub CI has not yet run Phases 2 to 4, including the new Redis worker step | Nothing is pushed until after Phase 6 | Push and watch CI | 6 |
 
 ## Carried over from Phases 1 and 2
 
