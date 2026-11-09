@@ -43,7 +43,7 @@
       <div class="list">
         {% for invoice in fees_due %}
           <div class="list-item">
-            <span class="list-item-body"><strong>{{ invoice.title }}: {{ invoice.balance_paise|rupees }}</strong><small>Due {{ invoice.due_on|date:"d M Y" }}</small></span>
+            <span class="list-item-body"><strong>{{ invoice.title }}: {{ invoice.balance_paise|rupees }}</strong><small>Due {{ invoice.due_on|date:"d M Y" }}{% if invoice.is_overdue %} · <span class="badge badge-warning">Overdue</span>{% endif %}</small></span>
             <form method="post" action="{% url 'pay_online' invoice.pk %}">
               {% csrf_token %}
               <button class="btn" type="submit">{% icon 'credit-card' %}Pay now</button>
