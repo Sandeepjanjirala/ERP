@@ -121,3 +121,30 @@ class ImportForm(forms.Form):
             starts_on__lte=timezone.localdate(), ends_on__gte=timezone.localdate()
         ).first()
         self.fields["year"].initial = current.pk if current else None
+
+
+class PromotionForm(forms.Form):
+    """The class finishing its year, next year's class it moves up to, and optionally next year's
+    class of the same grade for students who repeat."""
+
+    source = forms.ModelChoiceField(
+        queryset=Classroom.objects.none(), label="Class finishing the year"
+    )
+    target = forms.ModelChoiceField(
+        queryset=Classroom.objects.none(),
+        required=False,
+        label="Moves up to",
+        help_text="Not needed after the last grade, when everyone leaves.",
+    )
+    repeat = forms.ModelChoiceField(
+        queryset=Classroom.objects.none(),
+        required=False,
+        label="Repeats in",
+        help_text="Only needed if a student repeats the grade.",
+    )
+
+    def __init__(self, *args, actor, **kwargs):
+        super().__init__(*args, **kwargs)
+        scope = classrooms(actor).order_by("-year__starts_on", "grade__order", "section")
+        for name in ("source", "target", "repeat"):
+            self.fields[name].queryset = scope

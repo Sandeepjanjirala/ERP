@@ -76,6 +76,7 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("/api/v1/students/", STAFF),
             ("/api/v1/enrollments/", STAFF),
             ("/api/v1/student-imports/", MANAGERS),
+            (f"/api/v1/classrooms/{self.c.pk}/promotion/", LEADERS),
             ("/api/v1/dashboard/", STAFF),
             ("/api/v1/reports/performance/", STAFF),
             ("/api/v1/reports/performance/export/", STAFF),
@@ -100,6 +101,12 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("post", "/api/v1/enrollments/", WRITE_MANAGERS),
             # Uploads are multipart only: managers get past the role check, then 415 for JSON.
             ("post", "/api/v1/student-imports/", (415, 415, 403, 403, 403, 403, 403)),
+            # Leaders get past the role check; with no class to move up to, the body is refused.
+            (
+                "post",
+                f"/api/v1/classrooms/{self.c.pk}/promotion/",
+                (400, 400, 400, 403, 403, 403, 403),
+            ),
             ("post", "/api/v1/grades/", WRITE_MANAGERS),
             ("post", "/api/v1/periods/", WRITE_MANAGERS),
             ("post", f"/api/v1/classrooms/{self.c.pk}/timetable/", WRITE_MANAGERS),

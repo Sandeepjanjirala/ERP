@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block content %}
+  <section class="card">
+    <p class="form-intro">At the end of a year, move a class on: each student moves up, repeats the grade, or leaves. It happens in one go, and running it again changes nothing for students already moved.</p>
+    <form method="get" class="filter-bar">
+      {{ form }}
+      <button class="btn btn-secondary" type="submit">{% icon 'users' %}Show students</button>
+    </form>
+  </section>
+
+  {% if rows is not None %}
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>{{ source.grade }}–{{ source.section }} ({{ source.year.name }}){% if target %} → {{ target.grade }}–{{ target.section }} ({{ target.year.name }}){% endif %}</h2>
+          <p>{{ rows|length }} students at the end of the year{% if repeat %} · repeating students join {{ repeat.grade }}–{{ repeat.section }}{% endif %}</p>
+        </div>
+      </div>
+      <form method="post" action="{{ request.get_full_path }}" data-confirm="Move this class on now? Old enrollments close on {{ source.year.ends_on|date:'d M Y' }}.">
+        {% csrf_token %}
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Student</th><th>Decision</th></tr></thead>
+            <tbody>
+              {% for row in rows %}
+                <tr>
+                  <td><strong id="pupil-{{ row.enrollment.pk }}">{{ row.enrollment.student.user.display_name }}</strong><small>{{ row.enrollment.student.admission_number }}</small></td>
+                  <td>
+                    {% if row.already_moved %}
+                      <span class="badge badge-success">Already enrolled in a later year</span>
+                    {% else %}
+                      <div class="status-choices" role="radiogroup" aria-labelledby="pupil-{{ row.enrollment.pk }}">
+                        {% for value, label in decisions.items %}
+                          <label class="status-option"><input type="radio" name="decision_{{ row.enrollment.pk }}" value="{{ value }}"{% if value == row.default %} checked{% endif %}><span>{{ label }}</span></label>
+                        {% endfor %}
+                      </div>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="2" class="empty">No students in this class at the end of its year.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if rows %}
+          <div class="form-actions"><button class="btn" type="submit">{% icon 'check' %}Move the class on</button></div>
+        {% endif %}
+      </form>
+    </section>
+  {% endif %}
+{% endblock %}

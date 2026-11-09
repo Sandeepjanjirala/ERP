@@ -125,3 +125,31 @@ class ImportUploadSerializer(serializers.Serializer):
     branch = ScopedPrimaryKeyField(branches)
     year = serializers.PrimaryKeyRelatedField(queryset=AcademicYear.objects.all())
     file = serializers.FileField()
+
+
+class PromotionRowSerializer(serializers.Serializer):
+    enrollment = serializers.IntegerField(source="enrollment.pk")
+    student = serializers.IntegerField(source="enrollment.student_id")
+    name = serializers.CharField(source="enrollment.student.user.display_name")
+    admission_number = serializers.CharField(source="enrollment.student.admission_number")
+    default = serializers.CharField(help_text="promote, or leave after the last grade")
+    already_moved = serializers.BooleanField(help_text="Already enrolled next year: skipped")
+
+
+class PromotionSerializer(serializers.Serializer):
+    """`decisions` maps every student's enrollment id (GET the preview) to promote, repeat or
+    leave. `target` is needed only if someone moves up; `repeat` (next year's class of the same
+    grade) only if someone repeats."""
+
+    target = ScopedPrimaryKeyField(classrooms, required=False, allow_null=True)
+    repeat = ScopedPrimaryKeyField(classrooms, required=False, allow_null=True)
+    decisions = serializers.DictField(
+        child=serializers.ChoiceField(choices=["promote", "repeat", "leave"])
+    )
+
+
+class PromotionResultSerializer(serializers.Serializer):
+    promote = serializers.IntegerField()
+    repeat = serializers.IntegerField()
+    leave = serializers.IntegerField()
+    already_moved = serializers.IntegerField()

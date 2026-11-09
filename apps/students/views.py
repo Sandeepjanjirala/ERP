@@ -17,11 +17,13 @@ from .forms import (
     GuardianAccountForm,
     ImportForm,
     LinkGuardianForm,
+    PromotionForm,
     StudentAccountForm,
 )
 from .imports import COLUMNS, read_csv, template_csv
 from .selectors import guardian_links, import_batches, students
 from .services import (
+    DECISIONS,
     add_guardian_account,
     admit_student,
     check_import,
@@ -29,6 +31,8 @@ from .services import (
     enroll,
     link_guardian,
     make_primary_guardian,
+    promote_class,
+    promotion_preview,
 )
 
 
@@ -275,3 +279,42 @@ def student_import_confirm(request, pk):
             "their password.",
         )
     return redirect("student_import_preview", batch.pk)
+
+
+# Year-end promotion ----------------------------------------------------------------------------
+
+
+@role_required(*User.LEADERS)
+def promotion(request):
+    """Choose the classes, check each student's decision, then move the class on in one go."""
+    form = PromotionForm(request.GET or None, actor=request.user)
+    context = {"title": "Year-end promotion", "form": form, "decisions": DECISIONS, "rows": None}
+    if not form.is_valid():
+        return render(request, "students/promotion.html", context)
+    source, target = form.cleaned_data["source"], form.cleaned_data["target"]
+    repeat = form.cleaned_data["repeat"]
+    if request.method == "POST":
+        decisions = {
+            int(key.removeprefix("decision_")): value
+            for key, value in request.POST.items()
+            if key.startswith("decision_") and key.removeprefix("decision_").isdigit()
+        }
+        try:
+            counts = promote_class(request.user, source, decisions, target, repeat)
+        except ValidationError as exc:
+            messages.error(request, "; ".join(exc.messages))
+        else:
+            messages.success(
+                request,
+                f"{counts['promote']} moved up, {counts['repeat']} repeat, {counts['leave']} left"
+                + (
+                    f", {counts['already_moved']} were already moved"
+                    if counts["already_moved"]
+                    else ""
+                )
+                + ".",
+            )
+            return redirect(request.get_full_path())
+    context["rows"] = promotion_preview(source)
+    context.update(source=source, target=target, repeat=repeat)
+    return render(request, "students/promotion.html", context)

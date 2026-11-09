@@ -3,6 +3,7 @@ from datetime import date
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.academics.models import Classroom
@@ -12,7 +13,7 @@ from apps.audit.services import audit
 from apps.core.jobs import run_after_commit
 
 from .models import Enrollment, Guardian, ImportBatch, Student, StudentGuardian
-from .policies import can_enroll, can_import, can_manage_guardians
+from .policies import can_enroll, can_import, can_manage_guardians, can_promote
 from .tasks import send_import_invites
 
 
@@ -254,3 +255,132 @@ def confirm_import(actor, batch):
     )
     run_after_commit(send_import_invites, batch.pk)
     return batch
+
+
+# Year-end promotion ----------------------------------------------------------------------------
+
+PROMOTE, REPEAT, LEAVE = "promote", "repeat", "leave"
+DECISIONS = {PROMOTE: "Moves up", REPEAT: "Repeats the grade", LEAVE: "Leaves the school"}
+
+
+def year_end_roster(classroom):
+    """The class at the end of its year: enrollments not closed before the year ended."""
+    year_end = classroom.year.ends_on
+    return (
+        classroom.enrollments.filter(Q(left_on__isnull=True) | Q(left_on__gte=year_end))
+        .select_related("student__user")
+        .order_by("student__user__first_name", "student__admission_number")
+    )
+
+
+def promotion_preview(source):
+    """Each student of `source` with the default decision (moves up, or leaves after the last
+    grade) and whether they are already enrolled in a later year (then they are skipped)."""
+    last_grade = source.grade.next_grade() is None
+    moved = set(
+        Enrollment.objects.filter(
+            year__starts_on__gt=source.year.ends_on,
+            student__in=source.enrollments.values("student"),
+        ).values_list("student_id", flat=True)
+    )
+    return [
+        {
+            "enrollment": enrollment,
+            "default": LEAVE if last_grade else PROMOTE,
+            "already_moved": enrollment.student_id in moved,
+        }
+        for enrollment in year_end_roster(source)
+    ]
+
+
+def _check_targets(source, target, repeat):
+    for classroom in (target, repeat):
+        if classroom is None:
+            continue
+        if classroom.branch_id != source.branch_id:
+            raise ValidationError("Choose classes of the same branch.")
+        if classroom.year.starts_on <= source.year.ends_on:
+            raise ValidationError(f"Choose a class of a year that starts after {source.year.name}.")
+    if target and target.grade.order <= source.grade.order:
+        raise ValidationError(f"Students move up: choose a grade above {source.grade.name}.")
+    if repeat and repeat.grade_id != source.grade_id:
+        raise ValidationError(f"Students who repeat need a {source.grade.name} class.")
+    if target and repeat and repeat.year_id != target.year_id:
+        raise ValidationError("Moving up and repeating are both into the same new year.")
+
+
+@transaction.atomic
+def promote_class(actor, source, decisions, target=None, repeat=None):
+    """Move a class on at the end of its year: each student moves up into `target`, repeats in
+    `repeat` (the same grade next year), or leaves. `target` is needed only if someone moves up,
+    `repeat` only if someone repeats (after the last grade everyone leaves: neither is needed).
+
+    `decisions` maps enrollment id to "promote", "repeat" or "leave", and must cover every
+    student not yet moved: nothing happens to a whole class by default (the preview suggests a
+    decision for each, which the page pre-selects). All in one transaction with the classes
+    locked: every old enrollment closes on the last day of the year and the new ones start on
+    the first day of the next. Safe to run again: a student already enrolled in a later year is
+    skipped. Returns how many students took each path.
+    """
+    if not can_promote(actor, source):
+        raise PermissionDenied
+    ids = sorted({c.pk for c in (source, target, repeat) if c is not None})
+    locked = {
+        c.pk: c
+        for c in Classroom.objects.select_for_update()
+        .filter(pk__in=ids)
+        .select_related("year", "grade", "branch")
+    }
+    source = locked[source.pk]
+    target = locked[target.pk] if target else None
+    repeat = locked[repeat.pk] if repeat else None
+    _check_targets(source, target, repeat)
+    preview = promotion_preview(source)
+    unknown = set(decisions) - {entry["enrollment"].pk for entry in preview}
+    if unknown or any(choice not in DECISIONS for choice in decisions.values()):
+        raise ValidationError(
+            "Each decision must be for a student of this class: promote, repeat or leave."
+        )
+    last_grade = source.grade.next_grade() is None
+    counts = dict.fromkeys([*DECISIONS, "already_moved"], 0)
+    for entry in preview:
+        enrollment = entry["enrollment"]
+        if entry["already_moved"]:
+            counts["already_moved"] += 1
+            continue
+        choice = decisions.get(enrollment.pk)
+        if choice is None:
+            name = enrollment.student.user.display_name
+            raise ValidationError(f"Choose what happens to every student: {name} has no decision.")
+        if choice == PROMOTE and last_grade:
+            raise ValidationError(
+                f"{source.grade.name} is the last grade: students leave or repeat."
+            )
+        if choice == PROMOTE and target is None:
+            raise ValidationError("Choose the class the students move up to.")
+        if choice == REPEAT and repeat is None:
+            raise ValidationError("Choose a class for the students who repeat.")
+        if enrollment.left_on is None:
+            enrollment.left_on = source.year.ends_on
+            enrollment.save(update_fields=["left_on"])
+        if choice != LEAVE:
+            classroom = target if choice == PROMOTE else repeat
+            Enrollment.objects.create(
+                student=enrollment.student,
+                classroom=classroom,
+                year=classroom.year,
+                joined_on=classroom.year.starts_on,
+            )
+        counts[choice] += 1
+    audit(
+        actor,
+        source.branch,
+        "students.promoted",
+        f"{source.grade.name}-{source.section} {source.year.name}",
+        {
+            **counts,
+            "to": f"{target.grade.name}-{target.section} {target.year.name}" if target else None,
+            "repeat_in": f"{repeat.grade.name}-{repeat.section}" if repeat else None,
+        },
+    )
+    return counts

@@ -2,11 +2,13 @@ from django.core.exceptions import ValidationError
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
-from rest_framework import mixins, status, viewsets
+from rest_framework import generics, mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 
+from apps.academics.models import Classroom
+from apps.academics.selectors import classrooms
 from apps.accounts.models import User
 from apps.core.api.permissions import role_in
 
@@ -21,6 +23,8 @@ from ..services import (
     enroll,
     link_guardian,
     make_primary_guardian,
+    promote_class,
+    promotion_preview,
 )
 from .filters import EnrollmentFilter, StudentFilter
 from .serializers import (
@@ -32,6 +36,9 @@ from .serializers import (
     ImportBatchSerializer,
     ImportUploadSerializer,
     LinkGuardianSerializer,
+    PromotionResultSerializer,
+    PromotionRowSerializer,
+    PromotionSerializer,
     StudentSerializer,
 )
 
@@ -192,3 +199,37 @@ class StudentImportViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSe
         something changed since the check, nothing is imported and `errors` says why."""
         batch = confirm_import(request.user, self.get_object())
         return Response(ImportBatchSerializer(batch).data)
+
+
+class PromotionView(generics.GenericAPIView):
+    """Year-end promotion of a class. GET previews each student; POST moves the class on in one
+    transaction (principals and admins of the branch). Running it again changes nothing for
+    students already enrolled in a later year."""
+
+    serializer_class = PromotionSerializer
+    permission_classes = [role_in(*User.LEADERS)]
+    queryset = Classroom.objects.none()  # for the schema; the class comes from classrooms()
+
+    def source(self, request, pk):
+        return get_object_or_404(classrooms(request.user), pk=pk)
+
+    @extend_schema(responses=PromotionRowSerializer(many=True))
+    def get(self, request, pk):
+        rows = promotion_preview(self.source(request, pk))
+        return Response(PromotionRowSerializer(rows, many=True).data)
+
+    @extend_schema(responses=PromotionResultSerializer)
+    def post(self, request, pk):
+        source = self.source(request, pk)
+        body = self.get_serializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        data = body.validated_data
+        decisions = {}
+        for key, value in data["decisions"].items():
+            if not str(key).isdigit():
+                raise ValidationError({"decisions": ["Use enrollment ids as keys."]})
+            decisions[int(key)] = value
+        counts = promote_class(
+            request.user, source, decisions, data.get("target"), data.get("repeat")
+        )
+        return Response(PromotionResultSerializer(counts).data)
