@@ -102,6 +102,16 @@ class GradingScaleTests(ApiTestCase):
         page = self.client.post(url, bad, format="multipart")
         self.assertContains(page, "lowest band must start at 0%")
 
+    def test_posting_the_suggested_bands_unchanged_saves_them(self):
+        """Formsets skip extra rows equal to their initial values; the page must not lose them."""
+        self.client.force_login(self.root)
+        form = {"form-TOTAL_FORMS": str(len(CBSE)), "form-INITIAL_FORMS": "0"}
+        for n, band in enumerate(CBSE):
+            form |= {f"form-{n}-label": band["label"], f"form-{n}-min_percent": band["min_percent"]}
+        response = self.client.post(reverse("grading_scale"), form, format="multipart")
+        self.assertRedirects(response, reverse("grading_scale"))
+        self.assertEqual([b.label for b in current_scale().bands.all()][0], "A1")
+
     def test_api_and_report_card(self):
         save_grading_scale(self.root, CBSE)
         self.publish()

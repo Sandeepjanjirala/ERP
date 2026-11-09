@@ -142,7 +142,13 @@ def grading_scale(request):
         initial = [{"label": b.label, "min_percent": b.min_percent} for b in current.bands.all()]
     else:
         initial = [{"label": label, "min_percent": minimum} for label, minimum in DEFAULT_BANDS]
-    formset = BandFormSet(request.POST or None, initial=initial) if can_edit else None
+    formset = None
+    if can_edit:
+        # Starting values only for showing the form: on a submission, formsets skip extra rows that
+        # equal their initial values, and the posted bands would vanish.
+        formset = (
+            BandFormSet(request.POST) if request.method == "POST" else BandFormSet(initial=initial)
+        )
     if request.method == "POST":
         if not can_edit:
             raise PermissionDenied

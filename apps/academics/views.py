@@ -150,7 +150,10 @@ def year_terms(request, pk):
         {"id": t.pk, "name": t.name, "starts_on": t.starts_on, "ends_on": t.ends_on}
         for t in year.terms.all()
     ]
-    formset = TermFormSet(request.POST or None, initial=initial)
+    # Starting values only for showing the form (see grading_scale in apps/exams/views.py).
+    formset = (
+        TermFormSet(request.POST) if request.method == "POST" else TermFormSet(initial=initial)
+    )
     if request.method == "POST" and formset.is_valid():
         rows = [row for form in formset if (row := form.row())]
         try:
