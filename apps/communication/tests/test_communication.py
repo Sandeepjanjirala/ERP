@@ -224,3 +224,28 @@ class AnnouncementRuleTests(SchoolTestCase):
                 )
                 with self.assertRaisesMessage(ValidationError, message):
                     announcement.full_clean()
+
+
+class BellTests(SchoolTestCase):
+    def test_the_bell_partial_shows_the_unread_count_and_keeps_polling(self):
+        notify([self.parent], "test", "bell:1", "Fees due")
+        self.sign_in(self.parent)
+        response = self.client.get(reverse("notification_bell"), HTTP_HX_REQUEST="true")
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "partials/bell.html")
+        self.assertContains(response, "1 unread")
+        self.assertContains(response, 'hx-trigger="every 60s, visibilitychange from:document"')
+        self.assertIn("no-store", response["Cache-Control"])
+
+    def test_a_signed_out_bell_stops_polling_instead_of_showing_the_sign_in_page(self):
+        response = self.client.get(reverse("notification_bell"), HTTP_HX_REQUEST="true")
+        self.assertEqual(response.status_code, 286)  # htmx: stop polling
+        self.assertEqual(response.content, b"")
+
+    def test_no_polling_before_the_initial_password_is_changed(self):
+        self.parent.must_change_password = True
+        self.parent.save(update_fields=["must_change_password"])
+        self.sign_in(self.parent)
+        page = self.client.get(reverse("password_change"))
+        self.assertContains(page, 'id="bell"')
+        self.assertNotContains(page, 'hx-trigger="every 60s')

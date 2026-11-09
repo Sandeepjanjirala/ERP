@@ -30,7 +30,6 @@ Known limitations and follow-ups that were left out of a phase on purpose. Each 
 
 | Item | Why it was left | Possible fix | Likely phase |
 |---|---|---|---|
-| The notification bell still reloads the page | Phase 5 used htmx for attendance, timetables and list filters | Poll or refresh the bell's count with htmx | 6 |
 | The report card PDF is drawn during the request, not in a background job | It takes milliseconds and the person is waiting; see [ADR 0007](adr/0007-background-jobs-and-caching.md) | Move to a job only if PDFs become slow or are emailed in bulk (receipts in Phase 4 are emailed from a job) | 4 if needed |
 | A parent account belongs to one branch, so siblings in different branches need two accounts | Every scope rule is per branch; a cross-branch parent needs a reviewed design | Let a guardian's children span branches, with selectors scoped by child, not by account branch | Later |
 | An absence corrected on a later day sends no correction | Phase 5 sends corrections for same-day changes only, matching the alerts | Send corrections for recent days too, if schools ask | Later |

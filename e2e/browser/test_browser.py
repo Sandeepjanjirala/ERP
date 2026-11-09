@@ -26,6 +26,7 @@ from apps.academics.models import (
 from apps.academics.services import default_terms
 from apps.attendance.models import Attendance, AttendanceSession
 from apps.attendance.services import save_register
+from apps.communication.services import notify
 from apps.core.testing import SchoolTestCase
 from apps.students.models import Enrollment
 
@@ -216,6 +217,18 @@ class FilterAndDialogTests(BrowserTestCase):
         page.get_by_role("button", name="Move the class on").click()
         expect(page.get_by_text("2 moved up")).to_be_visible()
         self.assertEqual(Enrollment.objects.filter(year=next_year).count(), 2)
+
+
+class BellTests(BrowserTestCase):
+    def test_the_bell_count_updates_without_a_reload(self):
+        page = self.open_as(self.parent, "/")
+        expect(page.locator("#bell .bell-count")).to_have_count(0)
+        notify([self.parent], "test", "bell:browser", "Fees due")
+        # The bell also refreshes every minute; coming back to the tab refreshes it at once.
+        page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+        expect(page.locator("#bell .bell-count")).to_have_text("1")
+        expect(page.locator("#bell")).to_have_attribute("aria-label", "Notifications, 1 unread")
+        self.assert_not_reloaded(page)
 
 
 class ChartAndLayoutTests(BrowserTestCase):

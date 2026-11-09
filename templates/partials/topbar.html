@@ -12,9 +12,7 @@
     <button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="Dark mode" aria-pressed="false">
       {% icon 'moon' css='icon-moon' %}{% icon 'sun' css='icon-sun' %}
     </button>
-    <a class="icon-button bell" href="{% url 'notifications' %}" aria-label="Notifications{% if unread_notifications %}, {{ unread_notifications }} unread{% endif %}">
-      {% icon 'bell' %}{% if unread_notifications %}<span class="bell-count" aria-hidden="true">{% if unread_notifications > 99 %}99+{% else %}{{ unread_notifications }}{% endif %}</span>{% endif %}
-    </a>
+    {% include "partials/bell.html" %}
     <a class="topbar-link" href="{% url 'password_change' %}">{% icon 'key' %}<span>Password</span></a>
     <form action="{% url 'logout' %}" method="post">
       {% csrf_token %}

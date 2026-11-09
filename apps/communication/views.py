@@ -1,15 +1,17 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
-from django.views.decorators.http import require_POST
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_GET, require_POST
 
 from apps.accounts.decorators import role_required
 from apps.accounts.models import User
 from apps.core.pagination import paginate
 
 from .forms import AnnouncementForm
-from .selectors import announcements, notifications
+from .selectors import announcements, notifications, unread_count
 from .services import mark_read, publish_announcement
 
 
@@ -54,6 +56,19 @@ def notification_list(request):
         request,
         "communication/notification_list.html",
         {"title": "Notifications", "page_obj": paginate(request, notifications(request.user))},
+    )
+
+
+@require_GET
+@never_cache
+def notification_bell(request):
+    """The bell with its unread count, for htmx to swap in. Once the session has ended (signed
+    out, or the account switched off) it answers 286, which tells htmx to stop polling, rather
+    than redirecting and swapping the sign-in page into the top bar."""
+    if not request.user.is_authenticated:
+        return HttpResponse(status=286)
+    return render(
+        request, "partials/bell.html", {"unread_notifications": unread_count(request.user)}
     )
 
 

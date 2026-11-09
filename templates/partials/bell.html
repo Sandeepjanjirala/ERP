@@ -1,0 +1,7 @@
+{% load ui %}
+{# The bell refreshes its count every minute and when the tab is shown again (htmx swaps this #}
+{# whole link; communication.views.notification_bell). No polling until the password is changed. #}
+<a class="icon-button bell" id="bell" href="{% url 'notifications' %}" aria-label="Notifications{% if unread_notifications %}, {{ unread_notifications }} unread{% endif %}"{% if not user.must_change_password %}
+   hx-get="{% url 'notification_bell' %}" hx-trigger="every 60s, visibilitychange from:document" hx-swap="outerHTML"{% endif %}>
+  {% icon 'bell' %}{% if unread_notifications %}<span class="bell-count" aria-hidden="true">{% if unread_notifications > 99 %}99+{% else %}{{ unread_notifications }}{% endif %}</span>{% endif %}
+</a>
