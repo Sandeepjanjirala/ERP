@@ -92,6 +92,32 @@ class FeePlanForm(forms.ModelForm):
         return {head: self.cleaned_data.get(f"head_{head.pk}") or 0 for head in self.heads}
 
 
+class CollectionsForm(forms.Form):
+    """A date range for the collection report. Default: this month so far."""
+
+    start = forms.DateField(
+        label="From", required=False, widget=forms.DateInput(attrs={"type": "date"})
+    )
+    end = forms.DateField(
+        label="To", required=False, widget=forms.DateInput(attrs={"type": "date"})
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        start, end = cleaned.get("start"), cleaned.get("end")
+        if start and end and start > end:
+            raise forms.ValidationError("The start date must be on or before the end date.")
+        return cleaned
+
+    def period(self):
+        today = timezone.localdate()
+        start, end = today.replace(day=1), today
+        if self.is_bound and self.is_valid():
+            start = self.cleaned_data["start"] or start
+            end = self.cleaned_data["end"] or end
+        return start, end
+
+
 class IssueInvoicesForm(forms.Form):
     title = forms.CharField(max_length=80, help_text="For example: Term 1 fees.")
     due_on = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))

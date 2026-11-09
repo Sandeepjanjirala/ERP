@@ -11,10 +11,11 @@ from apps.accounts.decorators import role_required
 from apps.accounts.models import User
 from apps.core.exceptions import error_text
 from apps.core.pagination import paginate
-from apps.organization.selectors import branches
+from apps.organization.selectors import branches, selected_branch
 
 from .forms import (
     CancelForm,
+    CollectionsForm,
     ConcessionForm,
     CounterPaymentForm,
     FeeHeadForm,
@@ -27,6 +28,8 @@ from .pdf import receipt_filename, render_receipt
 from .policies import can_collect_fees, can_pay_online, can_set_up_fees
 from .selectors import (
     OPEN,
+    collection_totals,
+    collections,
     excess_payments,
     fee_heads,
     fee_plans,
@@ -42,6 +45,7 @@ from .services import (
     InvalidSignature,
     cancel_invoice,
     confirm_checkout,
+    export_collections_csv,
     grant_concession,
     issue_invoices,
     record_counter_payment,
@@ -433,5 +437,37 @@ def payment_review(request):
             "title": "Payments to check",
             "orders": orders_for_review(request.user),
             "excess": excess_payments(request.user),
+        },
+    )
+
+
+@role_required(*User.FINANCE)
+def collection_report(request):
+    """Money received between two dates, by method, with a CSV download (audited)."""
+    form = CollectionsForm(request.GET or None)
+    start, end = form.period()
+    branch = selected_branch(request.user, request.GET.get("branch"))
+    rows = collections(request.user, start, end, branch).select_related(
+        "invoice__year", "invoice__plan"
+    )
+    if request.GET.get("format") == "csv" and form.is_valid():
+        response = HttpResponse(content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = (
+            f'attachment; filename="collections-{start:%Y%m%d}-{end:%Y%m%d}.csv"'
+        )
+        export_collections_csv(request.user, branch, start, end, rows, response)
+        return response
+    return render(
+        request,
+        "fees/collections.html",
+        {
+            "title": "Fee collections",
+            "form": form,
+            "start": start,
+            "end": end,
+            "summary": collection_totals(rows),
+            "page_obj": paginate(request, rows),
+            "branches": branches(request.user),
+            "selected_branch": branch,
         },
     )

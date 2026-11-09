@@ -1,12 +1,15 @@
 """Every write to fees. Each service checks its policy, works inside one transaction, locks the
 rows it changes, and writes the activity log."""
 
+import csv
+
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
 
 from apps.audit.services import audit
+from apps.core.exports import safe_csv
 from apps.core.jobs import run_after_commit
 from apps.students.models import Student
 
@@ -289,6 +292,56 @@ def record_counter_payment(actor, invoice, amount_paise, method, reference=""):
         },
     )
     return payment
+
+
+COLLECTIONS_HEADER = [
+    "Receipt",
+    "Date",
+    "Branch",
+    "Student",
+    "Admission number",
+    "Invoice",
+    "Method",
+    "Reference",
+    "Received (INR)",
+    "Applied (INR)",
+    "Held for refund (INR)",
+]
+
+
+def export_collections_csv(actor, branch, start, end, rows, out):
+    """Write the collection report as CSV to `out` and record the export in the activity log.
+    Amounts are rupees with two decimals, computed from paise without rounding."""
+    writer = csv.writer(out)
+    writer.writerow(COLLECTIONS_HEADER)
+    rows = list(rows)
+    for payment in rows:
+        invoice = payment.invoice
+        writer.writerow(
+            [
+                safe_csv(value)
+                for value in [
+                    payment.receipt.number,
+                    f"{timezone.localtime(payment.paid_at):%Y-%m-%d %H:%M}",
+                    invoice.branch.name,
+                    invoice.student.user.display_name,
+                    invoice.student.admission_number,
+                    f"#{invoice.pk} {invoice.title}",
+                    payment.get_method_display(),
+                    payment.reference or payment.gateway_payment_id,
+                    f"{payment.amount_paise / 100:.2f}",
+                    f"{payment.applied_paise / 100:.2f}",
+                    f"{payment.excess_paise / 100:.2f}",
+                ]
+            ]
+        )
+    audit(
+        actor,
+        branch or actor.branch,
+        "fees.collections.exported",
+        f"Collections {start:%d %b %Y} – {end:%d %b %Y}",
+        {"rows": len(rows), "from": start.isoformat(), "to": end.isoformat()},
+    )
 
 
 # Online payments ---------------------------------------------------------------------------

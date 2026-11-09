@@ -10,6 +10,7 @@ from apps.accounts.models import User
 from apps.audit.selectors import events
 from apps.core.pagination import paginate
 from apps.exams.selectors import mark_summary
+from apps.fees.selectors import OPEN, fee_summary, invoices, overdue, payments
 from apps.organization.selectors import branches, school_name, selected_branch
 from apps.students.selectors import guardian_links, students
 
@@ -33,7 +34,7 @@ def dashboard(request):
     if request.user.is_family:
         return family_dashboard(request)
     if request.user.is_accountant:
-        return render(request, "reports/accountant_dashboard.html", {"title": "Overview"})
+        return accountant_dashboard(request)
     branch = selected_branch(request.user, request.GET.get("branch"))
     trend = attendance_trend(request.user, branch)
     return render(
@@ -46,6 +47,7 @@ def dashboard(request):
             "low_attendance": low_attendance(request.user, branch),
             "branches": branches(request.user),
             "selected_branch": branch,
+            "fees": fee_summary(request.user, branch) if request.user.is_finance else None,
             "has_trend": bool(trend),
             "charts": {
                 "trend": [
@@ -54,6 +56,20 @@ def dashboard(request):
                 ],
                 "branches": branch_comparison(request.user),
             },
+        },
+    )
+
+
+def accountant_dashboard(request):
+    """Today's collections, what is overdue, and what needs a check, for the branch."""
+    return render(
+        request,
+        "reports/accountant_dashboard.html",
+        {
+            "title": "Overview",
+            "fees": fee_summary(request.user),
+            "recent_payments": payments(request.user)[:8],
+            "overdue_invoices": overdue(invoices(request.user)).order_by("due_on", "pk")[:8],
         },
     )
 
@@ -73,6 +89,10 @@ def family_dashboard(request):
             "children": children,
             "student": child,
             **family_overview(request.user, child),
+            # Parents only: invoices(user) is empty for students.
+            "fees_due": invoices(request.user)
+            .filter(student=child, status__in=OPEN)
+            .order_by("due_on", "pk"),
         },
     )
 

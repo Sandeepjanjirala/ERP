@@ -29,6 +29,7 @@
     {% endif %}
     {% if user.is_finance %}
       <a href="{% url 'fee_setup' %}"{% aria_current 'fee_setup' 'fee_head_create' 'fee_plan_create' 'fee_plan_edit' 'invoices_issue' %}>{% icon 'layers' %}<span>Fee setup</span></a>
+      <a href="{% url 'collections' %}"{% aria_current 'collections' %}>{% icon 'trending-up' %}<span>Fee collections</span></a>
       <a href="{% url 'payment_review' %}"{% aria_current 'payment_review' %}>{% icon 'alert' %}<span>Payments to check</span></a>
     {% endif %}
     <a href="{% url 'announcements' %}"{% aria_current 'announcements' 'announcement_create' %}>{% icon 'message-square' %}<span>Announcements</span></a>

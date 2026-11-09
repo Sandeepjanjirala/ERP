@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load ui %}
+{% load ui money %}
 
 {% block actions %}
   {% if user.is_parent %}
@@ -35,6 +35,23 @@
         <p>Regular attendance matters for results. Please speak to the class teacher.</p>
       </div>
     </div>
+  {% endif %}
+
+  {% if fees_due %}
+    <section class="card">
+      <div class="card-header"><div><h2>Fees due</h2><p>For {{ student.user.display_name }}</p></div><a href="{% url 'fees' %}">All invoices {% icon 'arrow-right' %}</a></div>
+      <div class="list">
+        {% for invoice in fees_due %}
+          <div class="list-item">
+            <span class="list-item-body"><strong>{{ invoice.title }}: {{ invoice.balance_paise|rupees }}</strong><small>Due {{ invoice.due_on|date:"d M Y" }}</small></span>
+            <form method="post" action="{% url 'pay_online' invoice.pk %}">
+              {% csrf_token %}
+              <button class="btn" type="submit">{% icon 'credit-card' %}Pay now</button>
+            </form>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
   {% endif %}
 
   <div class="grid-stats">

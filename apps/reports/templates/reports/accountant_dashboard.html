@@ -1,7 +1,46 @@
 {% extends "base.html" %}
+{% load ui money %}
+
+{% block actions %}
+  <a class="btn" href="{% url 'fees' %}">{% icon 'credit-card' %}Take a payment</a>
+  <a class="btn btn-secondary" href="{% url 'collections' %}">{% icon 'trending-up' %}Collections</a>
+{% endblock %}
 
 {% block content %}
-  <section class="card">
-    <p class="empty">Fees, invoices and payments for your branch appear here.</p>
-  </section>
+  <div class="grid-stats">
+    {% include "components/stat_card.html" with label="Collected today" value=fees.collected_today|rupees hint="All payments received today" only %}
+    {% include "components/stat_card.html" with label="Outstanding" value=fees.outstanding|rupees hint="Still owed on open invoices" only %}
+    {% include "components/stat_card.html" with label="Overdue invoices" value=fees.overdue hint="Past their due date" only %}
+    {% include "components/stat_card.html" with label="Payments to check" value=fees.to_check hint="Review or held for refund" only %}
+  </div>
+
+  <div class="grid-two">
+    <section class="card">
+      <div class="card-header"><div><h2>Recent payments</h2><p>Newest first</p></div><a href="{% url 'collections' %}">All {% icon 'arrow-right' %}</a></div>
+      <div class="list">
+        {% for payment in recent_payments %}
+          <a class="list-item" href="{% url 'invoice_detail' payment.invoice_id %}">
+            <span class="list-item-body"><strong>{{ payment.invoice.student.user.display_name }}</strong><small>{{ payment.receipt.number }} · {{ payment.get_method_display }} · {{ payment.paid_at|date:"d M, H:i" }}</small></span>
+            <span class="badge badge-success">{{ payment.amount_paise|rupees }}</span>
+          </a>
+        {% empty %}
+          <p class="empty">No payments yet.</p>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header"><div><h2>Overdue</h2><p>Longest overdue first</p></div><a href="{% url 'fees' %}?show=overdue">All {% icon 'arrow-right' %}</a></div>
+      <div class="list">
+        {% for invoice in overdue_invoices %}
+          <a class="list-item" href="{% url 'invoice_detail' invoice.pk %}">
+            <span class="list-item-body"><strong>{{ invoice.student.user.display_name }}</strong><small>#{{ invoice.pk }} {{ invoice.title }} · due {{ invoice.due_on|date:"d M Y" }}</small></span>
+            <span class="badge badge-warning">{{ invoice.balance_paise|rupees }}</span>
+          </a>
+        {% empty %}
+          <p class="empty">Nothing is overdue.</p>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
 {% endblock %}

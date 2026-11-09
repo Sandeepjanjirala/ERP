@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static ui %}
+{% load static ui money %}
 
 {% block scripts %}
   <script defer src="{% static 'vendor/chartjs/chart.umd.js' %}"></script>
@@ -31,6 +31,23 @@
     {% include "components/stat_card.html" with label="Today’s attendance" value=stats.attendance unit="%" hint="From recorded registers" only %}
     {% include "components/stat_card.html" with label="Results to review" value=stats.pending hint="Awaiting principal approval" only %}
   </div>
+
+  {% if fees %}
+    <section class="card">
+      <div class="card-header">
+        <div><h2>Fees</h2><p>Invoices not cancelled{% if selected_branch %}, {{ selected_branch.name }}{% endif %}</p></div>
+        <a href="{% url 'collections' %}">Collections {% icon 'arrow-right' %}</a>
+      </div>
+      <div class="breakdown">
+        <div><span>Billed</span><strong>{{ fees.billed|rupees }}</strong></div>
+        <div><span>Collected</span><strong>{{ fees.collected|rupees }}</strong></div>
+        <div><span>Outstanding</span><strong>{{ fees.outstanding|rupees }}</strong></div>
+        <div><span>Overdue invoices</span><strong>{{ fees.overdue }}</strong></div>
+        <div><span>Collected today</span><strong>{{ fees.collected_today|rupees }}</strong></div>
+        <div><span>Payments to check</span><strong>{{ fees.to_check }}</strong></div>
+      </div>
+    </section>
+  {% endif %}
 
   <div class="grid-main">
     <section class="card">

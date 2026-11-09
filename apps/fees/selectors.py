@@ -85,6 +85,53 @@ def totals(qs):
     return {"billed": billed, "collected": collected, "outstanding": billed - collected}
 
 
+def fee_summary(user, branch=None, today=None):
+    """Dashboard figures for finance staff, for one branch or all the user's branches."""
+    today = today or timezone.localdate()
+    scope = invoices(user)
+    received = payments(user)
+    review, excess = orders_for_review(user), excess_payments(user)
+    if branch is not None:
+        scope = scope.filter(branch=branch)
+        received = received.filter(invoice__branch=branch)
+        review = review.filter(invoice__branch=branch)
+        excess = excess.filter(invoice__branch=branch)
+    return {
+        **totals(scope),
+        "collected_today": received.filter(paid_at__date=today).aggregate(
+            total=Sum("amount_paise")
+        )["total"]
+        or 0,
+        "overdue": overdue(scope, today).count(),
+        "to_check": review.count() + excess.count(),
+    }
+
+
+def collections(user, start, end, branch=None):
+    """Payments received between two dates (inclusive), oldest first, for the collection report."""
+    qs = payments(user).filter(paid_at__date__gte=start, paid_at__date__lte=end)
+    if branch is not None:
+        qs = qs.filter(invoice__branch=branch)
+    return qs.order_by("paid_at", "pk")
+
+
+def collection_totals(qs):
+    """Received, applied and held for refund, overall and per method."""
+    by_method = {
+        row["method"]: row["received"]
+        for row in qs.order_by().values("method").annotate(received=Sum("amount_paise"))
+    }
+    sums = qs.aggregate(received=Sum("amount_paise"), applied=Sum("applied_paise"))
+    received, applied = sums["received"] or 0, sums["applied"] or 0
+    return {
+        "received": received,
+        "applied": applied,
+        "excess": received - applied,
+        "count": qs.count(),
+        "by_method": [(label, by_method.get(value, 0)) for value, label in Payment.Method.choices],
+    }
+
+
 def search(qs, text):
     """Match a student's name or admission number, or an invoice number (#42 or 42)."""
     text = text.strip().lstrip("#")
