@@ -1,28 +1,11 @@
 """The report card PDF: published results only, scoped like the report page, school-branded."""
 
-import base64
-import re
-import zlib
 from datetime import timedelta
 
 from django.urls import reverse
 
 from apps.attendance.services import save_register
-from apps.core.testing import ApiTestCase, SchoolTestCase
-
-
-def pdf_text(content):
-    """The text drawn on the pages. ReportLab writes each page's drawing commands compressed
-    (zlib) and then as ASCII85 text, so both are undone here."""
-    streams = re.findall(rb"stream\r?\n(.*?)endstream", content, re.S)
-    text = b""
-    for stream in streams:
-        try:
-            text += zlib.decompress(base64.a85decode(stream.strip(), adobe=True))
-        except (ValueError, zlib.error):
-            continue  # fonts and other binary streams
-    # A line may be drawn as several runs, "(Sri <) Tj (Vidya) Tj": join them up.
-    return text.decode("latin-1").replace(") Tj (", "")
+from apps.core.testing import ApiTestCase, SchoolTestCase, pdf_text
 
 
 class ReportCardTests(SchoolTestCase):

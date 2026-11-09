@@ -29,7 +29,8 @@ class AnnouncementDeliveryTests(SchoolTestCase):
         return announcement
 
     def test_each_audience_reaches_the_right_people(self):
-        north_staff = {"admin", "teacher", "otherteacher"}  # the principal is the author
+        # The principal is the author; the accountant is staff too.
+        north_staff = {"admin", "teacher", "otherteacher", "accountant"}
         cases = [
             ({"audience": "parents"}, {"parent"}),
             ({"audience": "students"}, {"alice", "bob"}),

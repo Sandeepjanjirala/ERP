@@ -11,6 +11,8 @@ from apps.attendance.models import AttendanceSession, LeaveRequest
 from apps.audit.models import AuditEvent
 from apps.communication.models import Announcement, Notification
 from apps.exams.models import Exam
+from apps.fees.models import Concession, Invoice, Payment, Receipt
+from apps.fees.selectors import overdue
 from apps.organization.models import Branch, Organization
 from apps.students.models import Student, StudentGuardian
 
@@ -49,6 +51,26 @@ class SeedTests(TestCase):
         self.assertEqual(
             AuditEvent.objects.filter(action="attendance.saved").count(), sessions.count()
         )
+
+    @override_settings(DEBUG=True)
+    def test_fees_invoices_and_gapless_receipts(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            call_command("seed_demo", "--size", "small", stdout=StringIO())
+        self.assertTrue(User.objects.filter(username="accountant.madhapur").exists())
+        # Two terms for every student; Term 1 is past due, so the unpaid ones are overdue.
+        self.assertEqual(Invoice.objects.count(), 2 * Student.objects.count())
+        self.assertTrue(overdue(Invoice.objects.all()).exists())
+        self.assertTrue(Payment.objects.filter(method="online").exists())
+        self.assertEqual(Concession.objects.count(), 2)
+        for branch in Branch.objects.all():
+            sequences = sorted(
+                Receipt.objects.filter(branch=branch).values_list("sequence", flat=True)
+            )
+            self.assertEqual(sequences, list(range(1, len(sequences) + 1)))
+        self.assertTrue(Receipt.objects.filter(number__startswith="MDP/").exists())
+        # Seeding paid invoices notified and emailed nobody.
+        self.assertFalse(Notification.objects.filter(kind="fees").exists())
+        self.assertEqual(mail.outbox, [])
 
     @override_settings(DEBUG=False)
     def test_demo_disabled_in_production(self):

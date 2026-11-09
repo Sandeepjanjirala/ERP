@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load ui money %}
+
+{% block content %}
+  <section class="card">
+    <div class="card-header">
+      <div>
+        <h2>Online payments that need a check</h2>
+        <p>The provider confirmed these, but something didn't match the checkout (amount, currency, or a second payment). Nothing was lost: every detail is kept here.</p>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Invoice</th><th>Provider payment</th><th class="num">Expected</th><th class="num">Captured</th><th>Problem</th></tr></thead>
+        <tbody>
+          {% for order in orders %}
+            <tr>
+              <td><a href="{% url 'invoice_detail' order.invoice_id %}"><strong>#{{ order.invoice_id }}</strong></a><small>{{ order.invoice.student.user.display_name }}</small></td>
+              <td>{{ order.gateway|capfirst }} · {{ order.gateway_payment_id }}<small>{{ order.updated_at|date:"d M Y, H:i" }}</small></td>
+              <td class="num">{{ order.amount_paise|rupees }} {{ order.currency }}</td>
+              <td class="num">{% if order.captured_currency == 'INR' %}{{ order.captured_amount_paise|rupees }}{% else %}{{ order.captured_amount_paise }} (minor units){% endif %} {{ order.captured_currency }}</td>
+              <td>{{ order.problem }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5" class="empty">Nothing to check.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-header">
+      <div>
+        <h2>Money held for refund</h2>
+        <p>Payments that came to more than the invoice still owed, for example an online payment made after the fee was paid at the office. The extra is recorded on the receipt.</p>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Receipt</th><th>Invoice</th><th class="num">Received</th><th class="num">Held for refund</th></tr></thead>
+        <tbody>
+          {% for payment in excess %}
+            <tr>
+              <td><a href="{% url 'receipt_pdf' payment.receipt.pk %}">{{ payment.receipt.number }}</a><small>{{ payment.get_method_display }} · {{ payment.paid_at|date:"d M Y" }}</small></td>
+              <td><a href="{% url 'invoice_detail' payment.invoice_id %}">#{{ payment.invoice_id }}</a><small>{{ payment.invoice.student.user.display_name }}</small></td>
+              <td class="num">{{ payment.amount_paise|rupees }}</td>
+              <td class="num"><strong>{{ payment.excess_paise|rupees }}</strong></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="empty">No money held for refund.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <p class="footnote">Refunds are made outside EduNexa for now; recording them here is planned (see the backlog).</p>
+{% endblock %}

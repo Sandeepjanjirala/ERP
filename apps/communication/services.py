@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
-from django.core.mail import send_mass_mail
+from django.core.mail import EmailMessage, get_connection
 from django.db import transaction
 from django.utils import timezone
 
@@ -31,12 +31,14 @@ def publish_announcement(actor, announcement):
     return announcement
 
 
-def notify(recipients, kind, key, title, body="", url="", email=False):
+def notify(recipients, kind, key, title, body="", url="", email=False, attachments=()):
     """Put a message in each recipient's notification bell, and optionally email it.
 
     `key` names the event (e.g. "absence:41:2026-11-06"). Anyone who already has a notification
     with that key is skipped, so a job that runs twice notifies and emails nobody twice; the
     database's unique (recipient, key) constraint backs this up. Returns the number notified.
+
+    `attachments` are (filename, content, mimetype) tuples added to each email.
     """
     recipients = {person.pk: person for person in recipients if person.is_active}
     already = set(
@@ -56,15 +58,17 @@ def notify(recipients, kind, key, title, body="", url="", email=False):
     )
     if email:
         link = f"\n\n{settings.SITE_URL}{url}" if url else ""
-        footer = f"\n\n— {settings.BRAND['name']}"
+        text = f"{body}{link}\n\n— {settings.BRAND['name']}"
         # One message per person: recipients never see each other's addresses.
-        send_mass_mail(
-            [
-                (title, f"{body}{link}{footer}", None, [person.email])
-                for person in new
-                if person.email
-            ]
-        )
+        messages = []
+        for person in new:
+            if person.email:
+                message = EmailMessage(title, text, to=[person.email])
+                for filename, content, mimetype in attachments:
+                    message.attach(filename, content, mimetype)
+                messages.append(message)
+        if messages:
+            get_connection().send_messages(messages)
     return len(new)
 
 

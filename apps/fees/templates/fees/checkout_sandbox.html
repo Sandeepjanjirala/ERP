@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% load ui money %}
+
+{% block content %}
+  <section class="card card-narrow">
+    <div class="callout" role="note">
+      {% icon 'info' %}
+      <div>
+        <strong>Test payment: no money moves.</strong>
+        <p>EduNexa's built-in Sandbox stands in for the payment provider. It sends the same signed confirmation Razorpay would, so the payment goes through every real check.</p>
+      </div>
+    </div>
+    <p class="eyebrow">#{{ invoice.pk }} {{ invoice.title }} · {{ invoice.student.user.display_name }}</p>
+    <h2>{{ order.amount_paise|rupees }}</h2>
+    <p class="form-intro">Order {{ order.gateway_order_id }}{% if order.status == 'failed' %} · the last attempt failed, you can try again{% endif %}.</p>
+    <form method="post" action="{% url 'sandbox_pay' order.pk %}" class="form-actions">
+      {% csrf_token %}
+      <button class="btn" type="submit" name="outcome" value="captured">{% icon 'check' %}Pay {{ order.amount_paise|rupees }}</button>
+      <button class="btn btn-secondary" type="submit" name="outcome" value="failed">Make the payment fail</button>
+      <a href="{% url 'invoice_detail' invoice.pk %}">Back to the invoice</a>
+    </form>
+  </section>
+{% endblock %}

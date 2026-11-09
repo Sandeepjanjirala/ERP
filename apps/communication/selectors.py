@@ -10,13 +10,16 @@ from .models import Announcement, Notification
 
 
 def announcements(user):
-    """Super admins: everything. Staff: everything sent in their branch. Families: what's for them."""
+    """Super admins: everything. Academic staff: everything sent in their branch. Accountants and
+    families: what is meant for them."""
     qs = Announcement.objects.select_related("branch", "classroom", "author")
     if user.system_admin:
         return qs
     qs = qs.filter(Q(branch__isnull=True) | Q(branch_id=user.branch_id))
     if user.role in User.STAFF:
         return qs
+    if user.is_accountant:
+        return qs.filter(audience__in=[Announcement.Audience.EVERYONE, Announcement.Audience.STAFF])
     group = Announcement.Audience.STUDENTS if user.is_student else Announcement.Audience.PARENTS
     return qs.filter(
         Q(audience__in=[Announcement.Audience.EVERYONE, group])
@@ -31,7 +34,7 @@ def announcement_audience(announcement):
         people = people.filter(branch_id=announcement.branch_id)
     audience = Announcement.Audience
     if announcement.audience == audience.STAFF:
-        people = people.filter(role__in=User.STAFF)
+        people = people.filter(role__in=User.EMPLOYEES)
     elif announcement.audience == audience.STUDENTS:
         people = people.filter(role=User.Role.STUDENT)
     elif announcement.audience == audience.PARENTS:

@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% load ui money %}
+
+{% block actions %}
+  {% if can_pay %}
+    <form method="post" action="{% url 'pay_online' invoice.pk %}">
+      {% csrf_token %}
+      <button class="btn" type="submit">{% icon 'credit-card' %}Pay {{ invoice.balance_paise|rupees }} online</button>
+    </form>
+  {% endif %}
+  <a class="btn btn-secondary" href="{% url 'fees' %}">All invoices</a>
+{% endblock %}
+
+{% block content %}
+  <section class="card identity">
+    <div>
+      <p class="eyebrow">{{ invoice.branch.name }} · {{ invoice.year }}</p>
+      <h2>#{{ invoice.pk }} {{ invoice.title }}</h2>
+      <p>
+        {{ invoice.student.user.display_name }} · {{ invoice.student.admission_number }}{% if invoice.plan %} · {{ invoice.plan.grade }}{% endif %}
+        <br>Issued {{ invoice.issued_on|date:"d M Y" }} · due {{ invoice.due_on|date:"d M Y" }}
+      </p>
+    </div>
+    <div>
+      {% if overdue %}
+        <span class="badge badge-warning">Overdue</span>
+      {% else %}
+        <span class="badge {% if invoice.status == 'paid' %}badge-success{% elif invoice.status == 'cancelled' %}{% else %}badge-info{% endif %}">{{ invoice.get_status_display }}</span>
+      {% endif %}
+    </div>
+  </section>
+
+  {% if invoice.status == 'cancelled' %}
+    <div class="callout callout-warning" role="note">
+      {% icon 'alert' %}
+      <div>
+        <strong>Cancelled {{ invoice.cancelled_at|date:"d M Y" }} by {{ invoice.cancelled_by.display_name }}.</strong>
+        <p>{{ invoice.cancel_reason }}</p>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="grid-stats">
+    {% include "components/stat_card.html" with label="Total" value=invoice.total_paise|rupees hint="After any concessions" only %}
+    {% include "components/stat_card.html" with label="Paid" value=invoice.paid_paise|rupees hint="Applied to this invoice" only %}
+    {% include "components/stat_card.html" with label="Balance" value=invoice.balance_paise|rupees hint="Still owed" only %}
+  </div>
+
+  <div class="grid-two">
+    <section class="card">
+      <h2>Charges</h2>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Fee</th><th class="num">Amount</th></tr></thead>
+          <tbody>
+            {% for line in lines %}
+              <tr><td>{{ line.description }}</td><td class="num">{{ line.amount_paise|rupees }}</td></tr>
+            {% endfor %}
+            {% for concession in concessions %}
+              <tr>
+                <td>Concession<small>{{ concession.reason }} · {{ concession.granted_by.display_name }}, {{ concession.created_at|date:"d M Y" }}</small></td>
+                <td class="num">−{{ concession.amount_paise|rupees }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Payments</h2>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Receipt</th><th>Paid by</th><th class="num">Amount</th><th></th></tr></thead>
+          <tbody>
+            {% for payment in payments %}
+              <tr>
+                <td><strong>{{ payment.receipt.number }}</strong><small>{{ payment.paid_at|date:"d M Y, H:i" }}</small></td>
+                <td>{{ payment.get_method_display }}{% if payment.reference %}<small>{{ payment.reference }}</small>{% endif %}</td>
+                <td class="num">
+                  {{ payment.amount_paise|rupees }}
+                  {% if payment.excess_paise %}<small>{{ payment.excess_paise|rupees }} held for refund</small>{% endif %}
+                </td>
+                <td><a href="{% url 'receipt_pdf' payment.receipt.pk %}">{% icon 'download' %} PDF</a></td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4" class="empty">No payments yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  {% if can_collect %}
+    <section class="card card-narrow">
+      <h2>Record a payment at the office</h2>
+      <form method="post" action="{% url 'payment_record' invoice.pk %}" class="form-stack">
+        {% csrf_token %}
+        {{ payment_form }}
+        <div class="form-actions">
+          <button class="btn" type="submit">{% icon 'check' %}Record payment and issue receipt</button>
+        </div>
+      </form>
+    </section>
+  {% endif %}
+
+  {% if can_concede or can_cancel %}
+    <div class="grid-two">
+      {% if can_concede %}
+        <section class="card">
+          <h2>Grant a concession</h2>
+          <form method="post" action="{% url 'concession_grant' invoice.pk %}" class="form-stack">
+            {% csrf_token %}
+            {{ concession_form }}
+            <div class="form-actions"><button class="btn btn-secondary" type="submit">Grant concession</button></div>
+          </form>
+        </section>
+      {% endif %}
+      {% if can_cancel %}
+        <section class="card">
+          <h2>Cancel this invoice</h2>
+          <p class="form-intro">Only for an invoice issued by mistake. Invoices with any payment can't be cancelled.</p>
+          <form method="post" action="{% url 'invoice_cancel' invoice.pk %}" class="form-stack">
+            {% csrf_token %}
+            {{ cancel_form }}
+            <div class="form-actions"><button class="btn btn-secondary" type="submit">Cancel invoice</button></div>
+          </form>
+        </section>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% if orders %}
+    <section class="card">
+      <h2>Online checkouts</h2>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Started</th><th>Provider order</th><th class="num">Amount</th><th>Status</th></tr></thead>
+          <tbody>
+            {% for order in orders %}
+              <tr>
+                <td>{{ order.created_at|date:"d M Y, H:i" }}</td>
+                <td>{{ order.gateway|capfirst }} · {{ order.gateway_order_id }}{% if order.gateway_payment_id %}<small>{{ order.gateway_payment_id }}</small>{% endif %}</td>
+                <td class="num">{{ order.amount_paise|rupees }}</td>
+                <td>
+                  <span class="badge {% if order.status == 'paid' %}badge-success{% elif order.status == 'review' %}badge-warning{% else %}badge-info{% endif %}">{{ order.get_status_display }}</span>
+                  {% if order.problem %}<small>{{ order.problem }}</small>{% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+{% endblock %}

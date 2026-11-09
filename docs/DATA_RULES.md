@@ -1,4 +1,4 @@
-# Attendance, marks, and history
+# Attendance, marks, fees, and history
 
 ## Academic structure
 
@@ -72,3 +72,17 @@ The **report card** is a PDF (A4) with the school's name and branch as the lette
 When an exam is published, the students who sat it and their guardians are told, in the app and by email. Publishing again after a reopen tells them again.
 
 CSV exports respect the same scope as the on-screen results. Text cells beginning with spreadsheet formula characters are prefixed with an apostrophe to prevent formula execution.
+
+## Fees
+
+- **Money is whole paise** (₹1 = 100 paise) everywhere in the database and the API; screens, PDFs and CSV show rupees. Nothing is ever rounded.
+- **Fee heads** are kinds of charge (Tuition, Transport). A **fee plan** is what one student of a grade pays in a year: one plan per branch, year and grade, with an amount per head.
+- **The grade is the classroom's grade text** ("Class 9") until Phase 5 adds a Grade model. That migration will point each plan at the Grade with the same branch and name, then drop the text.
+- **Issuing** creates one invoice per student currently in a classroom of that grade, copying the plan's lines. Issuing the same title again skips students who already have it. Changing a plan later never changes invoices already issued.
+- **Invoice status** is Issued, Partly paid, Paid or Cancelled. **Overdue is computed, never stored**: past the due date with a balance still owed.
+- **Concessions** (admins) reduce the total, with a reason, by at most the balance. **Cancelling** (admins) needs a reason and is allowed only while nothing has been paid.
+- **Office payments** (cash, UPI, cheque) are at most the balance; UPI and cheques need their reference.
+- **Online payments** are recorded only when the provider confirms them with a valid signature. The same provider payment is recorded once, however many times it is reported. Money beyond the balance (an online payment that crossed an office payment, say) is recorded and kept as **excess** for a refund. Money in another currency, or an amount that differs from the checkout, is listed under **Payments to check**. Confirmed money is never discarded.
+- **Receipts** are numbered per branch and academic year without gaps (`MDP/2026-27/00042`). A number is taken inside the payment's transaction, so a failed payment gives it back, and an issued number is never reused. Every confirmed payment, including excess, gets one. The receipt PDF is emailed to the student's guardians.
+- **Reminders:** each day, families of overdue invoices are reminded, at most once a week per invoice.
+- **Collection report and CSV** cover payments received between two dates, by method, with amounts applied and held for refund. CSV cells are protected against spreadsheet formulas, and each export is recorded in the activity log.

@@ -12,4 +12,4 @@ class OrganizationForm(forms.ModelForm):
 class BranchForm(forms.ModelForm):
     class Meta:
         model = Branch
-        fields = ["name", "code", "city"]
+        fields = ["name", "code", "city", "receipt_prefix"]

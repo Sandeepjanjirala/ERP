@@ -71,9 +71,13 @@ class OrderingTests(ApiTestCase):
         for _ in range(12):
             UserFactory(first_name="Kiran", role=User.Role.TEACHER, branch=self.a)
         self.as_user(self.admin)
-        seen = []
-        for page in (1, 2, 3):
-            seen += self.usernames(f"/api/v1/people/?ordering=first_name&page_size=5&page={page}")
+        # Walk every page: where the Kirans fall depends on the database's collation (PostgreSQL
+        # sorts "accountant" before "Kiran"; SQLite sorts capitals first).
+        seen, url = [], "/api/v1/people/?ordering=first_name&page_size=5"
+        while url:
+            body = self.client.get(url).json()
+            seen += [row["username"] for row in body["results"]]
+            url = body["next"]
         kirans = [name for name in seen if User.objects.get(username=name).first_name == "Kiran"]
         self.assertEqual(len(kirans), 12)
         self.assertEqual(len(seen), len(set(seen)))

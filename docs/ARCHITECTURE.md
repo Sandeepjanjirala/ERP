@@ -30,10 +30,10 @@ flowchart TB
 
 | Layer | Apps | Responsibility |
 |---|---|---|
-| 0 | `core` | Base model, security headers, pagination, template tags, health check; shared API code (errors, permissions, pagination, sorting) |
+| 0 | `core` | Base model, security headers (with per-page CSP additions), pagination, template tags, health check, PDF and CSV helpers; shared API code (errors, permissions, pagination, sorting, file renderers) |
 | 1 | `organization`, `audit`, `accounts` | School group and branches; the activity log; users, roles and sign-in |
 | 2 | `academics`, `students` | Years, classrooms, subjects, teacher assignments; students, enrollments and guardians |
-| 3 | `communication`, `attendance`, `exams` | Announcements and notifications; daily registers and leave; exams, marks and the result workflow |
+| 3 | `communication`, `fees`, `attendance`, `exams` | Announcements and notifications; fee plans, invoices, payments, receipts and payment providers; daily registers and leave; exams, marks and the result workflow |
 | 4 | `reports`, `demo` | Dashboards, reports and report-card PDFs that read from everything; sample data |
 
 Two places needed care to keep this rule:

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load ui money %}
+
+{% block content %}
+  {% for section in sections %}
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>{{ section.branch.name }}</h2>
+          <p>Receipts are numbered {{ section.branch.receipt_code }}/year/number.</p>
+        </div>
+        {% if section.can_set_up %}
+          <div class="row-actions">
+            <a href="{% url 'fee_head_create' section.branch.pk %}">{% icon 'plus' %} Add fee head</a>
+            {% if section.heads %}<a href="{% url 'fee_plan_create' section.branch.pk %}">{% icon 'plus' %} Add fee plan</a>{% endif %}
+          </div>
+        {% endif %}
+      </div>
+      <p class="footnote">Fee heads: {% for head in section.heads %}{{ head.name }} ({{ head.code }}){% if not forloop.last %}, {% endif %}{% empty %}none yet. Add one, such as Tuition, before creating plans.{% endfor %}</p>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Grade</th><th>Year</th><th>Fees</th><th class="num">Per student</th><th></th></tr></thead>
+          <tbody>
+            {% for plan in section.plans %}
+              <tr>
+                <td><strong>{{ plan.grade }}</strong></td>
+                <td>{{ plan.year }}</td>
+                <td>{% for item in plan.items.all %}{{ item.head.name }} {{ item.amount_paise|rupees }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</td>
+                <td class="num">{{ plan.total_paise|rupees }}</td>
+                <td>
+                  <div class="row-actions">
+                    {% if section.can_set_up %}<a href="{% url 'fee_plan_edit' plan.pk %}">{% icon 'edit' %} Edit</a>{% endif %}
+                    {% if plan.can_issue %}<a href="{% url 'invoices_issue' plan.pk %}">{% icon 'send' %} Issue invoices</a>{% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5" class="empty">No fee plans yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endfor %}
+  <p class="footnote">A plan is what one student of a grade pays in a year. Changing it never changes invoices already issued. Fee heads, plans and concessions are managed by admins; accountants issue invoices and take payments.</p>
+{% endblock %}

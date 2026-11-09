@@ -1,5 +1,4 @@
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
@@ -69,7 +68,7 @@ def attendance(request):
     return render(request, "attendance/register.html", context)
 
 
-@login_required
+@role_required(*User.ACADEMIC)
 def leave_list(request):
     requests = leave_requests(request.user)
     status = request.GET.get("status", "")
@@ -121,7 +120,7 @@ def leave_create(request):
 
 
 @require_POST
-@login_required
+@role_required(*User.ACADEMIC)
 def leave_decide(request, pk):
     leave = get_object_or_404(leave_requests(request.user), pk=pk)
     form = LeaveDecisionForm(request.POST)

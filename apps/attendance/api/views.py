@@ -7,7 +7,7 @@ from rest_framework.response import Response
 
 from apps.academics.selectors import classrooms
 from apps.accounts.models import User
-from apps.core.api.permissions import IsSignedIn, role_in
+from apps.core.api.permissions import role_in
 
 from ..models import LeaveRequest
 from ..policies import can_attend
@@ -96,7 +96,7 @@ class LeaveRequestViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet
     def get_permissions(self):
         if self.action == "create":
             return [role_in(User.Role.PARENT)()]
-        return [IsSignedIn()]
+        return [role_in(*User.ACADEMIC)()]
 
     def get_serializer_class(self):
         if self.action == "create":

@@ -10,11 +10,12 @@ from apps.accounts.models import User
 from apps.audit.models import AuditEvent
 from apps.audit.selectors import events
 from apps.core.api.permissions import role_in
+from apps.core.api.renderers import CSVRenderer, PDFRenderer
 from apps.exams.selectors import mark_summary
-from apps.organization.selectors import selected_branch
+from apps.organization.selectors import school_name, selected_branch
 from apps.students.selectors import students
 
-from ..pdf import render_report_card, report_card_filename, school_name
+from ..pdf import render_report_card, report_card_filename
 from ..selectors import (
     attendance_trend,
     low_attendance,
@@ -41,6 +42,7 @@ class StudentReportView(generics.GenericAPIView):
     """
 
     serializer_class = StudentReportSerializer
+    permission_classes = [role_in(*User.ACADEMIC)]
 
     @extend_schema(
         parameters=[OpenApiParameter("year", OpenApiTypes.INT, description="Academic year id")]
@@ -96,19 +98,6 @@ class PerformanceView(generics.GenericAPIView):
         return Response(self.get_serializer(data).data)
 
 
-class FileRenderer(renderers.BaseRenderer):
-    """Lets clients ask for a file type. Success responses are already the file; errors (dicts)
-    become their plain-text message."""
-
-    def render(self, data, accepted_media_type=None, renderer_context=None):
-        return str(data.get("detail", data) if isinstance(data, dict) else data).encode()
-
-
-class CSVRenderer(FileRenderer):
-    media_type = "text/csv"
-    format = "csv"
-
-
 class PerformanceExportView(generics.GenericAPIView):
     """Download the published results as CSV, the same file as the web export. Audited."""
 
@@ -153,15 +142,11 @@ class ActivityViewSet(viewsets.ReadOnlyModelViewSet):
         return events(self.request.user)
 
 
-class PDFRenderer(FileRenderer):
-    media_type = "application/pdf"
-    format = "pdf"
-
-
 class ReportCardView(generics.GenericAPIView):
     """The student's report card for one year as a PDF (default: their latest year)."""
 
     renderer_classes = [renderers.JSONRenderer, PDFRenderer]
+    permission_classes = [role_in(*User.ACADEMIC)]
 
     @extend_schema(
         parameters=[OpenApiParameter("year", OpenApiTypes.INT, description="Academic year id")],

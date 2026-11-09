@@ -30,9 +30,9 @@ class AccountRuleTests(SchoolTestCase):
     def test_staff_roles_each_actor_may_create(self):
         self.assertEqual(
             staff_roles_for(self.root),
-            (User.Role.ADMIN, User.Role.PRINCIPAL, User.Role.TEACHER),
+            (User.Role.ADMIN, User.Role.PRINCIPAL, User.Role.TEACHER, User.Role.ACCOUNTANT),
         )
-        self.assertEqual(staff_roles_for(self.admin), (User.Role.TEACHER,))
+        self.assertEqual(staff_roles_for(self.admin), (User.Role.TEACHER, User.Role.ACCOUNTANT))
         for actor in (self.principal, self.teacher, self.e1.student.user):
             with self.subTest(actor=actor.username):
                 self.assertEqual(staff_roles_for(actor), ())

@@ -57,6 +57,7 @@ class Notification(models.Model):
         ABSENCE = "absence", "Absence"
         RESULTS = "results", "Results"
         LEAVE = "leave", "Leave request"
+        FEES = "fees", "Fees"
 
     recipient = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications"
