@@ -48,7 +48,7 @@ EduNexa runs the daily work of a school group: branches, classrooms and teachers
 | No N+1 queries | A test measures each API list's SQL queries with few rows and with many; the count must not change. |
 | Layered apps | Eleven apps ordered by dependency, with no circular imports, enforced by an import-linter contract on every test run. See [ARCHITECTURE.md](docs/ARCHITECTURE.md). |
 | Production safety | Settings per environment. Production refuses to start without a secret key and PostgreSQL, and Django's `check --deploy` runs in CI. |
-| Tested | 379 tests (plus 749 table-driven cases, such as every API endpoint for every role) with 95% branch coverage. CI runs them on PostgreSQL along with lint, a migration check, an OpenAPI schema check, a real Celery worker taking a job through Redis, and a Docker build. |
+| Tested | 446 tests (plus 938 table-driven cases, such as every API endpoint for every role) with 95% branch coverage. CI runs them on PostgreSQL along with lint, a migration check, an OpenAPI schema check, a real Celery worker taking a job through Redis, and a Docker build. |
 
 ## Run it on your computer
 
