@@ -15,6 +15,32 @@ class YearForm(forms.ModelForm):
         widgets = {"starts_on": DateInput(), "ends_on": DateInput()}
 
 
+class TermRowForm(forms.Form):
+    """One term in the year's list. A row left empty is ignored; ticking Remove drops a term."""
+
+    id = forms.IntegerField(required=False, widget=forms.HiddenInput)
+    name = forms.CharField(max_length=30, required=False)
+    starts_on = forms.DateField(required=False, widget=DateInput())
+    ends_on = forms.DateField(required=False, widget=DateInput())
+
+    def clean(self):
+        data = super().clean()
+        filled = [data.get(field) for field in ("name", "starts_on", "ends_on")]
+        if any(filled) and not all(filled):
+            raise forms.ValidationError("Give the term a name, a start date and an end date.")
+        return data
+
+    def row(self):
+        """The term as save_terms takes it, or None for an empty row."""
+        data = self.cleaned_data
+        if not data.get("name") or data.get("DELETE"):
+            return None
+        return {key: data[key] for key in ("id", "name", "starts_on", "ends_on")}
+
+
+TermFormSet = forms.formset_factory(TermRowForm, extra=2, can_delete=True)
+
+
 class GradeForm(forms.ModelForm):
     class Meta:
         model = Grade

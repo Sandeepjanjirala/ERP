@@ -7,7 +7,7 @@ from apps.organization.api.serializers import BranchSerializer
 from apps.organization.models import Branch, Organization
 from apps.organization.selectors import branches
 
-from ..models import AcademicYear, Classroom, Grade, Subject, TeachingAssignment
+from ..models import AcademicYear, Classroom, Grade, Subject, TeachingAssignment, Term
 from ..selectors import classrooms, grades, subjects
 
 
@@ -15,6 +15,18 @@ class AcademicYearSerializer(serializers.ModelSerializer):
     class Meta:
         model = AcademicYear
         fields = ["id", "name", "starts_on", "ends_on"]
+
+
+class TermSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Term
+        fields = ["id", "year", "name", "starts_on", "ends_on"]
+
+
+class TermSummarySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Term
+        fields = ["id", "name"]
 
 
 class GradeSerializer(serializers.ModelSerializer):
@@ -89,6 +101,20 @@ class AcademicYearCreateSerializer(serializers.ModelSerializer):
         model = AcademicYear
         fields = ["name", "starts_on", "ends_on"]
         validators = []
+
+
+class TermRowSerializer(serializers.Serializer):
+    id = serializers.IntegerField(required=False, help_text="Leave out for a new term")
+    name = serializers.CharField(max_length=30)
+    starts_on = serializers.DateField()
+    ends_on = serializers.DateField()
+
+
+class YearTermsSerializer(serializers.Serializer):
+    """All the terms of the year. A term left out is removed; exams move to the term their date
+    falls in, and nothing is saved if any exam would be outside every term."""
+
+    terms = TermRowSerializer(many=True)
 
 
 class GradeWriteSerializer(serializers.ModelSerializer):

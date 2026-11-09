@@ -1,6 +1,10 @@
 from rest_framework import serializers
 
-from apps.academics.api.serializers import ClassroomSummarySerializer, SubjectSerializer
+from apps.academics.api.serializers import (
+    ClassroomSummarySerializer,
+    SubjectSerializer,
+    TermSummarySerializer,
+)
 from apps.academics.selectors import classrooms, subjects
 from apps.accounts.api.serializers import UserSummarySerializer
 from apps.core.api.fields import ScopedPrimaryKeyField
@@ -12,6 +16,7 @@ from ..policies import exam_actions
 class ExamSerializer(serializers.ModelSerializer):
     classroom = ClassroomSummarySerializer(read_only=True)
     subject = SubjectSerializer(read_only=True)
+    term = TermSummarySerializer(read_only=True)
     status_label = serializers.CharField(source="get_status_display", read_only=True)
     published_by = UserSummarySerializer(read_only=True)
 
@@ -21,6 +26,7 @@ class ExamSerializer(serializers.ModelSerializer):
             "id",
             "title",
             "date",
+            "term",
             "classroom",
             "subject",
             "max_marks",

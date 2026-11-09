@@ -15,7 +15,8 @@ class ExamFilter(django_filters.FilterSet):
     status = django_filters.ChoiceFilter(choices=Exam.Status.choices)
     classroom = django_filters.ModelChoiceFilter(queryset=scoped_classrooms)
     subject = django_filters.ModelChoiceFilter(queryset=scoped_subjects)
+    term = django_filters.NumberFilter()
 
     class Meta:
         model = Exam
-        fields = ["status", "classroom", "subject"]
+        fields = ["status", "classroom", "subject", "term"]

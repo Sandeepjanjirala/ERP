@@ -18,6 +18,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.academics.models import AcademicYear, Classroom, Grade, Subject, TeachingAssignment
+from apps.academics.services import default_terms
 from apps.accounts.models import User
 from apps.attendance.models import Attendance, LeaveRequest
 from apps.attendance.services import decide_leave, request_leave, save_register
@@ -173,6 +174,7 @@ class Command(BaseCommand):
         self.year = AcademicYear.objects.create(
             name=f"{start}–{start + 1}", starts_on=date(start, 4, 1), ends_on=date(start + 1, 3, 31)
         )
+        default_terms(self.year)  # Term 1 from April, Term 2 from October
         self.history_start = max(
             self.year.starts_on, self.today - timedelta(days=self.size.history_days)
         )

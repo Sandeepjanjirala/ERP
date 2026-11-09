@@ -16,6 +16,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.academics.models import AcademicYear, Classroom, Grade, Subject, TeachingAssignment
+from apps.academics.services import default_terms
 from apps.accounts.models import User
 from apps.core.exceptions import Conflict
 from apps.exams.models import Exam
@@ -45,6 +46,7 @@ class SchoolTestCase(TestCase):
             starts_on=cls.today - timedelta(days=90),
             ends_on=cls.today + timedelta(days=90),
         )
+        default_terms(cls.year)  # Term 1 and Term 2, as a new year gets them
         cls.root = User.objects.create_superuser("root", "root@example.com", PASSWORD)
 
         def user(name, role, branch):

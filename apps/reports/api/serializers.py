@@ -15,6 +15,7 @@ class ResultSerializer(serializers.ModelSerializer):
     exam_title = serializers.CharField(source="exam.title")
     subject = serializers.CharField(source="exam.subject.name")
     classroom = ClassroomSummarySerializer(source="exam.classroom")
+    term = serializers.CharField(source="exam.term.name")
     date = serializers.DateField(source="exam.date")
     max_marks = serializers.DecimalField(source="exam.max_marks", max_digits=6, decimal_places=2)
     percentage = serializers.DecimalField(max_digits=5, decimal_places=1)
@@ -27,6 +28,7 @@ class ResultSerializer(serializers.ModelSerializer):
             "exam_title",
             "subject",
             "classroom",
+            "term",
             "date",
             "score",
             "absent",

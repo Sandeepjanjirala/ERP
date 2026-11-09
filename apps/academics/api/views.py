@@ -1,4 +1,5 @@
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 from rest_framework import generics, mixins, status, viewsets
 from rest_framework.response import Response
 
@@ -8,9 +9,9 @@ from apps.organization.api.serializers import BranchSerializer
 from apps.organization.models import Branch, Organization
 from apps.organization.selectors import branches
 
-from ..models import AcademicYear, Classroom, Grade, Subject, TeachingAssignment
+from ..models import AcademicYear, Classroom, Grade, Subject, TeachingAssignment, Term
 from ..selectors import assignments, classrooms, grades, subjects
-from ..services import save_setup_record, update_setup_record
+from ..services import save_setup_record, save_terms, update_setup_record
 from . import filters
 from .serializers import (
     AcademicYearCreateSerializer,
@@ -29,6 +30,8 @@ from .serializers import (
     TeachingAssignmentSerializer,
     TeachingAssignmentUpdateSerializer,
     TeachingAssignmentWriteSerializer,
+    TermSerializer,
+    YearTermsSerializer,
 )
 
 
@@ -114,6 +117,15 @@ class AcademicYearViewSet(SetupViewSet):
     create_serializer_class = AcademicYearCreateSerializer
     queryset = AcademicYear.objects.order_by("-starts_on", "pk")
     http_method_names = ["get", "post", "head", "options"]
+
+
+class TermViewSet(viewsets.ReadOnlyModelViewSet):
+    """Terms of every year, in date order. Each exam belongs to the term its date falls in.
+    Super admins change a year's terms together: PUT /api/v1/years/{id}/terms/."""
+
+    serializer_class = TermSerializer
+    queryset = Term.objects.select_related("year").order_by("starts_on", "pk")
+    filterset_fields = ["year"]
 
 
 @extend_schema_view(
@@ -216,3 +228,31 @@ class OrganizationView(generics.RetrieveUpdateAPIView):
         organization.name = serializer.validated_data.get("name", organization.name)
         save_setup_record(request.user, "organization", organization)
         return Response(self.get_serializer(organization).data)
+
+
+class YearTermsView(generics.GenericAPIView):
+    """A year's terms. PUT replaces them all at once (super admins)."""
+
+    serializer_class = YearTermsSerializer
+
+    def get_permissions(self):
+        if self.request.method == "PUT":
+            return [role_in(User.Role.SUPER)()]
+        return [IsSignedIn()]
+
+    def payload(self, year):
+        return {"terms": TermSerializer(year.terms.all(), many=True).data}
+
+    @extend_schema(responses=inline_serializer("YearTerms", {"terms": TermSerializer(many=True)}))
+    def get(self, request, pk):
+        return Response(self.payload(get_object_or_404(AcademicYear, pk=pk)))
+
+    @extend_schema(
+        responses=inline_serializer("YearTermsSaved", {"terms": TermSerializer(many=True)})
+    )
+    def put(self, request, pk):
+        year = get_object_or_404(AcademicYear, pk=pk)
+        body = self.get_serializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        save_terms(request.user, year, body.validated_data["terms"])
+        return Response(self.payload(year))

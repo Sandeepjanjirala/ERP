@@ -6,7 +6,7 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import F, Q
 
-from apps.academics.models import Classroom, Subject
+from apps.academics.models import Classroom, Subject, Term
 from apps.core.models import ValidatedModel
 from apps.students.models import Enrollment
 
@@ -21,6 +21,8 @@ class Exam(ValidatedModel):
     subject = models.ForeignKey(Subject, on_delete=models.PROTECT)
     title = models.CharField(max_length=80)
     date = models.DateField()
+    # Never chosen by a person: always the term the date falls in (set on every save).
+    term = models.ForeignKey(Term, on_delete=models.PROTECT, related_name="exams")
     max_marks = models.DecimalField(
         max_digits=6, decimal_places=2, validators=[MinValueValidator(Decimal("1"))]
     )
@@ -60,6 +62,28 @@ class Exam(ValidatedModel):
             and not self.classroom.year.starts_on <= self.date <= self.classroom.year.ends_on
         ):
             raise ValidationError("Exam date must fall within the academic year.")
+        self.assign_term()
+
+    def assign_term(self):
+        """Put the exam in the term its date falls in; a clear error if no term covers it."""
+        if not (self.classroom_id and self.date):
+            return
+        year = self.classroom.year
+        term = Term.covering(year, self.date)
+        if term is None:
+            raise ValidationError(
+                {
+                    "date": f"No term of {year.name} covers {self.date:%d %b %Y}. "
+                    "Choose a date inside a term, or ask the super admin to add or extend one "
+                    "in Academic setup."
+                }
+            )
+        self.term = term
+
+    def save(self, *args, **kwargs):
+        # Before full_clean, so the required term is already in place.
+        self.assign_term()
+        return super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.title} · {self.subject.name} · {self.classroom}"

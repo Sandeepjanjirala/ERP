@@ -16,7 +16,12 @@ def exams(user):
     if user.role not in User.ACADEMIC:
         return Exam.objects.none()  # accountants work with fees, not marks
     qs = Exam.objects.filter(classroom__in=classrooms(user)).select_related(
-        "classroom__branch", "classroom__year", "classroom__grade", "subject", "published_by"
+        "classroom__branch",
+        "classroom__year",
+        "classroom__grade",
+        "term",
+        "subject",
+        "published_by",
     )
     # Families see published exams only, and only those their child sat.
     if user.role == User.Role.STUDENT:

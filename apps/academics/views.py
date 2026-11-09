@@ -11,11 +11,11 @@ from apps.organization.forms import BranchForm, OrganizationForm
 from apps.organization.models import Organization
 from apps.organization.selectors import branches
 
-from .forms import AssignmentForm, ClassroomForm, GradeForm, SubjectForm, YearForm
+from .forms import AssignmentForm, ClassroomForm, GradeForm, SubjectForm, TermFormSet, YearForm
 from .models import AcademicYear
 from .policies import GROUP_LEVEL, can_manage_setup
 from .selectors import assignments, classrooms, grades, subjects
-from .services import save_setup_record, update_setup_record
+from .services import save_setup_record, save_terms, update_setup_record
 
 
 @role_required(*User.LEADERS)
@@ -26,7 +26,7 @@ def setup(request):
         {
             "title": "Academic setup",
             "branches": branches(request.user),
-            "years": AcademicYear.objects.all(),
+            "years": AcademicYear.objects.prefetch_related("terms"),
             "grades": grades(request.user),
             "classrooms": classrooms(request.user).annotate(student_count=Count("enrollments")),
             "subjects": subjects(request.user),
@@ -88,18 +88,25 @@ def setup_edit(request, kind, pk):
             ("classroom", "subject"),
         ),
     }
-    if kind not in editable:
+    if kind not in editable or (kind in GROUP_LEVEL and not can_manage_setup(request.user, kind)):
         raise PermissionDenied
     queryset, form_class, immutable = editable[kind]
     record = get_object_or_404(queryset, pk=pk)
     before = str(record)
-    form = form_class(request.POST or None, instance=record, actor=request.user)
+    options = {} if kind in GROUP_LEVEL else {"actor": request.user}
+    form = form_class(request.POST or None, instance=record, **options)
     for field in immutable:
         form.fields[field].disabled = True
     if request.method == "POST" and form.is_valid():
-        update_setup_record(request.user, kind, form.save(commit=False), before, form.changed_data)
-        messages.success(request, "Changes saved.")
-        return redirect("setup")
+        try:
+            update_setup_record(
+                request.user, kind, form.save(commit=False), before, form.changed_data
+            )
+        except (ValidationError, IntegrityError) as exc:
+            form.add_error(None, error_text(exc, "This record already exists."))
+        else:
+            messages.success(request, "Changes saved.")
+            return redirect("setup")
     return render(
         request,
         "form_page.html",
@@ -108,4 +115,31 @@ def setup_edit(request, kind, pk):
             "form": form,
             "description": "Branch and academic-year boundaries are preserved. Changes are recorded in the activity log.",
         },
+    )
+
+
+@role_required(User.Role.SUPER)
+def year_terms(request, pk):
+    """All the terms of a year on one form, saved together (see save_terms)."""
+    if not can_manage_setup(request.user, "term"):
+        raise PermissionDenied
+    year = get_object_or_404(AcademicYear, pk=pk)
+    initial = [
+        {"id": t.pk, "name": t.name, "starts_on": t.starts_on, "ends_on": t.ends_on}
+        for t in year.terms.all()
+    ]
+    formset = TermFormSet(request.POST or None, initial=initial)
+    if request.method == "POST" and formset.is_valid():
+        rows = [row for form in formset if (row := form.row())]
+        try:
+            save_terms(request.user, year, rows)
+        except ValidationError as exc:
+            formset._non_form_errors = formset.error_class(exc.messages)
+        else:
+            messages.success(request, "Terms saved. Exams are in the term their date falls in.")
+            return redirect("setup")
+    return render(
+        request,
+        "academics/year_terms.html",
+        {"title": f"Terms of {year.name}", "year": year, "formset": formset},
     )

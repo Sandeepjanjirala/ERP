@@ -41,7 +41,7 @@ def student_report(user, student, year_id=None):
         Mark.objects.filter(
             enrollment__in=student_enrollments,
             exam__in=exams(user).filter(status=Exam.Status.PUBLISHED),
-        ).select_related("exam__subject", "exam__classroom__grade")
+        ).select_related("exam__subject", "exam__term", "exam__classroom__grade")
     )
     rows = (
         attendance_rows(user).filter(enrollment__in=student_enrollments).order_by("-session__date")

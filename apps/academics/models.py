@@ -25,6 +25,50 @@ class AcademicYear(ValidatedModel):
         return self.name
 
 
+class Term(ValidatedModel):
+    """A part of an academic year, such as "Term 1". Terms of a year never overlap, and each
+    exam belongs to the term its date falls in."""
+
+    year = models.ForeignKey(AcademicYear, on_delete=models.PROTECT, related_name="terms")
+    name = models.CharField(max_length=30)
+    starts_on = models.DateField()
+    ends_on = models.DateField()
+
+    class Meta:
+        ordering = ["starts_on", "pk"]
+        constraints = [
+            models.UniqueConstraint(fields=["year", "name"], name="term_name_per_year"),
+            models.CheckConstraint(
+                condition=Q(ends_on__gte=F("starts_on")), name="term_dates_ordered"
+            ),
+        ]
+
+    def clean(self):
+        if not (self.year_id and self.starts_on and self.ends_on):
+            return
+        year = self.year
+        if not year.starts_on <= self.starts_on <= self.ends_on <= year.ends_on:
+            raise ValidationError(
+                f"A term must fall within {year.name} "
+                f"({year.starts_on:%d %b %Y} to {year.ends_on:%d %b %Y})."
+            )
+        overlap = (
+            Term.objects.filter(year=year, starts_on__lte=self.ends_on, ends_on__gte=self.starts_on)
+            .exclude(pk=self.pk)
+            .first()
+        )
+        if overlap:
+            raise ValidationError(f"Terms can't overlap: {overlap.name} covers some of these days.")
+
+    @staticmethod
+    def covering(year, day):
+        """The term of `year` that `day` falls in, or None."""
+        return Term.objects.filter(year=year, starts_on__lte=day, ends_on__gte=day).first()
+
+    def __str__(self):
+        return f"{self.name} · {self.year.name}"
+
+
 class Grade(ValidatedModel):
     """A level of study in a branch, such as "Class 9". `order` puts grades in sequence, so
     year-end promotion knows which grade comes next."""

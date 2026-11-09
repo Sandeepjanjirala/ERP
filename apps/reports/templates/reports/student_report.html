@@ -58,13 +58,14 @@
     <div class="table-wrap">
       <table class="table">
         <thead>
-          <tr><th>Subject</th><th>Assessment</th><th>Date</th><th class="num">Score</th><th class="num">Maximum</th><th>Result</th></tr>
+          <tr><th>Subject</th><th>Assessment</th><th>Term</th><th>Date</th><th class="num">Score</th><th class="num">Maximum</th><th>Result</th></tr>
         </thead>
         <tbody>
           {% for mark in marks %}
             <tr>
               <td><strong>{{ mark.exam.subject.name }}</strong></td>
               <td>{{ mark.exam.title }}</td>
+              <td>{{ mark.exam.term.name }}</td>
               <td>{{ mark.exam.date|date:"d M Y" }}</td>
               <td class="num">{% if mark.absent %}Absent{% else %}{{ mark.score }}{% endif %}</td>
               <td class="num">{{ mark.exam.max_marks }}</td>
@@ -77,7 +78,7 @@
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="6" class="empty">Results will appear after the principal publishes them.</td></tr>
+            <tr><td colspan="7" class="empty">Results will appear after the principal publishes them.</td></tr>
           {% endfor %}
         </tbody>
       </table>

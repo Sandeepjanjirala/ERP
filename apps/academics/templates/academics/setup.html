@@ -74,7 +74,15 @@
             <div class="list-item-body">
               <strong>{{ year.name }}</strong>
               <p>{{ year.starts_on|date:"d M Y" }} — {{ year.ends_on|date:"d M Y" }}</p>
+              {% for term in year.terms.all %}
+                <small>
+                  {{ term.name }}: {{ term.starts_on|date:"d M" }} – {{ term.ends_on|date:"d M Y" }}
+                </small>
+              {% empty %}
+                <small>No terms yet: exams can't be created in this year until one is added.</small>
+              {% endfor %}
             </div>
+            {% if user.system_admin %}<a href="{% url 'year_terms' year.pk %}">Edit terms</a>{% endif %}
           </div>
         {% empty %}
           <p class="empty">No academic years yet.</p>

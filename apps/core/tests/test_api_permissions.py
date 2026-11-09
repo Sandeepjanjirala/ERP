@@ -58,6 +58,8 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("/api/v1/branches/", ALL),
             ("/api/v1/years/", ALL),
             ("/api/v1/grades/", ALL),
+            ("/api/v1/terms/", ALL),
+            (f"/api/v1/years/{self.year.pk}/terms/", ALL),
             ("/api/v1/classrooms/", ALL),
             ("/api/v1/exams/", ACADEMIC),
             ("/api/v1/announcements/", ALL),
@@ -92,6 +94,8 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("post", "/api/v1/students/", WRITE_MANAGERS),
             ("post", "/api/v1/enrollments/", WRITE_MANAGERS),
             ("post", "/api/v1/grades/", WRITE_MANAGERS),
+            # A year's terms are replaced together, by super admins only.
+            ("put", f"/api/v1/years/{self.year.pk}/terms/", (400, 403, 403, 403, 403, 403, 403)),
             ("post", "/api/v1/classrooms/", WRITE_MANAGERS),
             ("post", "/api/v1/subjects/", WRITE_MANAGERS),
             ("post", "/api/v1/assignments/", WRITE_MANAGERS),
