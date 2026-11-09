@@ -9,13 +9,14 @@ from apps.academics.models import AcademicYear
 from apps.academics.selectors import teacher_lessons
 from apps.accounts.decorators import role_required
 from apps.accounts.models import User
-from apps.audit.selectors import events
+from apps.audit.selectors import event_areas, events, filter_events
 from apps.core.pagination import paginate
 from apps.exams.selectors import mark_summary
 from apps.fees.selectors import OPEN, fee_summary, invoices, overdue, payments
 from apps.organization.selectors import branches, school_name, selected_branch
 from apps.students.selectors import guardian_links, students
 
+from .forms import ActivityFilterForm
 from .pdf import render_report_card, report_card_filename
 from .selectors import (
     attendance_trend,
@@ -170,8 +171,14 @@ def reports(request):
 
 @role_required(*User.LEADERS)
 def audit_log(request):
+    """The activity log with its filters; htmx swaps in only the results as filters change."""
+    scope = events(request.user)
+    form = ActivityFilterForm(request.GET or None, areas=event_areas(scope))
+    filtered = scope
+    if form.is_valid():
+        filtered = filter_events(scope, **form.cleaned_data)
     return render(
         request,
         "reports/activity_log.html",
-        {"title": "Activity log", "page_obj": paginate(request, events(request.user))},
+        {"title": "Activity log", "form": form, "page_obj": paginate(request, filtered)},
     )

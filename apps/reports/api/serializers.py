@@ -141,7 +141,16 @@ class AuditEventSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AuditEvent
-        fields = ["id", "created_at", "actor", "branch", "action", "target", "details"]
+        fields = [
+            "id",
+            "created_at",
+            "actor",
+            "branch",
+            "action",
+            "target",
+            "details",
+            "request_id",
+        ]
 
 
 class StudentReportSerializer(serializers.Serializer):

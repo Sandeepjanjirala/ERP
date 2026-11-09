@@ -122,10 +122,13 @@ class AuditEventFilter(django_filters.FilterSet):
         lookup_expr="startswith", help_text='For example "exam." or "account.login"'
     )
     actor = django_filters.NumberFilter(field_name="actor_id")
+    since = django_filters.DateFilter(field_name="created_at", lookup_expr="date__gte")
+    until = django_filters.DateFilter(field_name="created_at", lookup_expr="date__lte")
+    request_id = django_filters.CharFilter(help_text="The X-Request-ID of a response")
 
     class Meta:
         model = AuditEvent
-        fields = ["action", "actor"]
+        fields = ["action", "actor", "since", "until", "request_id"]
 
 
 class ActivityViewSet(viewsets.ReadOnlyModelViewSet):

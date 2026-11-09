@@ -11,6 +11,17 @@
   </div>
 
   <section class="card">
+    <form class="filter-bar" method="get" hx-get="{{ request.path }}" hx-trigger="input delay:300ms, change, submit" hx-target="#results" hx-select="#results" hx-swap="outerHTML" hx-push-url="true">
+      {% for field in form %}
+        <div>
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+        </div>
+      {% endfor %}
+      <button class="btn btn-secondary" type="submit">{% icon 'filter' %}Filter</button>
+    </form>
+    <div id="results">
+    {% if form.non_field_errors %}<div class="errorlist">{{ form.non_field_errors }}</div>{% endif %}
     <div class="table-wrap">
       <table class="table">
         <thead>
@@ -19,7 +30,7 @@
         <tbody>
           {% for event in page_obj %}
             <tr>
-              <td>{{ event.created_at|date:"d M Y H:i" }}</td>
+              <td>{{ event.created_at|date:"d M Y H:i" }}{% if event.request_id %}<small title="Request ID">{{ event.request_id|slice:":8" }}</small>{% endif %}</td>
               <td>
                 <strong>{{ event.actor.display_name }}</strong>
                 <small>{{ event.branch.name|default:"Organisation" }}</small>
@@ -42,5 +53,6 @@
       </table>
     </div>
     {% include "components/pagination.html" %}
+    </div>
   </section>
 {% endblock %}
