@@ -9,10 +9,8 @@ Known limitations and follow-ups that were left out of a phase on purpose. Each 
 | Exams published before the first grading scale show no grade | By decision: they were published without grading rules, and published results never change afterwards ([ADR 0010](adr/0010-versioned-grading-scale.md)) | Reopen and republish an exam (audited) if the school wants it graded | None planned |
 | No timetable substitutions or one-off changes (a teacher absent for a day) | Out of scope for Phase 5 | A substitution record per date and period, shown on "My day" | Later |
 | The CSV import covers students and guardians only, not staff or marks | Out of scope for Phase 5 | The same check-then-confirm pattern for staff and mark sheets | Later |
-| Students who leave keep an active account | Promotion closes their enrollment; deactivating logins is a separate decision | Offer "deactivate accounts of students who left" after a promotion | Later |
 | A promotion can't be undone with one click | Rare, and undoing must not lose attendance or marks recorded since | A reviewed reverse operation (delete untouched new enrollments, reopen old ones) | Later |
 | The import's check is as slow as the import (each row is saved, then undone) | Exactness over speed; fine at 500 rows | Profile if larger files are needed | Later |
-| At desktop width the timetable grid cuts long lesson names ("Mathematics · P...") and Saturday needs a horizontal scroll | Found in the Phase 5 browser check; the grid works and scrolls inside its card | Show the subject in the select and the teacher beneath it, or narrower day columns | 6 |
 | Ctrl+K global search (DESIGN.md) | Not part of the approved Phase 5 plan | Search students, staff and invoices from the top bar | 6 |
 
 ## From Phase 4 (fees and payments)

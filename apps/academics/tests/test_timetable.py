@@ -147,6 +147,16 @@ class TimetablePageTests(ApiTestCase):
         self.client.force_login(self.foreign_teacher)
         self.assertEqual(self.client.get(url).status_code, 404)  # another branch's class
 
+    def test_a_cell_shows_the_subject_with_the_teacher_beneath(self):
+        """Short options keep six day columns on a desktop page. A class has one teacher per
+        subject, so the subject alone identifies the lesson."""
+        self.client.force_login(self.admin)
+        page = self.client.get(reverse("classroom_timetable", args=[self.c.pk]))
+        self.assertContains(page, '">Mathematics</option>')
+        self.assertContains(
+            page, f'<small class="cell-teacher">{self.teacher.display_name}</small>'
+        )
+
     def test_htmx_saves_one_cell_and_shows_clashes_in_place(self):
         self.client.force_login(self.admin)
         url = reverse("timetable_cell", args=[self.c2.pk])

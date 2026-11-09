@@ -9,11 +9,12 @@
       <select name="assignment" id="lesson-{{ day }}-{{ period.pk }}">
         <option value="">Free</option>
         {% for assignment in assignments %}
-          <option value="{{ assignment.pk }}"{% if lesson and lesson.subject_id == assignment.subject_id and lesson.teacher_id == assignment.teacher_id %} selected{% endif %}>{{ assignment.subject.name }} · {{ assignment.teacher.display_name }}</option>
+          <option value="{{ assignment.pk }}"{% if lesson and lesson.subject_id == assignment.subject_id and lesson.teacher_id == assignment.teacher_id %} selected{% endif %}>{{ assignment.subject.name }}</option>
         {% endfor %}
       </select>
       <button class="link-button no-htmx" type="submit">Save</button>
     </form>
+    {% if lesson %}<small class="cell-teacher">{{ lesson.teacher.display_name }}</small>{% endif %}
     {% if error %}<small class="errorlist" role="alert">{{ error }}</small>{% elif saved %}<small class="cell-saved" role="status">Saved</small>{% endif %}
   {% elif lesson %}
     <strong>{{ lesson.subject.name }}</strong><small>{{ lesson.teacher.display_name }}</small>
