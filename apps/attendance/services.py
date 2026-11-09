@@ -11,7 +11,12 @@ from apps.students.selectors import roster
 from .models import Attendance, AttendanceSession, LeaveRequest
 from .policies import can_attend, can_request_leave
 from .selectors import leave_enrollment
-from .tasks import alert_absent_families, notify_leave_decided, notify_leave_requested
+from .tasks import (
+    alert_absent_families,
+    correct_absence_alerts,
+    notify_leave_decided,
+    notify_leave_requested,
+)
 
 
 def register_date_error(classroom, day):
@@ -72,6 +77,15 @@ def save_register(actor, classroom, day, statuses, expected_version, reason=""):
     )
     if day == timezone.localdate() and newly_absent:
         run_after_commit(alert_absent_families, session.pk, newly_absent)
+    # An absence corrected the same day: families who were alerted are told it was a mistake.
+    no_longer_absent = sorted(
+        enrollment_id
+        for enrollment_id, status in statuses.items()
+        if status != Attendance.Status.ABSENT
+        and old.get(str(enrollment_id)) == Attendance.Status.ABSENT
+    )
+    if day == timezone.localdate() and no_longer_absent:
+        run_after_commit(correct_absence_alerts, session.pk, no_longer_absent)
     return session
 
 
