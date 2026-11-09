@@ -32,6 +32,25 @@
     {% include "components/stat_card.html" with label="Results to review" value=stats.pending hint="Awaiting principal approval" only %}
   </div>
 
+  {% if todays_lessons is not None %}
+    <section class="card">
+      <div class="card-header">
+        <div><h2>Today's lessons</h2><p>From your timetable</p></div>
+        <a href="{% url 'my_timetable' %}">My timetable {% icon 'arrow-right' %}</a>
+      </div>
+      <div class="list">
+        {% for lesson in todays_lessons %}
+          <a class="list-item" href="{% url 'classroom_timetable' lesson.classroom_id %}">
+            <span class="subject-icon" aria-hidden="true">{{ lesson.period.number }}</span>
+            <span class="list-item-body"><strong>{{ lesson.subject.name }} · {{ lesson.classroom.grade }}–{{ lesson.classroom.section }}</strong><small>{{ lesson.period.starts_at|time:"H:i" }}–{{ lesson.period.ends_at|time:"H:i" }}</small></span>
+          </a>
+        {% empty %}
+          <p class="empty">No lessons in your timetable today.</p>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
   {% if fees %}
     <section class="card">
       <div class="card-header">

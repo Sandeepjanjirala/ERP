@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block actions %}
+  {% if user.role == "teacher" %}
+    <a class="btn" href="{% url 'my_timetable' %}">{% icon 'calendar' %}My timetable</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <div class="card-header">
+      <div>
+        <h2>Class timetables</h2>
+        <p>{% if user.is_manager %}Open a class to plan its week.{% else %}The weekly timetable of each class you can see.{% endif %}</p>
+      </div>
+    </div>
+    <div class="list">
+      {% for classroom in classrooms %}
+        <a class="list-item" href="{% url 'classroom_timetable' classroom.pk %}">
+          <span class="list-item-body">
+            <strong>{{ classroom.grade }}–{{ classroom.section }}</strong>
+            <small>{{ classroom.branch.name }} · {{ classroom.year.name }}</small>
+          </span>
+          {% icon 'chevron-right' %}
+        </a>
+      {% empty %}
+        <p class="empty">No classes to show.</p>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}

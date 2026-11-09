@@ -1131,3 +1131,33 @@ details summary {
   position: relative;
   height: 15rem;
 }
+
+/* Timetable grid. A cell is a small form that htmx saves on change; with scripts running, the
+   fallback Save button is hidden. */
+
+.timetable th[scope="row"] small,
+.timetable-cell small {
+  display: block;
+}
+
+.timetable-cell select {
+  width: 100%;
+  min-width: 9rem;
+}
+
+.timetable-cell.has-error select {
+  border-color: var(--color-danger);
+}
+
+.js .no-htmx {
+  display: none;
+}
+
+.cell-saved {
+  color: var(--color-success);
+}
+
+.timetable td.today,
+.timetable th.today {
+  background: var(--color-primary-soft);
+}

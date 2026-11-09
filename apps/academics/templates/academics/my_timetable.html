@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block content %}
+  <section class="card">
+    <div class="card-header">
+      <div>
+        <h2>Today, {{ today|date:"l d M" }}</h2>
+        <p>Your lessons in period order</p>
+      </div>
+      <a href="{% url 'attendance' %}">Take attendance {% icon 'arrow-right' %}</a>
+    </div>
+    <div class="list">
+      {% for lesson in todays_lessons %}
+        <a class="list-item" href="{% url 'classroom_timetable' lesson.classroom_id %}">
+          <span class="subject-icon" aria-hidden="true">{{ lesson.period.number }}</span>
+          <span class="list-item-body">
+            <strong>{{ lesson.subject.name }} · {{ lesson.classroom.grade }}–{{ lesson.classroom.section }}</strong>
+            <small>{{ lesson.period.starts_at|time:"H:i" }}–{{ lesson.period.ends_at|time:"H:i" }}</small>
+          </span>
+        </a>
+      {% empty %}
+        <p class="empty">No lessons today.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>This week</h2>
+    {% if rows %}
+      <div class="table-wrap">
+        <table class="table timetable">
+          <thead>
+            <tr><th>Period</th>{% for value, label in days %}<th{% if value == today.isoweekday %} class="today"{% endif %}>{{ label }}</th>{% endfor %}</tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+              <tr>
+                <th scope="row">{{ row.period.number }}<small>{{ row.period.starts_at|time:"H:i" }}–{{ row.period.ends_at|time:"H:i" }}</small></th>
+                {% for day, lesson in row.cells %}
+                  <td class="timetable-cell{% if day == today.isoweekday %} today{% endif %}">
+                    {% if lesson %}<strong>{{ lesson.subject.name }}</strong><small>{{ lesson.classroom.grade }}–{{ lesson.classroom.section }}</small>{% else %}<small class="empty">Free</small>{% endif %}
+                  </td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="empty">You have no lessons in the timetable yet.</p>
+    {% endif %}
+  </section>
+{% endblock %}

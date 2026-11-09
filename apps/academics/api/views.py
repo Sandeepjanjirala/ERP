@@ -9,9 +9,18 @@ from apps.organization.api.serializers import BranchSerializer
 from apps.organization.models import Branch, Organization
 from apps.organization.selectors import branches
 
-from ..models import AcademicYear, Classroom, Grade, Subject, TeachingAssignment, Term
-from ..selectors import assignments, classrooms, grades, subjects
-from ..services import save_setup_record, save_terms, update_setup_record
+from ..models import (
+    AcademicYear,
+    Classroom,
+    Grade,
+    Period,
+    Subject,
+    TeachingAssignment,
+    Term,
+    TimetableSlot,
+)
+from ..selectors import assignments, classrooms, grades, periods, subjects, teacher_lessons
+from ..services import save_lesson, save_setup_record, save_terms, update_setup_record
 from . import filters
 from .serializers import (
     AcademicYearCreateSerializer,
@@ -23,7 +32,12 @@ from .serializers import (
     GradeSerializer,
     GradeUpdateSerializer,
     GradeWriteSerializer,
+    LessonSerializer,
+    LessonWriteSerializer,
     OrganizationSerializer,
+    PeriodSerializer,
+    PeriodUpdateSerializer,
+    PeriodWriteSerializer,
     SubjectSerializer,
     SubjectUpdateSerializer,
     SubjectWriteSerializer,
@@ -31,6 +45,7 @@ from .serializers import (
     TeachingAssignmentUpdateSerializer,
     TeachingAssignmentWriteSerializer,
     TermSerializer,
+    TimetableSerializer,
     YearTermsSerializer,
 )
 
@@ -256,3 +271,73 @@ class YearTermsView(generics.GenericAPIView):
         body.is_valid(raise_exception=True)
         save_terms(request.user, year, body.validated_data["terms"])
         return Response(self.payload(year))
+
+
+@extend_schema_view(
+    create=extend_schema(responses={201: PeriodSerializer}),
+    partial_update=extend_schema(responses=PeriodSerializer),
+)
+class PeriodViewSet(SetupViewSet):
+    """Each branch's periods (its bell schedule). Managers add and change them."""
+
+    setup_kind = "period"
+    serializer_class = PeriodSerializer
+    create_serializer_class = PeriodWriteSerializer
+    update_serializer_class = PeriodUpdateSerializer
+    queryset = Period.objects.none()  # for the schema; get_queryset() is the real scope
+    read_roles = User.ACADEMIC
+
+    def get_queryset(self):
+        return periods(self.request.user).order_by("branch__name", "number", "pk")
+
+
+class ClassroomTimetableView(generics.GenericAPIView):
+    """A class's weekly timetable. POST sets or clears one cell (managers of the branch)."""
+
+    serializer_class = LessonWriteSerializer
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return [role_in(*User.MANAGERS)()]
+        return [role_in(*User.ACADEMIC)()]
+
+    def payload(self, classroom):
+        lessons = classroom.timetable.select_related(
+            "period", "subject", "teacher", "classroom__grade"
+        )
+        return TimetableSerializer(
+            {"periods": Period.objects.filter(branch_id=classroom.branch_id), "lessons": lessons}
+        ).data
+
+    @extend_schema(responses=TimetableSerializer)
+    def get(self, request, pk):
+        return Response(self.payload(get_object_or_404(classrooms(request.user), pk=pk)))
+
+    @extend_schema(responses=TimetableSerializer)
+    def post(self, request, pk):
+        classroom = get_object_or_404(classrooms(request.user), pk=pk)
+        body = self.get_serializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        data = body.validated_data
+        period = get_object_or_404(
+            Period.objects.filter(branch_id=classroom.branch_id), pk=data["period"]
+        )
+        assignment = None
+        if data["assignment"] is not None:
+            assignment = get_object_or_404(
+                classroom.teaching.select_related("subject", "teacher"), pk=data["assignment"]
+            )
+        save_lesson(request.user, classroom, data["weekday"], period, assignment)
+        return Response(self.payload(classroom))
+
+
+class MyTimetableView(generics.ListAPIView):
+    """A teacher's lessons in every class, in weekly order."""
+
+    serializer_class = LessonSerializer
+    permission_classes = [role_in(User.Role.TEACHER)]
+    pagination_class = None
+    queryset = TimetableSlot.objects.none()  # for the schema; get_queryset() is the real list
+
+    def get_queryset(self):
+        return teacher_lessons(self.request.user).select_related("teacher")

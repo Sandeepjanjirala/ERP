@@ -4,7 +4,7 @@ from apps.accounts.selectors import teachers
 from apps.core.forms import DateInput
 from apps.organization.selectors import branches
 
-from .models import AcademicYear, Classroom, Grade, Subject, TeachingAssignment
+from .models import AcademicYear, Classroom, Grade, Period, Subject, TeachingAssignment
 from .selectors import classrooms, grades, subjects
 
 
@@ -39,6 +39,23 @@ class TermRowForm(forms.Form):
 
 
 TermFormSet = forms.formset_factory(TermRowForm, extra=2, can_delete=True)
+
+
+class PeriodForm(forms.ModelForm):
+    class Meta:
+        model = Period
+        fields = ["branch", "number", "starts_at", "ends_at"]
+        widgets = {
+            "starts_at": forms.TimeInput(attrs={"type": "time"}),
+            "ends_at": forms.TimeInput(attrs={"type": "time"}),
+        }
+        help_texts = {"number": "1 for the first lesson of the day."}
+
+    def __init__(self, *args, actor, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["branch"].queryset = branches(actor)
+        if not actor.system_admin:
+            self.fields["branch"].initial = actor.branch_id
 
 
 class GradeForm(forms.ModelForm):

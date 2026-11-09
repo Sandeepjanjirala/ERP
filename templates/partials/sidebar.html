@@ -21,6 +21,7 @@
       <a href="{% url 'attendance' %}"{% aria_current 'attendance' %}>{% icon 'calendar-check' %}<span>Daily attendance</span></a>
     {% endif %}
     {% if not user.is_accountant %}
+      <a href="{% url 'timetable' %}"{% aria_current 'timetable' 'my_timetable' 'classroom_timetable' %}>{% icon 'calendar' %}<span>Timetable</span></a>
       <a href="{% url 'exams' %}"{% aria_current 'exams' 'exam_create' 'exam_detail' %}>{% icon 'clipboard' %}<span>Exams &amp; marks</span></a>
       <a href="{% url 'leave_requests' %}"{% aria_current 'leave_requests' 'leave_create' %}>{% icon 'calendar-off' %}<span>Leave requests</span></a>
     {% endif %}

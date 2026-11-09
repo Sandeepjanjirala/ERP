@@ -1,12 +1,12 @@
 from datetime import timedelta
 
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
 from apps.audit.services import audit
 from apps.organization.models import Organization
 
-from .models import AcademicYear, Term
+from .models import AcademicYear, Classroom, Term, TimetableSlot
 from .policies import GROUP_LEVEL, can_manage_setup
 
 
@@ -155,3 +155,67 @@ def save_terms(actor, year, rows):
         },
     )
     return terms
+
+
+# Timetable -----------------------------------------------------------------------------------
+
+
+def _teacher_clash(teacher, classroom, weekday, period):
+    """Another class this teacher already has in that period of the same year, if any."""
+    return (
+        TimetableSlot.objects.filter(
+            teacher=teacher, year_id=classroom.year_id, weekday=weekday, period=period
+        )
+        .exclude(classroom=classroom)
+        .select_related("classroom__grade")
+        .first()
+    )
+
+
+def _clash_error(teacher, clash):
+    return ValidationError(
+        f"{teacher.display_name} already teaches {clash.classroom.grade}-{clash.classroom.section} "
+        f"on {clash.get_weekday_display()} in {clash.period}."
+    )
+
+
+@transaction.atomic
+def save_lesson(actor, classroom, weekday, period, assignment):
+    """Put a lesson (a teaching assignment of this class) in one cell of its weekly timetable,
+    or clear the cell when `assignment` is None.
+
+    The classroom row is locked, so edits to one class's timetable happen one at a time. A
+    teacher already teaching another class in that period is refused; if two edits race to book
+    the same teacher, the database's unique rule stops the second and it is refused the same way.
+    """
+    if not can_manage_setup(actor, "timetable", classroom.branch):
+        raise PermissionDenied
+    classroom = Classroom.objects.select_for_update().select_related("branch").get(pk=classroom.pk)
+    if weekday not in TimetableSlot.Day.values:
+        raise ValidationError("Choose a day from Monday to Saturday.")
+    if period.branch_id != classroom.branch_id:
+        raise ValidationError("Choose a period of the classroom's branch.")
+    slot = TimetableSlot.objects.filter(classroom=classroom, weekday=weekday, period=period).first()
+    before = f"{slot.subject.name} · {slot.teacher.display_name}" if slot else None
+    where = {"day": TimetableSlot.Day(weekday).label, "period": period.number, "before": before}
+    if assignment is None:
+        if slot:
+            slot.delete()
+            audit(actor, classroom.branch, "timetable.cleared", classroom, where)
+        return None
+    if assignment.classroom_id != classroom.pk:
+        raise ValidationError("Choose a subject taught in this class.")
+    if clash := _teacher_clash(assignment.teacher, classroom, weekday, period):
+        raise _clash_error(assignment.teacher, clash)
+    slot = slot or TimetableSlot(classroom=classroom, weekday=weekday, period=period)
+    slot.subject, slot.teacher = assignment.subject, assignment.teacher
+    try:
+        with transaction.atomic():  # a savepoint, so a refused insert leaves the rest intact
+            slot.save()
+    except IntegrityError:
+        if clash := _teacher_clash(assignment.teacher, classroom, weekday, period):
+            raise _clash_error(assignment.teacher, clash) from None
+        raise
+    after = f"{slot.subject.name} · {slot.teacher.display_name}"
+    audit(actor, classroom.branch, "timetable.saved", classroom, {**where, "after": after})
+    return slot

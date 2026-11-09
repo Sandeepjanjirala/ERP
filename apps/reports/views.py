@@ -3,8 +3,10 @@ from datetime import date
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
+from django.utils import timezone
 
 from apps.academics.models import AcademicYear
+from apps.academics.selectors import teacher_lessons
 from apps.accounts.decorators import role_required
 from apps.accounts.models import User
 from apps.audit.selectors import events
@@ -48,6 +50,7 @@ def dashboard(request):
             "branches": branches(request.user),
             "selected_branch": branch,
             "fees": fee_summary(request.user, branch) if request.user.is_finance else None,
+            "todays_lessons": todays_lessons(request.user),
             "has_trend": bool(trend),
             "charts": {
                 "trend": [
@@ -57,6 +60,18 @@ def dashboard(request):
                 "branches": branch_comparison(request.user),
             },
         },
+    )
+
+
+def todays_lessons(user):
+    """A teacher's lessons today, in period order; None for anyone who isn't a teacher."""
+    if user.role != User.Role.TEACHER:
+        return None
+    today = timezone.localdate()
+    return teacher_lessons(user).filter(
+        weekday=today.isoweekday(),
+        classroom__year__starts_on__lte=today,
+        classroom__year__ends_on__gte=today,
     )
 
 

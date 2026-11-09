@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block actions %}
+  <a class="btn btn-secondary" href="{% url 'timetable' %}">All timetables</a>
+{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <div class="card-header">
+      <div>
+        <h2>{{ classroom.grade }}–{{ classroom.section }} · {{ classroom.branch.name }}</h2>
+        <p>{{ classroom.year.name }}{% if classroom.homeroom_teacher %} · class teacher {{ classroom.homeroom_teacher.display_name }}{% endif %}</p>
+      </div>
+    </div>
+    {% if can_edit %}
+      <p class="form-intro">Choose a lesson for each period; it saves as soon as you choose. A teacher can't be in two classes in the same period.</p>
+    {% endif %}
+    {% if periods %}
+      <div class="table-wrap">
+        <table class="table timetable">
+          <thead>
+            <tr><th>Period</th>{% for value, label in days %}<th>{{ label }}</th>{% endfor %}</tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+              <tr>
+                <th scope="row">{{ row.period.number }}<small>{{ row.period.starts_at|time:"H:i" }}–{{ row.period.ends_at|time:"H:i" }}</small></th>
+                {% for day, lesson in row.cells %}
+                  {% include "academics/_timetable_cell.html" with day=day lesson=lesson period=row.period %}
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="empty">This branch has no periods yet. An admin adds them in Academic setup.</p>
+    {% endif %}
+  </section>
+{% endblock %}

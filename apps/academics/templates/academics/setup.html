@@ -10,6 +10,7 @@
     {% endif %}
     {% if user.is_manager %}
       <a class="btn btn-secondary" href="{% url 'setup_create' 'grade' %}">{% icon 'plus' %}Grade</a>
+      <a class="btn btn-secondary" href="{% url 'setup_create' 'period' %}">{% icon 'plus' %}Period</a>
       <a class="btn" href="{% url 'setup_create' 'classroom' %}">{% icon 'plus' %}Classroom</a>
       <a class="btn btn-secondary" href="{% url 'setup_create' 'subject' %}">{% icon 'plus' %}Subject</a>
       <a class="btn btn-secondary" href="{% url 'setup_create' 'assignment' %}">{% icon 'user-check' %}Assign subject teacher</a>
@@ -98,6 +99,18 @@
           </span>
         {% empty %}
           <p>Add the grades each branch teaches, such as Class 1 to Class 10.</p>
+        {% endfor %}
+      </div>
+
+      <h2 class="section-title">Periods</h2>
+      <div class="chips">
+        {% for period in periods %}
+          <span class="chip">
+            {{ period }} · {{ period.branch.name }}
+            {% if user.is_manager %}<a href="{% url 'setup_edit' 'period' period.pk %}">Edit</a>{% endif %}
+          </span>
+        {% empty %}
+          <p>Add each branch's periods (its bell schedule) to plan timetables.</p>
         {% endfor %}
       </div>
 

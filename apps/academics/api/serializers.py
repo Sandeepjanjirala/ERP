@@ -7,7 +7,16 @@ from apps.organization.api.serializers import BranchSerializer
 from apps.organization.models import Branch, Organization
 from apps.organization.selectors import branches
 
-from ..models import AcademicYear, Classroom, Grade, Subject, TeachingAssignment, Term
+from ..models import (
+    AcademicYear,
+    Classroom,
+    Grade,
+    Period,
+    Subject,
+    TeachingAssignment,
+    Term,
+    TimetableSlot,
+)
 from ..selectors import classrooms, grades, subjects
 
 
@@ -182,3 +191,53 @@ class TeachingAssignmentWriteSerializer(serializers.ModelSerializer):
 class TeachingAssignmentUpdateSerializer(TeachingAssignmentWriteSerializer):
     classroom = serializers.PrimaryKeyRelatedField(read_only=True)
     subject = serializers.PrimaryKeyRelatedField(read_only=True)
+
+
+# Timetable
+
+
+class PeriodSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Period
+        fields = ["id", "branch", "number", "starts_at", "ends_at"]
+
+
+class PeriodWriteSerializer(serializers.ModelSerializer):
+    branch = ScopedPrimaryKeyField(branches)
+
+    class Meta:
+        model = Period
+        fields = ["branch", "number", "starts_at", "ends_at"]
+        validators = []
+
+
+class PeriodUpdateSerializer(PeriodWriteSerializer):
+    branch = serializers.PrimaryKeyRelatedField(read_only=True)
+
+
+class LessonSerializer(serializers.ModelSerializer):
+    weekday_label = serializers.CharField(source="get_weekday_display", read_only=True)
+    period = PeriodSerializer(read_only=True)
+    subject = SubjectSerializer(read_only=True)
+    teacher = UserSummarySerializer(read_only=True)
+    classroom = ClassroomSummarySerializer(read_only=True)
+
+    class Meta:
+        model = TimetableSlot
+        fields = ["id", "weekday", "weekday_label", "period", "subject", "teacher", "classroom"]
+        read_only_fields = fields
+
+
+class TimetableSerializer(serializers.Serializer):
+    periods = PeriodSerializer(many=True)
+    lessons = LessonSerializer(many=True)
+
+
+class LessonWriteSerializer(serializers.Serializer):
+    """One cell: a weekday (1 Monday ... 6 Saturday) and a period of the class's branch. `assignment`
+    is one of the class's teaching assignments (GET /api/v1/assignments/?classroom=), or null to
+    clear the cell. A teacher already teaching another class then is refused."""
+
+    weekday = serializers.ChoiceField(choices=TimetableSlot.Day.choices)
+    period = serializers.IntegerField()
+    assignment = serializers.IntegerField(allow_null=True)
