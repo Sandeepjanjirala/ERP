@@ -6,10 +6,12 @@ from datetime import timedelta
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 
+from apps.academics.models import Classroom, Grade
 from apps.accounts.models import User
+from apps.audit.models import AuditEvent
 from apps.core.testing import PASSWORD, ApiTestCase, pdf_text
 from apps.fees.gateways import SandboxGateway
-from apps.fees.models import Invoice, PaymentOrder
+from apps.fees.models import FeeHead, Invoice, PaymentOrder
 from apps.fees.services import record_counter_payment
 from apps.fees.tests.base import TOTAL, TUITION, FeesTestCase
 from apps.students.tests.factories import EnrollmentFactory
@@ -189,3 +191,69 @@ class FeesQueryCountTests(FeesApiTestCase):
             record_counter_payment(self.accountant, invoice, 100, "cash")
         self.assertEqual([self.queries(url) for url in urls], few)
         self.assertEqual(self.queries(f"/api/v1/invoices/{invoice.pk}/"), detail)
+
+
+class FeeSetupApiTests(FeesApiTestCase):
+    """Fee heads and plans through the API: the same services and rules as the web pages."""
+
+    def test_admins_create_and_change_heads_and_plans(self):
+        self.as_user(self.admin)
+        head = self.client.post(
+            "/api/v1/fee-heads/", {"branch": self.a.pk, "name": "Library", "code": "library"}
+        )
+        self.assertEqual(head.status_code, 201, head.content)
+        again = self.client.post(
+            "/api/v1/fee-heads/", {"branch": self.a.pk, "name": "Again", "code": "library"}
+        )
+        self.assertEqual(again.status_code, 400)
+        renamed = self.client.patch(
+            f"/api/v1/fee-heads/{head.json()['id']}/", {"name": "Library fee"}
+        )
+        self.assertEqual(renamed.json()["name"], "Library fee")
+        self.assertEqual(
+            self.client.post(
+                "/api/v1/fee-heads/", {"branch": self.b.pk, "name": "X", "code": "x"}
+            ).status_code,
+            400,
+        )  # another branch is out of scope
+
+        grade10 = Grade.objects.create(branch=self.a, name="10", order=10)
+        Classroom.objects.create(branch=self.a, year=self.year, grade=grade10, section="A")
+        body = {
+            "branch": self.a.pk,
+            "year": self.year.pk,
+            "grade_id": grade10.pk,
+            "items": [{"head": self.tuition.pk, "amount_paise": 1500000}, {"head": head.json()["id"], "amount_paise": 50000}],
+        }  # fmt: skip
+        plan = self.client.post("/api/v1/fee-plans/", body, format="json")
+        self.assertEqual(plan.status_code, 201, plan.content)
+        self.assertEqual((plan.json()["grade"], plan.json()["total_paise"]), ("10", 1550000))
+        foreign = FeeHead.objects.create(branch=self.b, name="Bus", code="bus")
+        bad = self.client.patch(
+            f"/api/v1/fee-plans/{plan.json()['id']}/",
+            {"items": [{"head": foreign.pk, "amount_paise": 100}]},
+            format="json",
+        )
+        self.assertEqual(bad.status_code, 400)
+        changed = self.client.patch(
+            f"/api/v1/fee-plans/{plan.json()['id']}/",
+            {"items": [{"head": self.tuition.pk, "amount_paise": 1600000}]},
+            format="json",
+        )
+        self.assertEqual(changed.json()["total_paise"], 1600000)
+        event = AuditEvent.objects.filter(action="fees.plan.saved").first()  # newest first
+        self.assertEqual(event.details["after"], {"Tuition": 1600000})
+
+    def test_accountants_read_but_do_not_change_setup(self):
+        self.as_user(self.accountant)
+        self.assertEqual(self.client.get("/api/v1/fee-heads/").status_code, 200)
+        self.assertEqual(
+            self.client.post(
+                "/api/v1/fee-heads/", {"branch": self.a.pk, "name": "X", "code": "x"}
+            ).status_code,
+            403,
+        )
+        response = self.client.patch(
+            f"/api/v1/fee-plans/{self.plan.pk}/", {"items": []}, format="json"
+        )
+        self.assertEqual(response.status_code, 403)

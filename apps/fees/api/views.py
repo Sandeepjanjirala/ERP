@@ -3,8 +3,9 @@ from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiResponse, extend_schema, inline_serializer
-from rest_framework import generics, renderers, serializers, status, viewsets
+from rest_framework import generics, mixins, renderers, serializers, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -24,6 +25,8 @@ from ..services import (
     issue_invoices,
     receive_webhook,
     record_counter_payment,
+    save_fee_head,
+    save_fee_plan,
     start_online_payment,
 )
 from .filters import InvoiceFilter, PaymentFilter, PaymentOrderFilter
@@ -32,7 +35,11 @@ from .serializers import (
     ConcessionCreateSerializer,
     CounterPaymentSerializer,
     FeeHeadSerializer,
+    FeeHeadUpdateSerializer,
+    FeeHeadWriteSerializer,
     FeePlanSerializer,
+    FeePlanUpdateSerializer,
+    FeePlanWriteSerializer,
     InvoiceDetailSerializer,
     InvoiceSerializer,
     IssueInvoicesSerializer,
@@ -190,30 +197,110 @@ class ReceiptPDFView(generics.GenericAPIView):
         return response
 
 
-class FeeHeadViewSet(viewsets.ReadOnlyModelViewSet):
+class FeeSetupPermissions:
+    """Finance staff read fee setup; admins (super and branch) create and change it. The services
+    check the branch again."""
+
+    def get_permissions(self):
+        if self.action in ("create", "partial_update"):
+            return [role_in(*User.MANAGERS)()]
+        return [role_in(*User.FINANCE)()]
+
+
+class FeeHeadViewSet(
+    FeeSetupPermissions,
+    mixins.CreateModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.ReadOnlyModelViewSet,
+):
     """Kinds of charge (Tuition, Transport, ...) in the caller's branches."""
 
     queryset = FeeHead.objects.none()  # for the schema
-    serializer_class = FeeHeadSerializer
-    permission_classes = [role_in(*User.FINANCE)]
     filterset_fields = ["branch"]
+    http_method_names = ["get", "post", "patch", "head", "options"]
 
     def get_queryset(self):
         return fee_heads(self.request.user)
 
+    def get_serializer_class(self):
+        return {"create": FeeHeadWriteSerializer, "partial_update": FeeHeadUpdateSerializer}.get(
+            self.action, FeeHeadSerializer
+        )
 
-class FeePlanViewSet(viewsets.ReadOnlyModelViewSet):
-    """What each grade pays in a year. Plans are set up on the web; `issue` invoices a grade."""
+    @extend_schema(responses={201: FeeHeadSerializer})
+    def create(self, request, *args, **kwargs):
+        body = self.get_serializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        head = save_fee_head(request.user, FeeHead(**body.validated_data))
+        return Response(FeeHeadSerializer(head).data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(responses=FeeHeadSerializer)
+    def partial_update(self, request, *args, **kwargs):
+        head = self.get_object()
+        body = self.get_serializer(head, data=request.data, partial=True)
+        body.is_valid(raise_exception=True)
+        for field, value in body.validated_data.items():
+            setattr(head, field, value)
+        return Response(FeeHeadSerializer(save_fee_head(request.user, head)).data)
+
+
+class FeePlanViewSet(
+    FeeSetupPermissions,
+    mixins.CreateModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.ReadOnlyModelViewSet,
+):
+    """What each grade pays in a year. Admins create plans and change their amounts; `issue`
+    invoices a grade (finance staff)."""
 
     queryset = FeePlan.objects.none()  # for the schema
-    permission_classes = [role_in(*User.FINANCE)]
     filterset_fields = ["branch", "year"]
+    http_method_names = ["get", "post", "patch", "head", "options"]
+
+    def get_permissions(self):
+        if self.action == "issue":
+            return [role_in(*User.FINANCE)()]
+        return super().get_permissions()
 
     def get_queryset(self):
         return fee_plans(self.request.user)
 
     def get_serializer_class(self):
-        return IssueInvoicesSerializer if self.action == "issue" else FeePlanSerializer
+        return {
+            "issue": IssueInvoicesSerializer,
+            "create": FeePlanWriteSerializer,
+            "partial_update": FeePlanUpdateSerializer,
+        }.get(self.action, FeePlanSerializer)
+
+    def amounts(self, branch, items):
+        """{FeeHead: paise} from the request's items; every head must be of the plan's branch."""
+        heads = {head.pk: head for head in FeeHead.objects.filter(branch=branch)}
+        unknown = [item["head"] for item in items if item["head"] not in heads]
+        if unknown:
+            raise ValidationError({"items": [f"Fee head {unknown[0]} isn't one of this branch's."]})
+        return {heads[item["head"]]: item["amount_paise"] for item in items}
+
+    def plan_response(self, plan, code=status.HTTP_200_OK):
+        return Response(
+            FeePlanSerializer(fee_plans(self.request.user).get(pk=plan.pk)).data, status=code
+        )
+
+    @extend_schema(responses={201: FeePlanSerializer})
+    def create(self, request, *args, **kwargs):
+        body = self.get_serializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        data = body.validated_data
+        plan = FeePlan(branch=data["branch"], year=data["year"], grade=data["grade_id"])
+        plan = save_fee_plan(request.user, plan, self.amounts(data["branch"], data["items"]))
+        return self.plan_response(plan, status.HTTP_201_CREATED)
+
+    @extend_schema(responses=FeePlanSerializer)
+    def partial_update(self, request, *args, **kwargs):
+        plan = self.get_object()
+        body = self.get_serializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        amounts = self.amounts(plan.branch, body.validated_data["items"])
+        return self.plan_response(save_fee_plan(request.user, plan, amounts))
 
     @extend_schema(responses={201: IssueResultSerializer})
     @action(detail=True, methods=["post"])

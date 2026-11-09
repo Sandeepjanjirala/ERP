@@ -4,7 +4,11 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework import serializers
 
+from apps.academics.models import AcademicYear
+from apps.academics.selectors import grades
 from apps.accounts.api.serializers import UserSummarySerializer
+from apps.core.api.fields import ScopedPrimaryKeyField
+from apps.organization.selectors import branches
 
 from ..models import (
     Concession,
@@ -216,3 +220,37 @@ class IssueResultSerializer(serializers.Serializer):
     created = serializers.IntegerField()
     skipped = serializers.IntegerField()
     invoices = serializers.ListField(child=serializers.IntegerField())
+
+
+class FeeHeadWriteSerializer(serializers.ModelSerializer):
+    branch = ScopedPrimaryKeyField(branches)
+
+    class Meta:
+        model = FeeHead
+        fields = ["branch", "name", "code"]
+        validators = []
+
+
+class FeeHeadUpdateSerializer(FeeHeadWriteSerializer):
+    branch = serializers.PrimaryKeyRelatedField(read_only=True)
+
+
+class FeePlanItemWriteSerializer(serializers.Serializer):
+    head = serializers.IntegerField(help_text="A fee head of the plan's branch")
+    amount_paise = serializers.IntegerField(min_value=0, help_text="0 leaves the head out")
+
+
+class FeePlanWriteSerializer(serializers.Serializer):
+    """A new plan: what one student of a grade pays in a year, one amount per fee head."""
+
+    branch = ScopedPrimaryKeyField(branches)
+    year = serializers.PrimaryKeyRelatedField(queryset=AcademicYear.objects.all())
+    grade_id = ScopedPrimaryKeyField(grades)
+    items = FeePlanItemWriteSerializer(many=True)
+
+
+class FeePlanUpdateSerializer(serializers.Serializer):
+    """New amounts for a plan. Its branch, year and grade are fixed; invoices already issued
+    keep their own amounts."""
+
+    items = FeePlanItemWriteSerializer(many=True)

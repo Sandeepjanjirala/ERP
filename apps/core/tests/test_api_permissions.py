@@ -147,6 +147,8 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("post", f"/api/v1/invoices/{self.invoice.pk}/concession/", WRITE_MANAGERS),
             ("post", f"/api/v1/invoices/{self.invoice.pk}/cancel/", WRITE_MANAGERS),
             ("post", f"/api/v1/fee-plans/{self.plan.pk}/issue/", WRITE_FINANCE),
+            ("post", "/api/v1/fee-heads/", WRITE_MANAGERS),
+            ("post", "/api/v1/fee-plans/", WRITE_MANAGERS),
             # Only a parent starts an online payment (no body needed: it is the balance).
             (
                 "post",
