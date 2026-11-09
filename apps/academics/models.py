@@ -25,10 +25,39 @@ class AcademicYear(ValidatedModel):
         return self.name
 
 
+class Grade(ValidatedModel):
+    """A level of study in a branch, such as "Class 9". `order` puts grades in sequence, so
+    year-end promotion knows which grade comes next."""
+
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="grades")
+    name = models.CharField(max_length=25)
+    order = models.PositiveSmallIntegerField(
+        help_text="Position in the school, lowest first: Class 1 is 1, Class 10 is 10."
+    )
+
+    class Meta:
+        ordering = ["order", "pk"]
+        constraints = [
+            models.UniqueConstraint(fields=["branch", "name"], name="grade_name_per_branch"),
+            models.UniqueConstraint(fields=["branch", "order"], name="grade_order_per_branch"),
+        ]
+
+    def next_grade(self):
+        """The grade students move up to, or None for the last grade (they leave the school)."""
+        return (
+            Grade.objects.filter(branch_id=self.branch_id, order__gt=self.order)
+            .order_by("order")
+            .first()
+        )
+
+    def __str__(self):
+        return self.name
+
+
 class Classroom(ValidatedModel):
     branch = models.ForeignKey(Branch, on_delete=models.PROTECT)
     year = models.ForeignKey(AcademicYear, on_delete=models.PROTECT)
-    grade = models.CharField(max_length=25)
+    grade = models.ForeignKey(Grade, on_delete=models.PROTECT, related_name="classrooms")
     section = models.CharField(max_length=10)
     homeroom_teacher = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -47,6 +76,8 @@ class Classroom(ValidatedModel):
         ]
 
     def clean(self):
+        if self.grade_id and self.branch_id and self.grade.branch_id != self.branch_id:
+            raise ValidationError({"grade": "Choose a grade of this branch."})
         if self.homeroom_teacher_id and (
             self.homeroom_teacher.role != User.Role.TEACHER
             or self.homeroom_teacher.branch_id != self.branch_id

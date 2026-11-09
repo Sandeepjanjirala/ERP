@@ -27,7 +27,7 @@ class FeeConcurrencyTests(TransactionTestCase):
         transport = FeeHead.objects.create(branch=self.a, name="Transport", code="transport")
         plan = save_fee_plan(
             self.admin,
-            FeePlan(branch=self.a, year=self.year, grade="9"),
+            FeePlan(branch=self.a, year=self.year, grade=self.grade9),
             {tuition: TUITION, transport: TRANSPORT},
         )
         created, _ = issue_invoices(self.accountant, plan, "Term 1", self.today + timedelta(days=7))

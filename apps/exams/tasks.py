@@ -16,7 +16,7 @@ def announce_results(exam_id, version):
     The key includes the exam's version, so results published again after a reopen are
     announced again; an exam reopened before this ran is skipped.
     """
-    exam = Exam.objects.select_related("subject", "classroom").get(pk=exam_id)
+    exam = Exam.objects.select_related("subject", "classroom__grade").get(pk=exam_id)
     if exam.status != Exam.Status.PUBLISHED or exam.version != version:
         return 0
     sat = Student.objects.filter(enrollments__marks__exam=exam)

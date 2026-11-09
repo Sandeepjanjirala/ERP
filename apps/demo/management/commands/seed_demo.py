@@ -17,7 +17,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
-from apps.academics.models import AcademicYear, Classroom, Subject, TeachingAssignment
+from apps.academics.models import AcademicYear, Classroom, Grade, Subject, TeachingAssignment
 from apps.accounts.models import User
 from apps.attendance.models import Attendance, LeaveRequest
 from apps.attendance.services import decide_leave, request_leave, save_register
@@ -246,11 +246,16 @@ class Command(BaseCommand):
             Subject.objects.create(branch=branch, name=name, code=name.lower().replace(" ", "-"))
             for name in SUBJECTS[: size.subjects]
         ]
+        # Every grade the branch teaches, in order (Class 6 is 6), so promotion knows what is next.
+        grades = {
+            name: Grade.objects.create(branch=branch, name=name, order=int(name.split()[-1]))
+            for name in GRADES
+        }
         classrooms = [
             Classroom.objects.create(
                 branch=branch,
                 year=self.year,
-                grade=grade,
+                grade=grades[grade],
                 section="A",
                 homeroom_teacher=teachers[n % len(teachers)],
             )
@@ -353,7 +358,8 @@ class Command(BaseCommand):
                 admin,
                 FeePlan(branch=branch, year=self.year, grade=classroom.grade),
                 {
-                    heads["tuition"]: TUITION_BY_GRADE.get(classroom.grade, TUITION_DEFAULT) * 100,
+                    heads["tuition"]: TUITION_BY_GRADE.get(classroom.grade.name, TUITION_DEFAULT)
+                    * 100,
                     heads["transport"]: TRANSPORT * 100,
                     heads["exam"]: EXAM_FEE * 100,
                 },

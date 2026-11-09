@@ -17,7 +17,7 @@ def alert_absent_families(session_id, enrollment_ids):
     Safe to run twice (one alert per student per day). A student whose register was corrected
     to present before this ran is skipped.
     """
-    session = AttendanceSession.objects.select_related("classroom").get(pk=session_id)
+    session = AttendanceSession.objects.select_related("classroom__grade").get(pk=session_id)
     still_absent = Attendance.objects.filter(
         session=session, enrollment_id__in=enrollment_ids, status=Attendance.Status.ABSENT
     ).select_related("enrollment__student__user")

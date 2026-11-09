@@ -41,7 +41,7 @@ def student_report(user, student, year_id=None):
         Mark.objects.filter(
             enrollment__in=student_enrollments,
             exam__in=exams(user).filter(status=Exam.Status.PUBLISHED),
-        ).select_related("exam__subject", "exam__classroom")
+        ).select_related("exam__subject", "exam__classroom__grade")
     )
     rows = (
         attendance_rows(user).filter(enrollment__in=student_enrollments).order_by("-session__date")
@@ -66,7 +66,10 @@ def published_marks(user, year_id=None, branch=None):
         permitted = permitted.filter(classroom__branch=branch)
     return list(
         Mark.objects.filter(exam__in=permitted).select_related(
-            "exam__subject", "exam__classroom__branch", "enrollment__student__user"
+            "exam__subject",
+            "exam__classroom__branch",
+            "exam__classroom__grade",
+            "enrollment__student__user",
         )
     )
 

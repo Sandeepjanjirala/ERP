@@ -3,7 +3,7 @@ from decimal import Decimal
 from django import forms
 from django.utils import timezone
 
-from apps.academics.models import AcademicYear, Classroom
+from apps.academics.models import AcademicYear, Grade
 
 from .models import FeeHead, FeePlan, Payment
 from .services import COUNTER_METHODS
@@ -56,8 +56,6 @@ class FeeHeadForm(forms.ModelForm):
 class FeePlanForm(forms.ModelForm):
     """The grade and year, plus one amount field per fee head of the branch."""
 
-    grade = forms.ChoiceField()
-
     class Meta:
         model = FeePlan
         fields = ["year", "grade"]
@@ -67,13 +65,7 @@ class FeePlanForm(forms.ModelForm):
         self.instance.branch = branch
         self.heads = list(heads)
         self.fields["year"].queryset = AcademicYear.objects.all()
-        grades = (
-            Classroom.objects.filter(branch=branch)
-            .order_by("grade")
-            .values_list("grade", flat=True)
-            .distinct()
-        )
-        self.fields["grade"].choices = [(grade, grade) for grade in grades]
+        self.fields["grade"].queryset = Grade.objects.filter(branch=branch).order_by("order")
         current = {}
         if self.instance.pk:
             current = {item.head_id: item.amount_paise for item in self.instance.items.all()}

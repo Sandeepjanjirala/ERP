@@ -7,8 +7,8 @@ from apps.organization.api.serializers import BranchSerializer
 from apps.organization.models import Branch, Organization
 from apps.organization.selectors import branches
 
-from ..models import AcademicYear, Classroom, Subject, TeachingAssignment
-from ..selectors import classrooms, subjects
+from ..models import AcademicYear, Classroom, Grade, Subject, TeachingAssignment
+from ..selectors import classrooms, grades, subjects
 
 
 class AcademicYearSerializer(serializers.ModelSerializer):
@@ -17,14 +17,25 @@ class AcademicYearSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "starts_on", "ends_on"]
 
 
+class GradeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Grade
+        fields = ["id", "branch", "name", "order"]
+
+
 class ClassroomSummarySerializer(serializers.ModelSerializer):
-    """A classroom inside another record: "9-A", its branch and year by id."""
+    """A classroom inside another record: "9-A", its branch and year by id.
+
+    `grade` is the grade's name, as it was before grades became records; `grade_id` is the Grade.
+    """
 
     label = serializers.SerializerMethodField()
+    grade = serializers.CharField(source="grade.name", read_only=True)
+    grade_id = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Classroom
-        fields = ["id", "label", "grade", "section", "branch", "year"]
+        fields = ["id", "label", "grade", "grade_id", "section", "branch", "year"]
 
     def get_label(self, classroom) -> str:
         return f"{classroom.grade}-{classroom.section}"
@@ -80,16 +91,33 @@ class AcademicYearCreateSerializer(serializers.ModelSerializer):
         validators = []
 
 
+class GradeWriteSerializer(serializers.ModelSerializer):
+    branch = ScopedPrimaryKeyField(branches)
+
+    class Meta:
+        model = Grade
+        fields = ["branch", "name", "order"]
+        validators = []
+
+
+class GradeUpdateSerializer(GradeWriteSerializer):
+    branch = serializers.PrimaryKeyRelatedField(read_only=True)
+
+
 class ClassroomWriteSerializer(serializers.ModelSerializer):
-    """Branch and year are fixed once the classroom exists; PATCH changes the rest."""
+    """Branch and year are fixed once the classroom exists; PATCH changes the rest.
+
+    `grade_id` is a Grade of the same branch (GET /api/v1/grades/).
+    """
 
     branch = ScopedPrimaryKeyField(branches)
     year = serializers.PrimaryKeyRelatedField(queryset=AcademicYear.objects.all())
+    grade_id = ScopedPrimaryKeyField(grades, source="grade")
     homeroom_teacher = ScopedPrimaryKeyField(teachers, allow_null=True, required=False)
 
     class Meta:
         model = Classroom
-        fields = ["branch", "year", "grade", "section", "homeroom_teacher"]
+        fields = ["branch", "year", "grade_id", "section", "homeroom_teacher"]
         validators = []
 
 

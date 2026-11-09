@@ -8,8 +8,8 @@ from apps.organization.api.serializers import BranchSerializer
 from apps.organization.models import Branch, Organization
 from apps.organization.selectors import branches
 
-from ..models import AcademicYear, Classroom, Subject, TeachingAssignment
-from ..selectors import assignments, classrooms, subjects
+from ..models import AcademicYear, Classroom, Grade, Subject, TeachingAssignment
+from ..selectors import assignments, classrooms, grades, subjects
 from ..services import save_setup_record, update_setup_record
 from . import filters
 from .serializers import (
@@ -19,6 +19,9 @@ from .serializers import (
     ClassroomSerializer,
     ClassroomUpdateSerializer,
     ClassroomWriteSerializer,
+    GradeSerializer,
+    GradeUpdateSerializer,
+    GradeWriteSerializer,
     OrganizationSerializer,
     SubjectSerializer,
     SubjectUpdateSerializer,
@@ -114,6 +117,24 @@ class AcademicYearViewSet(SetupViewSet):
 
 
 @extend_schema_view(
+    create=extend_schema(responses={201: GradeSerializer}),
+    partial_update=extend_schema(responses=GradeSerializer),
+)
+class GradeViewSet(SetupViewSet):
+    """The grades each branch teaches, in order (Class 1 is 1). Managers add and rename them."""
+
+    setup_kind = "grade"
+    serializer_class = GradeSerializer
+    create_serializer_class = GradeWriteSerializer
+    update_serializer_class = GradeUpdateSerializer
+    queryset = Grade.objects.none()  # for the schema; get_queryset() is the real scope
+    filterset_class = filters.GradeFilter
+
+    def get_queryset(self):
+        return grades(self.request.user).order_by("branch__name", "order", "pk")
+
+
+@extend_schema_view(
     create=extend_schema(responses={201: ClassroomSerializer}),
     partial_update=extend_schema(responses=ClassroomSerializer),
 )
@@ -128,7 +149,9 @@ class ClassroomViewSet(SetupViewSet):
     filterset_class = filters.ClassroomFilter
 
     def get_queryset(self):
-        return classrooms(self.request.user).order_by("branch__name", "grade", "section", "pk")
+        return classrooms(self.request.user).order_by(
+            "branch__name", "grade__order", "section", "pk"
+        )
 
 
 @extend_schema_view(
@@ -165,7 +188,9 @@ class TeachingAssignmentViewSet(SetupViewSet):
     read_roles = User.LEADERS
 
     def get_queryset(self):
-        return assignments(self.request.user).order_by("classroom__grade", "subject__name", "pk")
+        return assignments(self.request.user).order_by(
+            "classroom__grade__order", "subject__name", "pk"
+        )
 
 
 class OrganizationView(generics.RetrieveUpdateAPIView):

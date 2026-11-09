@@ -13,6 +13,7 @@ Primary keys, password hashes and relations are kept. See docs/UPGRADING.md.
 """
 
 import json
+import re
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
@@ -58,7 +59,59 @@ def convert(records):
             )
         converted.append({**record, "model": new_label, "fields": fields})
         counts[new_label] = counts.get(new_label, 0) + 1
+    grades = link_grades(converted)
+    if grades:
+        # Grades go before the classrooms that point at them.
+        converted[:0] = grades
+        counts["academics.grade"] = len(grades)
     return converted, counts
+
+
+def grade_orders(names):
+    """Position of each grade name: the number in it ("Class 10" -> 10) when that number is free,
+    then names without a usable number after the highest, alphabetically. The same rule as
+    migration academics 0003, which converts databases made before Phase 5."""
+    orders, used = {}, set()
+    numbered = sorted(
+        (int(match.group()), name)
+        for name in names
+        if (match := re.search(r"\d+", name)) and int(match.group()) > 0
+    )
+    for number, name in numbered:
+        if number not in used and number <= 32767:
+            orders[name] = number
+            used.add(number)
+    following = max(used, default=0)
+    for name in sorted(names):
+        if name not in orders:
+            following += 1
+            orders[name] = following
+    return orders
+
+
+def link_grades(records):
+    """Since Phase 5 a classroom's grade is a Grade record, not text. Create one Grade per
+    (branch, grade name), ordered as migration academics 0003 orders them, and point each
+    classroom at it. Returns the new Grade records."""
+    classrooms = [r for r in records if r["model"] == "academics.classroom"]
+    names = {}
+    for record in classrooms:
+        names.setdefault(record["fields"]["branch"], set()).add(record["fields"]["grade"])
+    grades, ids = [], {}
+    for branch in sorted(names, key=str):
+        for name, order in sorted(grade_orders(names[branch]).items(), key=lambda pair: pair[1]):
+            ids[branch, name] = len(grades) + 1
+            grades.append(
+                {
+                    "model": "academics.grade",
+                    "pk": ids[branch, name],
+                    "fields": {"branch": branch, "name": name, "order": order},
+                }
+            )
+    for record in classrooms:
+        fields = record["fields"]
+        fields["grade"] = ids[fields["branch"], fields["grade"]]
+    return grades
 
 
 class Command(BaseCommand):

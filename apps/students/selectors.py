@@ -24,7 +24,7 @@ def students(user):
 
 def enrollments(user):
     qs = Enrollment.objects.filter(classroom__in=classrooms(user)).select_related(
-        "student__user", "classroom__branch", "classroom__year", "year"
+        "student__user", "classroom__branch", "classroom__year", "classroom__grade", "year"
     )
     if user.role == User.Role.STUDENT:
         qs = qs.filter(student__user=user)

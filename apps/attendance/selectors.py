@@ -51,7 +51,7 @@ def leave_enrollment(leave):
     return (
         Enrollment.objects.filter(student_id=leave.student_id, joined_on__lte=leave.starts_on)
         .filter(Q(left_on__isnull=True) | Q(left_on__gte=leave.starts_on))
-        .select_related("classroom__branch", "classroom__homeroom_teacher")
+        .select_related("classroom__branch", "classroom__grade", "classroom__homeroom_teacher")
         .first()
     )
 
@@ -85,7 +85,7 @@ def leave_enrollments(leaves):
     leaves = list(leaves)
     candidates = list(
         Enrollment.objects.filter(student_id__in={leave.student_id for leave in leaves})
-        .select_related("classroom__branch", "classroom__homeroom_teacher")
+        .select_related("classroom__branch", "classroom__grade", "classroom__homeroom_teacher")
         .order_by("joined_on", "pk")
     )
     return {

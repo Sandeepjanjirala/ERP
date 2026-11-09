@@ -9,7 +9,7 @@ from .services import notify
 @shared_task
 def deliver_announcement(announcement_id):
     """Notify everyone in an announcement's audience. Safe to run twice."""
-    announcement = Announcement.objects.select_related("branch", "classroom").get(
+    announcement = Announcement.objects.select_related("branch", "classroom__grade").get(
         pk=announcement_id
     )
     return notify(

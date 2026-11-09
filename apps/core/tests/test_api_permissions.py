@@ -34,7 +34,7 @@ class ApiPermissionMatrixTests(ApiTestCase):
         # Alice's invoice, part paid, so the fee endpoints have a record to act on.
         head = FeeHead.objects.create(branch=cls.a, name="Tuition", code="tuition")
         cls.plan = save_fee_plan(
-            cls.admin, FeePlan(branch=cls.a, year=cls.year, grade="9"), {head: 100000}
+            cls.admin, FeePlan(branch=cls.a, year=cls.year, grade=cls.grade9), {head: 100000}
         )
         created, _ = issue_invoices(cls.admin, cls.plan, "Term 1", cls.today + timedelta(days=30))
         cls.invoice = next(i for i in created if i.student_id == cls.e1.student_id)
@@ -57,6 +57,7 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("/api/v1/organization/", ALL),
             ("/api/v1/branches/", ALL),
             ("/api/v1/years/", ALL),
+            ("/api/v1/grades/", ALL),
             ("/api/v1/classrooms/", ALL),
             ("/api/v1/exams/", ACADEMIC),
             ("/api/v1/announcements/", ALL),
@@ -90,6 +91,7 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("post", "/api/v1/people/", WRITE_MANAGERS),
             ("post", "/api/v1/students/", WRITE_MANAGERS),
             ("post", "/api/v1/enrollments/", WRITE_MANAGERS),
+            ("post", "/api/v1/grades/", WRITE_MANAGERS),
             ("post", "/api/v1/classrooms/", WRITE_MANAGERS),
             ("post", "/api/v1/subjects/", WRITE_MANAGERS),
             ("post", "/api/v1/assignments/", WRITE_MANAGERS),

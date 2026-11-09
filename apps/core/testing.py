@@ -15,7 +15,7 @@ from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.academics.models import AcademicYear, Classroom, Subject, TeachingAssignment
+from apps.academics.models import AcademicYear, Classroom, Grade, Subject, TeachingAssignment
 from apps.accounts.models import User
 from apps.core.exceptions import Conflict
 from apps.exams.models import Exam
@@ -63,13 +63,16 @@ class SchoolTestCase(TestCase):
         cls.teacher = user("teacher", "teacher", cls.a)
         cls.other_teacher = user("otherteacher", "teacher", cls.a)
         cls.foreign_teacher = user("foreignteacher", "teacher", cls.b)
+        # Grade "9" in each branch: grades belong to a branch.
+        cls.grade9 = Grade.objects.create(branch=cls.a, name="9", order=9)
+        cls.foreign_grade9 = Grade.objects.create(branch=cls.b, name="9", order=9)
         cls.c = Classroom.objects.create(
-            branch=cls.a, year=cls.year, grade="9", section="A", homeroom_teacher=cls.teacher
+            branch=cls.a, year=cls.year, grade=cls.grade9, section="A", homeroom_teacher=cls.teacher
         )
         cls.foreign_class = Classroom.objects.create(
             branch=cls.b,
             year=cls.year,
-            grade="9",
+            grade=cls.foreign_grade9,
             section="B",
             homeroom_teacher=cls.foreign_teacher,
         )

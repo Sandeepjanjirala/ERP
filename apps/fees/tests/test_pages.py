@@ -8,6 +8,7 @@ from unittest import mock
 from django.test import override_settings
 from django.urls import reverse
 
+from apps.academics.models import Grade
 from apps.core.testing import pdf_text
 from apps.fees.models import FeeHead, FeePlan, Invoice, Payment, PaymentOrder
 from apps.fees.services import (
@@ -268,13 +269,25 @@ class FeeSetupPageTests(FeesTestCase):
 
     def test_a_new_plan_for_a_grade_with_no_classroom_is_refused(self):
         self.client.force_login(self.admin)
-        page = self.client.get(reverse("fee_plan_create", args=[self.a.pk]))
-        self.assertEqual([c for c, _ in page.context["form"].fields["grade"].choices], ["9"])
+        empty = Grade.objects.create(branch=self.a, name="Class 42", order=42)
+        url = reverse("fee_plan_create", args=[self.a.pk])
+        page = self.client.get(url)
+        # Only this branch's grades are offered (South's grade 9 is not).
+        offered = list(page.context["form"].fields["grade"].queryset)
+        self.assertEqual(offered, [self.grade9, empty])
         page = self.client.post(
-            reverse("fee_plan_create", args=[self.a.pk]),
-            {"year": self.year.pk, "grade": "9", f"head_{self.tuition.pk}": "1"},
+            url, {"year": self.year.pk, "grade": empty.pk, f"head_{self.tuition.pk}": "1"}
+        )
+        self.assertContains(page, "No classroom in this branch and year has that grade.")
+        page = self.client.post(
+            url, {"year": self.year.pk, "grade": self.grade9.pk, f"head_{self.tuition.pk}": "1"}
         )
         self.assertContains(page, "Fee plan with this Branch, Year and Grade already exists.")
+        page = self.client.post(
+            url,
+            {"year": self.year.pk, "grade": self.foreign_grade9.pk, f"head_{self.tuition.pk}": "1"},
+        )
+        self.assertContains(page, "Select a valid choice.")
         self.assertEqual(FeePlan.objects.count(), 1)
 
     def test_other_branches_are_out_of_reach(self):

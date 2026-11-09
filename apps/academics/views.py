@@ -11,10 +11,10 @@ from apps.organization.forms import BranchForm, OrganizationForm
 from apps.organization.models import Organization
 from apps.organization.selectors import branches
 
-from .forms import AssignmentForm, ClassroomForm, SubjectForm, YearForm
+from .forms import AssignmentForm, ClassroomForm, GradeForm, SubjectForm, YearForm
 from .models import AcademicYear
 from .policies import GROUP_LEVEL, can_manage_setup
-from .selectors import assignments, classrooms, subjects
+from .selectors import assignments, classrooms, grades, subjects
 from .services import save_setup_record, update_setup_record
 
 
@@ -27,6 +27,7 @@ def setup(request):
             "title": "Academic setup",
             "branches": branches(request.user),
             "years": AcademicYear.objects.all(),
+            "grades": grades(request.user),
             "classrooms": classrooms(request.user).annotate(student_count=Count("enrollments")),
             "subjects": subjects(request.user),
             "assignments": assignments(request.user),
@@ -38,6 +39,7 @@ SETUP_FORMS = {
     "organization": OrganizationForm,
     "branch": BranchForm,
     "year": YearForm,
+    "grade": GradeForm,
     "classroom": ClassroomForm,
     "subject": SubjectForm,
     "assignment": AssignmentForm,
@@ -77,6 +79,7 @@ def setup_create(request, kind):
 @role_required(*User.MANAGERS)
 def setup_edit(request, kind, pk):
     editable = {
+        "grade": (grades(request.user), GradeForm, ("branch",)),
         "classroom": (classrooms(request.user), ClassroomForm, ("branch", "year")),
         "subject": (subjects(request.user), SubjectForm, ("branch",)),
         "assignment": (
@@ -95,7 +98,7 @@ def setup_edit(request, kind, pk):
         form.fields[field].disabled = True
     if request.method == "POST" and form.is_valid():
         update_setup_record(request.user, kind, form.save(commit=False), before, form.changed_data)
-        messages.success(request, "Assignment details updated.")
+        messages.success(request, "Changes saved.")
         return redirect("setup")
     return render(
         request,

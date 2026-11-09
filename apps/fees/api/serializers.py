@@ -22,7 +22,7 @@ from ..services import COUNTER_METHODS
 class InvoiceSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source="student.user.display_name", read_only=True)
     admission_number = serializers.CharField(source="student.admission_number", read_only=True)
-    grade = serializers.CharField(source="plan.grade", allow_null=True, read_only=True)
+    grade = serializers.CharField(source="plan.grade.name", allow_null=True, read_only=True)
     status_label = serializers.CharField(source="get_status_display", read_only=True)
     balance_paise = serializers.IntegerField(read_only=True)
     overdue = serializers.SerializerMethodField()
@@ -183,12 +183,16 @@ class FeePlanItemSerializer(serializers.ModelSerializer):
 
 
 class FeePlanSerializer(serializers.ModelSerializer):
+    """`grade` is the grade's name; `grade_id` the Grade (GET /api/v1/grades/)."""
+
+    grade = serializers.CharField(source="grade.name", read_only=True)
+    grade_id = serializers.IntegerField(read_only=True)
     items = FeePlanItemSerializer(many=True, read_only=True)
     total_paise = serializers.SerializerMethodField()
 
     class Meta:
         model = FeePlan
-        fields = ["id", "branch", "year", "grade", "items", "total_paise"]
+        fields = ["id", "branch", "year", "grade", "grade_id", "items", "total_paise"]
         read_only_fields = fields
 
     def get_total_paise(self, plan) -> int:

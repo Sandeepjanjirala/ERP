@@ -12,7 +12,7 @@ from .models import Announcement, Notification
 def announcements(user):
     """Super admins: everything. Academic staff: everything sent in their branch. Accountants and
     families: what is meant for them."""
-    qs = Announcement.objects.select_related("branch", "classroom", "author")
+    qs = Announcement.objects.select_related("branch", "classroom__grade", "author")
     if user.system_admin:
         return qs
     qs = qs.filter(Q(branch__isnull=True) | Q(branch_id=user.branch_id))

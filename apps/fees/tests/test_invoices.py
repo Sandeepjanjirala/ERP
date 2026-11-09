@@ -17,7 +17,9 @@ class PlanTests(FeesTestCase):
             with self.subTest(actor=actor.username), self.assertRaises(PermissionDenied):
                 save_fee_plan(actor, self.plan, {self.tuition: 1})
         with self.assertRaises(PermissionDenied):  # another branch's admin can't either
-            save_fee_plan(self.admin, FeePlan(branch=self.b, year=self.year, grade="9"), {})
+            save_fee_plan(
+                self.admin, FeePlan(branch=self.b, year=self.year, grade=self.foreign_grade9), {}
+            )
 
     def test_changing_a_plan_is_audited_and_leaves_issued_invoices_alone(self):
         invoice = self.alices()

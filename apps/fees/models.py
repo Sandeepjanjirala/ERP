@@ -11,7 +11,7 @@ from django.db import models
 from django.db.models import F, Q
 from django.utils import timezone
 
-from apps.academics.models import AcademicYear, Classroom
+from apps.academics.models import AcademicYear, Classroom, Grade
 from apps.core.models import ValidatedModel
 from apps.organization.models import Branch
 from apps.students.models import Student
@@ -52,13 +52,13 @@ class FeeHead(ValidatedModel):
 class FeePlan(ValidatedModel):
     """What a grade pays in a year: one plan per branch, year and grade.
 
-    `grade` is the classroom's grade text ("Class 10") until Phase 5 adds a Grade model; that
-    migration will point each plan at the Grade with the same branch and name, then drop the text.
+    Until Phase 5 the grade was text; migrations 0003-0005 pointed each plan at the Grade with the
+    same branch and name.
     """
 
     branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="fee_plans")
     year = models.ForeignKey(AcademicYear, on_delete=models.PROTECT, related_name="fee_plans")
-    grade = models.CharField(max_length=25)
+    grade = models.ForeignKey(Grade, on_delete=models.PROTECT, related_name="fee_plans")
 
     class Meta:
         ordering = ["grade", "pk"]
@@ -69,12 +69,14 @@ class FeePlan(ValidatedModel):
         ]
 
     def clean(self):
+        if self.branch_id and self.grade_id and self.grade.branch_id != self.branch_id:
+            raise ValidationError({"grade": "Choose a grade of this branch."})
         if (
             self.branch_id
             and self.year_id
-            and self.grade
+            and self.grade_id
             and not Classroom.objects.filter(
-                branch_id=self.branch_id, year_id=self.year_id, grade=self.grade
+                branch_id=self.branch_id, year_id=self.year_id, grade_id=self.grade_id
             ).exists()
         ):
             raise ValidationError({"grade": "No classroom in this branch and year has that grade."})

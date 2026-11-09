@@ -4,8 +4,8 @@ from apps.accounts.selectors import teachers
 from apps.core.forms import DateInput
 from apps.organization.selectors import branches
 
-from .models import AcademicYear, Classroom, Subject, TeachingAssignment
-from .selectors import classrooms, subjects
+from .models import AcademicYear, Classroom, Grade, Subject, TeachingAssignment
+from .selectors import classrooms, grades, subjects
 
 
 class YearForm(forms.ModelForm):
@@ -13,6 +13,18 @@ class YearForm(forms.ModelForm):
         model = AcademicYear
         fields = ["name", "starts_on", "ends_on"]
         widgets = {"starts_on": DateInput(), "ends_on": DateInput()}
+
+
+class GradeForm(forms.ModelForm):
+    class Meta:
+        model = Grade
+        fields = ["branch", "name", "order"]
+
+    def __init__(self, *args, actor, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["branch"].queryset = branches(actor)
+        if not actor.system_admin:
+            self.fields["branch"].initial = actor.branch_id
 
 
 class ClassroomForm(forms.ModelForm):
@@ -23,6 +35,8 @@ class ClassroomForm(forms.ModelForm):
     def __init__(self, *args, actor, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["branch"].queryset = branches(actor)
+        self.fields["grade"].queryset = grades(actor)
+        self.fields["grade"].help_text = "A grade of the classroom's branch."
         self.fields["homeroom_teacher"].queryset = teachers(actor)
         if not actor.system_admin:
             self.fields["branch"].initial = actor.branch_id

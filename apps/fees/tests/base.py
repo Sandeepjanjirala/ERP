@@ -18,7 +18,7 @@ class FeesTestCase(SchoolTestCase):
         cls.transport = FeeHead.objects.create(branch=cls.a, name="Transport", code="transport")
         cls.plan = save_fee_plan(
             cls.admin,
-            FeePlan(branch=cls.a, year=cls.year, grade="9"),
+            FeePlan(branch=cls.a, year=cls.year, grade=cls.grade9),
             {cls.tuition: TUITION, cls.transport: TRANSPORT},
         )
 
