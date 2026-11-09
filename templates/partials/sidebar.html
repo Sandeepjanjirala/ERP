@@ -40,7 +40,8 @@
     {% if user.is_leader %}
       <p class="nav-label">Administration</p>
       <a href="{% url 'users' %}"{% aria_current 'users' 'user_create' 'user_edit' %}>{% icon 'user-check' %}<span>People &amp; access</span></a>
-      <a href="{% url 'setup' %}"{% aria_current 'setup' 'setup_create' 'setup_edit' 'enrollment_create' %}>{% icon 'sliders' %}<span>Academic setup</span></a>
+      <a href="{% url 'setup' %}"{% aria_current 'setup' 'setup_create' 'setup_edit' 'enrollment_create' 'year_terms' %}>{% icon 'sliders' %}<span>Academic setup</span></a>
+      <a href="{% url 'grading_scale' %}"{% aria_current 'grading_scale' %}>{% icon 'award' %}<span>Grading scale</span></a>
       <a href="{% url 'audit' %}"{% aria_current 'audit' %}>{% icon 'clock' %}<span>Activity log</span></a>
     {% endif %}
   </nav>

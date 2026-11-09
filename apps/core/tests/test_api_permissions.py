@@ -62,6 +62,7 @@ class ApiPermissionMatrixTests(ApiTestCase):
             (f"/api/v1/years/{self.year.pk}/terms/", ALL),
             ("/api/v1/classrooms/", ALL),
             ("/api/v1/exams/", ACADEMIC),
+            ("/api/v1/grading-scales/", ACADEMIC),
             ("/api/v1/announcements/", ALL),
             ("/api/v1/leave-requests/", ACADEMIC),
             ("/api/v1/notifications/", ALL),
@@ -106,6 +107,8 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("post", "/api/v1/years/", WRITE_MANAGERS),
             ("patch", "/api/v1/organization/", (200, 403, 403, 403, 403, 403, 403)),
             ("post", "/api/v1/exams/", (400, 400, 403, 400, 403, 403, 403)),
+            # A new version of the grading scale: super admins only.
+            ("post", "/api/v1/grading-scales/", (400, 403, 403, 403, 403, 403, 403)),
             ("post", "/api/v1/announcements/", (400, 400, 400, 400, 403, 403, 403)),
             # Only parents apply for leave (for their own children).
             ("post", "/api/v1/leave-requests/", (403, 403, 403, 403, 403, 400, 403)),

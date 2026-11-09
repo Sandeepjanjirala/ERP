@@ -20,7 +20,7 @@ from apps.attendance.selectors import (
 from apps.communication.selectors import announcements
 from apps.core.cache import cached
 from apps.exams.models import Exam, Mark
-from apps.exams.selectors import exams, mark_summary
+from apps.exams.selectors import exams, mark_summary, overall_grade, with_grades
 from apps.students.selectors import enrollments, students
 
 
@@ -41,15 +41,23 @@ def student_report(user, student, year_id=None):
         Mark.objects.filter(
             enrollment__in=student_enrollments,
             exam__in=exams(user).filter(status=Exam.Status.PUBLISHED),
-        ).select_related("exam__subject", "exam__term", "exam__classroom__grade")
+        )
+        .select_related(
+            "exam__subject", "exam__term", "exam__classroom__grade", "exam__grading_scale"
+        )
+        .prefetch_related("exam__grading_scale__bands")
     )
+    # Published results only: each is graded by the scale its exam was published with.
+    with_grades(marks)
+    summary = mark_summary(marks)
+    summary["grade"] = overall_grade(marks, summary["percentage"])
     rows = (
         attendance_rows(user).filter(enrollment__in=student_enrollments).order_by("-session__date")
     )
     return {
         "enrollments": student_enrollments,
         "marks": marks,
-        "summary": mark_summary(marks),
+        "summary": summary,
         "attendance_rows": rows,
         "attendance_summary": attendance_summary(rows),
         "years": AcademicYear.objects.filter(enrollment__student=student).distinct(),

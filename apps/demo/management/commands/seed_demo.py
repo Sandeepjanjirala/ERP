@@ -26,7 +26,13 @@ from apps.communication.models import Announcement
 from apps.communication.services import publish_announcement
 from apps.core.jobs import jobs_paused
 from apps.exams.models import Exam
-from apps.exams.services import create_exam, save_marks, transition_exam
+from apps.exams.services import (
+    DEFAULT_BANDS,
+    create_exam,
+    save_grading_scale,
+    save_marks,
+    transition_exam,
+)
 from apps.fees.models import FeeHead, FeePlan, Invoice, Payment, Receipt
 from apps.fees.services import (
     grant_concession,
@@ -167,8 +173,13 @@ class Command(BaseCommand):
         self.today = timezone.localdate()
 
         org = Organization.objects.create(name=GROUP_NAME)
-        User.objects.create_superuser(
+        superadmin = User.objects.create_superuser(
             "superadmin", "superadmin@example.invalid", self.password, first_name="Sandeep"
+        )
+        # The CBSE bands as version 1, before any result is published with it.
+        save_grading_scale(
+            superadmin,
+            [{"label": label, "min_percent": minimum} for label, minimum in DEFAULT_BANDS],
         )
         start = self.today.year if self.today.month >= 4 else self.today.year - 1
         self.year = AcademicYear.objects.create(

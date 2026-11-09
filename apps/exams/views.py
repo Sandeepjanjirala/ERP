@@ -7,11 +7,17 @@ from apps.accounts.models import User
 from apps.core.pagination import paginate
 from apps.students.selectors import students
 
-from .forms import ExamForm, MarkSheetForm
+from .forms import BandFormSet, ExamForm, MarkSheetForm
 from .models import Exam
-from .policies import EXAM_AUTHORS, can_mark, exam_actions
-from .selectors import exams, mark_sheet, mark_summary
-from .services import create_exam, save_marks, transition_exam
+from .policies import EXAM_AUTHORS, can_manage_grading, can_mark, exam_actions
+from .selectors import current_scale, exams, grading_scales, mark_sheet, mark_summary
+from .services import (
+    DEFAULT_BANDS,
+    create_exam,
+    save_grading_scale,
+    save_marks,
+    transition_exam,
+)
 
 
 @role_required(*User.ACADEMIC)
@@ -123,5 +129,43 @@ def exam_create(request):
             "title": "Create exam",
             "form": form,
             "description": "Set the maximum and pass mark for this subject assessment.",
+        },
+    )
+
+
+@role_required(*User.LEADERS)
+def grading_scale(request):
+    """The grading scale and its versions. Super admins save a new version; leaders read it."""
+    current = current_scale()
+    can_edit = can_manage_grading(request.user)
+    if current:
+        initial = [{"label": b.label, "min_percent": b.min_percent} for b in current.bands.all()]
+    else:
+        initial = [{"label": label, "min_percent": minimum} for label, minimum in DEFAULT_BANDS]
+    formset = BandFormSet(request.POST or None, initial=initial) if can_edit else None
+    if request.method == "POST":
+        if not can_edit:
+            raise PermissionDenied
+        if formset.is_valid():
+            rows = [form.cleaned_data for form in formset if form.cleaned_data.get("label")]
+            try:
+                scale = save_grading_scale(request.user, rows)
+            except ValidationError as exc:
+                formset._non_form_errors = formset.error_class(exc.messages)
+            else:
+                messages.success(
+                    request,
+                    f"Version {scale.version} saved. Results already published keep the version "
+                    "they were published with.",
+                )
+                return redirect("grading_scale")
+    return render(
+        request,
+        "exams/grading_scale.html",
+        {
+            "title": "Grading scale",
+            "current": current,
+            "versions": grading_scales(),
+            "formset": formset,
         },
     )

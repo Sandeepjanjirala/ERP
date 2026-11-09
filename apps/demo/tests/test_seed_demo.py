@@ -29,6 +29,15 @@ class SeedTests(TestCase):
         self.assertEqual(Exam.objects.count(), 24)
         statuses = dict(Exam.objects.values_list("status").annotate(n=Count("id")))
         self.assertEqual(statuses, {"published": 16, "submitted": 4, "draft": 4})
+        # Every published result carries version 1 of the grading scale (the CBSE bands).
+        self.assertEqual(
+            set(
+                Exam.objects.filter(status="published").values_list(
+                    "grading_scale__version", flat=True
+                )
+            ),
+            {1},
+        )
         with self.assertRaises(CommandError):
             call_command("seed_demo", "--size", "small", stdout=out)
 

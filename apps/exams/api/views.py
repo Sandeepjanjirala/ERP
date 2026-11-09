@@ -6,16 +6,18 @@ from rest_framework.response import Response
 from apps.accounts.models import User
 from apps.core.api.permissions import role_in
 
-from ..models import Exam
+from ..models import Exam, GradingScale
 from ..policies import EXAM_AUTHORS
-from ..selectors import exams, mark_sheet
-from ..services import create_exam, save_marks, transition_exam
+from ..selectors import exams, grading_scales, mark_sheet
+from ..services import create_exam, save_grading_scale, save_marks, transition_exam
 from .filters import ExamFilter
 from .serializers import (
     ExamCreateSerializer,
     ExamDetailSerializer,
     ExamSerializer,
     ExamTransitionSerializer,
+    GradingScaleCreateSerializer,
+    GradingScaleSerializer,
     MarkSheetSaveSerializer,
     MarkSheetSerializer,
 )
@@ -123,3 +125,30 @@ class ExamViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
     def reopen(self, request, pk=None):
         """Principal: return a submitted or published exam to draft. `reason` is required."""
         return self.transition(request, "reopen")
+
+
+class GradingScaleViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
+    """Versions of the grading scale, newest first (the first is current). Super admins POST a
+    new version; nothing already published changes."""
+
+    queryset = GradingScale.objects.none()  # for the schema; get_queryset() is the real list
+    serializer_class = GradingScaleSerializer
+
+    def get_queryset(self):
+        return grading_scales()
+
+    def get_permissions(self):
+        if self.action == "create":
+            return [role_in(User.Role.SUPER)()]
+        return [role_in(*User.ACADEMIC)()]
+
+    def get_serializer_class(self):
+        return GradingScaleCreateSerializer if self.action == "create" else GradingScaleSerializer
+
+    @extend_schema(responses={201: GradingScaleSerializer})
+    def create(self, request, *args, **kwargs):
+        body = self.get_serializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        scale = save_grading_scale(request.user, body.validated_data["bands"])
+        scale = grading_scales().get(pk=scale.pk)
+        return Response(GradingScaleSerializer(scale).data, status=status.HTTP_201_CREATED)
