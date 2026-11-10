@@ -6,6 +6,20 @@ The whole stack has been rehearsed locally under production settings (`python e2
 
 ## What runs
 
+```mermaid
+flowchart LR
+    people["Browsers · API clients"] -- "HTTPS 443<br/>(HTTP 80 redirects)" --> caddy["caddy<br/>certificates · compression"]
+    caddy --> web["web<br/>Gunicorn + Django"]
+    web --> db[("db<br/>PostgreSQL 17")]
+    web -- "jobs after commit · cache" --> redis[("redis")]
+    beat["beat<br/>nightly schedule"] --> redis
+    redis --> worker["worker<br/>Celery"]
+    worker --> db
+    worker -- "SMTP" --> mail["Email provider"]
+    backup["backup.sh (cron)"] -. "pg_dump" .-> db
+    backup -. "copy off the server" .-> offsite[("Off-site storage")]
+```
+
 | Service | What it does | Reachable from outside |
 |---|---|---|
 | `caddy` | HTTPS with automatic Let's Encrypt certificates, HTTP→HTTPS redirect, compression, a 5 MB request limit, access logs | Ports 80 and 443 |

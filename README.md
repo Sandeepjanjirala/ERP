@@ -2,18 +2,22 @@
 
 **School ERP for school groups with many branches, built with Django.**
 
-[![CI](https://github.com/Sandeepjanjirala/ERP/actions/workflows/ci.yml/badge.svg)](https://github.com/Sandeepjanjirala/ERP/actions/workflows/ci.yml)
+[![CI](https://github.com/Sandeepjanjirala/edunexa/actions/workflows/ci.yml/badge.svg)](https://github.com/Sandeepjanjirala/edunexa/actions/workflows/ci.yml)
 ![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
 ![Django 5.2 LTS](https://img.shields.io/badge/django-5.2%20LTS-0C4B33)
 ![PostgreSQL 17](https://img.shields.io/badge/postgresql-17-336791)
 
-EduNexa runs the daily work of a school group: branches, classrooms and teachers, daily attendance, exams with a principal-approval workflow, student reports and performance analysis. Every role sees only what it is responsible for, and every important change is recorded in an activity log. Everything is also available through a documented REST API.
+EduNexa runs the daily work of a school group: branches, classrooms and teachers, timetables, daily attendance, exams with a principal-approval workflow, fees with online payments, a parent portal, reports and performance analysis. Every role sees only what it is responsible for, and every important change is recorded in an activity log. Everything is also available through a documented REST API, and the whole stack (HTTPS, PostgreSQL, Redis, Celery) is ready to deploy on one Linux server.
 
 ![Overview dashboard](docs/screenshots/dashboard.png)
 
-| Exam review (principal) | Student report (dark theme) |
+| One-tap attendance (teacher) | Exam review (principal) |
 |---|---|
-| ![Exam review](docs/screenshots/exam-review.png) | ![Student report in dark mode](docs/screenshots/student-report-dark.png) |
+| ![Daily attendance register](docs/screenshots/attendance.png) | ![Exam review](docs/screenshots/exam-review.png) |
+| **Weekly timetable (admin)** | **Student report (dark theme)** |
+| ![Timetable editing](docs/screenshots/timetable.png) | ![Student report in dark mode](docs/screenshots/student-report-dark.png) |
+| **Search with Ctrl+K** | **Parent portal on a phone** |
+| ![Global search](docs/screenshots/search.png) | ![Parent overview on a phone](docs/screenshots/parent-phone.png) |
 
 ## What it does
 
@@ -24,10 +28,13 @@ EduNexa runs the daily work of a school group: branches, classrooms and teachers
 - **Parents:** parent accounts linked to one or more children, with a primary contact. Parents follow attendance and results, download report cards, and apply for leave, which the class teacher approves.
 - **Admissions and year end:** import students and their guardians from a CSV with a full preview (all rows saved together, or none), and move a class on at the end of the year in one go (move up, repeat or leave), safe to run twice.
 - **Fees and payments:** fee plans per grade, invoices, concessions, cash/UPI/cheque at the office, and online payment through Razorpay (test mode) or a built-in Sandbox. Receipts are numbered without gaps and emailed as PDFs; overdue families get a weekly reminder; finance staff get a collection report with CSV. No real money moves.
-- **Notifications:** a notification bell and email for absences, published results, leave decisions and announcements, sent in the background.
+- **Notifications:** a notification bell (it refreshes itself) and email for absences, published results, leave decisions and announcements, sent in the background.
+- **Students who leave:** an admin records the last day. The student's sign-in stops the next day; parents keep access for a grace period (30 days, or 90 while fees are owed) to download a ZIP of every report card, the fee statement and receipts. Nothing is deleted.
+- **Search:** Ctrl+K from any page finds students, people and invoices, each limited to what you may see.
 - **Dashboards:** for each role, with attendance charts, students below 75% attendance, and what is waiting for you.
 - **Reports:** report-card PDFs, printable student reports, subject performance analysis, and CSV exports scoped to your access and protected against spreadsheet formula injection.
-- **Security:** login throttling, a forced password change on first sign-in, a strict Content-Security-Policy, HSTS and secure cookies, and signed-in pages are never cached.
+- **Security:** login throttling, a forced password change on first sign-in, accounts switched off lose their sessions and tokens at once, a strict Content-Security-Policy (no inline scripts or styles), HSTS and secure cookies, and signed-in pages are never cached. See [SECURITY.md](docs/SECURITY.md).
+- **A public demo mode:** one-click logins for every role, a nightly reset to fresh synthetic data, no real emails and Sandbox payments only. The reset refuses any database the demo didn't create.
 - **Interface:** light and dark themes, responsive down to phone width, and keyboard and screen-reader friendly.
 - **REST API:** every feature under `/api/v1/` (password reset by email stays a web flow), with JWT sign-in, Swagger UI at `/api/docs/` and ReDoc at `/api/redoc/`. See [API.md](docs/API.md).
 
@@ -47,7 +54,9 @@ EduNexa runs the daily work of a school group: branches, classrooms and teachers
 | Caching that can't go stale | Dashboard numbers are cached in Redis under keys that include a fingerprint of the registers, so any change gives a new key. |
 | No N+1 queries | A test measures each API list's SQL queries with few rows and with many; the count must not change. |
 | Layered apps | Eleven apps ordered by dependency, with no circular imports, enforced by an import-linter contract on every test run. See [ARCHITECTURE.md](docs/ARCHITECTURE.md). |
-| Production safety | Settings per environment. Production refuses to start without a secret key and PostgreSQL, and Django's `check --deploy` runs in CI. |
+| Production ready, and rehearsed | Caddy (automatic HTTPS) in front of Gunicorn, Celery and PostgreSQL in [`deploy/`](deploy/). Production refuses to start with incomplete settings. A script builds that stack locally under production settings and checks HTTPS, headers and cookies, runs the API checks, crawls every role's pages in a real browser, and runs a backup and restore drill that compares every table. See [DEPLOYMENT.md](docs/DEPLOYMENT.md). |
+| Tested in a real browser | Playwright drives Chromium against the real Content-Security-Policy: one-tap attendance, timetable editing, live filters, Ctrl+K search, the bell, dialogs, charts, keyboard use and phone layouts. A crawl opens every page for every role and fails on any console error. |
+| Saves that scale | A register or mark sheet is checked row by row, then written in bulk, in the same number of queries for 5 students or 50 (a test checks this). |
 | Tested | 446 tests (plus 938 table-driven cases, such as every API endpoint for every role) with 95% branch coverage. CI runs them on PostgreSQL along with lint, a migration check, an OpenAPI schema check, a real Celery worker taking a job through Redis, and a Docker build. |
 
 ## Run it on your computer
@@ -83,7 +92,7 @@ Install Docker Desktop, run `python setup_local.py` once to create `.env`, then:
 
 ```powershell
 docker compose up --build -d
-docker compose exec web python manage.py seed_demo   # a few minutes: Docker on Windows adds a little to every query
+docker compose exec web python manage.py seed_demo
 ```
 
 Compose runs the full stack: PostgreSQL, Redis, the web app (gunicorn and WhiteNoise) on http://127.0.0.1:8000/, a Celery worker and scheduler, and Mailpit, which catches every email EduNexa sends so you can read them at http://127.0.0.1:8025/. Without Docker, background jobs simply run inside the request and emails print in the terminal. Data lives in a Docker volume. `docker compose stop` stops it; removing the volume deletes the data.
@@ -120,9 +129,11 @@ apps/
   attendance/    daily registers, leave requests, absence alerts
   exams/         exams, marks, result workflow, results notifications
   reports/       dashboards and charts, student report, report-card PDF, performance, activity log
-  demo/          seed_demo command
+  demo/          seed_demo, demo mode: one-click logins and the nightly reset
                  each domain app: selectors, policies, services, web views, api/, tests/ with factories
-config/          settings (base, dev, prod, test), URLs, API URLs, WSGI
+config/          settings (base, dev, prod, test, build), URLs, API URLs, WSGI
+deploy/          production: Compose with Caddy HTTPS, env example, backup and restore scripts
+e2e/             browser tests, API checks, crawl, and the upgrade, migration and deploy rehearsals
 templates/       layout, partials and shared components
 static/          design tokens, CSS, JavaScript, SVG icons
 docs/            design, architecture, permissions, data rules, deployment, decision records
@@ -143,12 +154,14 @@ Initial passwords must be shared privately, and everyone must change theirs at f
 
 ## Documentation
 
-- [Design and roadmap](docs/DESIGN.md): where EduNexa is going, in six phases.
+- [Design and roadmap](docs/DESIGN.md): the six phases EduNexa was built in.
 - [Architecture](docs/ARCHITECTURE.md): how the code is organised and how a request flows.
 - [REST API](docs/API.md): signing in, conventions, errors and every endpoint.
 - [Permissions](docs/PERMISSIONS.md): the full role-by-action access matrix.
 - [Data rules](docs/DATA_RULES.md): attendance, results, grading, fees, timetable, import and promotion rules.
-- [Deployment](docs/DEPLOYMENT.md): production settings and release steps.
+- [Deployment](docs/DEPLOYMENT.md): a Linux server with Docker Compose and HTTPS, releases, backups and restores, the public demo.
+- [Security](docs/SECURITY.md): what protects the data, and the pre-release review.
+- [End-to-end checks](e2e/README.md): the browser tests and rehearsals, and how to run them.
 - [Upgrading](docs/UPGRADING.md): moving data from the single-app version, tested.
 - [Decision records](docs/adr/): why the main technical choices were made.
 - [Backlog](docs/BACKLOG.md): known limitations and follow-ups, with the phase likely to take each on.
