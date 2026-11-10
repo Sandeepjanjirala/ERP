@@ -14,7 +14,8 @@ generated for the run and thrown away. Then:
 4. a real browser signs in as every role and opens every page they can reach: no console
    errors or CSP violations;
 5. the backup and restore drill: deploy/backup.sh, data lost, deploy/restore.sh, and every
-   table compared with the backup row for row.
+   table compared with the backup row for row;
+6. the demo reset: refused without DEMO_MODE, a fresh seed with it.
 
 Needs Docker, bash, ports 80 and 443 free, and Playwright's Chromium. The stack is removed at
 the end (--keep leaves it running at https://edunexa.localhost). Never run it on a server.
@@ -321,6 +322,36 @@ def backup_restore_drill(stack):
     (DEPLOY / archive).unlink()
 
 
+def demo_reset_checks(stack):
+    step("Demo reset: refused without demo mode, works with it (PostgreSQL)")
+    refused = stack.run(
+        "run",
+        "--rm",
+        "--no-deps",
+        "web",
+        "python",
+        "manage.py",
+        "reset_demo",
+        "--size",
+        "small",
+        capture=True,
+        check=False,
+    )
+    check(
+        refused.returncode != 0 and "DEMO_MODE=1" in refused.stderr,
+        "reset_demo refuses without DEMO_MODE",
+    )
+    # The database was filled by seed_demo, so it carries the marker the reset requires.
+    imported = "SELECT count(*) FROM accounts_user WHERE username = 'api-imp-1'"
+    check(stack.sql(imported).strip() == "1", "an account the API checks created is there")
+    stack.manage("reset_demo", "--size", "small", extra_env=["DEMO_MODE=1"])
+    check(stack.sql(imported).strip() == "0", "reset_demo replaced all data with a fresh seed")
+    check(
+        stack.sql("SELECT count(*) FROM demo_demomarker").strip() == "1", "the new seed is marked"
+    )
+    check(fetch(f"{SITE}/health/").status == 200, "the app serves after the reset")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--keep", action="store_true", help="leave the stack running")
@@ -364,6 +395,7 @@ def main():
         api_checks(password)
         browser_checks(password)
         backup_restore_drill(stack)
+        demo_reset_checks(stack)
     finally:
         if failures:
             stack.run("logs", "--tail", "60", check=False)
