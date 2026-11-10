@@ -50,7 +50,7 @@ Any small Linux VPS works for a school group of a few hundred students: 2 vCPU, 
 ## First deploy
 
 ```sh
-git clone https://github.com/<owner>/edunexa.git /opt/edunexa && cd /opt/edunexa/deploy
+git clone https://github.com/Sandeepjanjirala/edunexa.git /opt/edunexa && cd /opt/edunexa/deploy
 cp env.production.example .env && chmod 600 .env
 # Fill in every value in .env: the domain, secrets, SMTP. Generate secrets with
 #   python3 -c "import secrets; print(secrets.token_urlsafe(60))"
