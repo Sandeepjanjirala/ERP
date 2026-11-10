@@ -296,6 +296,10 @@
 
 /* Print (student reports): always light, without navigation or controls. */
 
+.error-page {
+  min-height: 100vh;
+}
+
 @media print {
   :root,
   :root[data-theme] {

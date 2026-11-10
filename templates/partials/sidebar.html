@@ -16,19 +16,34 @@
   <nav class="nav" aria-label="Main navigation">
     <p class="nav-label">Workspace</p>
     <a href="{% url 'dashboard' %}"{% aria_current 'dashboard' %}>{% icon 'grid' %}<span>Overview</span></a>
-    {% if not user.is_student %}
+    {% if user.is_school_staff %}
       <a href="{% url 'students' %}"{% aria_current 'students' 'student_create' 'student_report' %}>{% icon 'users' %}<span>Students</span></a>
       <a href="{% url 'attendance' %}"{% aria_current 'attendance' %}>{% icon 'calendar-check' %}<span>Daily attendance</span></a>
     {% endif %}
-    <a href="{% url 'exams' %}"{% aria_current 'exams' 'exam_create' 'exam_detail' %}>{% icon 'clipboard' %}<span>Exams &amp; marks</span></a>
-    {% if not user.is_student %}
+    {% if not user.is_accountant %}
+      <a href="{% url 'timetable' %}"{% aria_current 'timetable' 'my_timetable' 'classroom_timetable' %}>{% icon 'calendar' %}<span>Timetable</span></a>
+      <a href="{% url 'exams' %}"{% aria_current 'exams' 'exam_create' 'exam_detail' %}>{% icon 'clipboard' %}<span>Exams &amp; marks</span></a>
+      <a href="{% url 'leave_requests' %}"{% aria_current 'leave_requests' 'leave_create' %}>{% icon 'calendar-off' %}<span>Leave requests</span></a>
+    {% endif %}
+    {% if user.is_finance or user.is_parent %}
+      <a href="{% url 'fees' %}"{% aria_current 'fees' 'invoice_detail' 'checkout' %}>{% icon 'credit-card' %}<span>Fees</span></a>
+    {% endif %}
+    {% if user.is_finance %}
+      <a href="{% url 'fee_setup' %}"{% aria_current 'fee_setup' 'fee_head_create' 'fee_plan_create' 'fee_plan_edit' 'invoices_issue' %}>{% icon 'layers' %}<span>Fee setup</span></a>
+      <a href="{% url 'collections' %}"{% aria_current 'collections' %}>{% icon 'trending-up' %}<span>Fee collections</span></a>
+      <a href="{% url 'payment_review' %}"{% aria_current 'payment_review' %}>{% icon 'alert' %}<span>Payments to check</span></a>
+    {% endif %}
+    <a href="{% url 'announcements' %}"{% aria_current 'announcements' 'announcement_create' %}>{% icon 'message-square' %}<span>Announcements</span></a>
+    {% if user.is_school_staff %}
       <a href="{% url 'reports' %}"{% aria_current 'reports' %}>{% icon 'bar-chart' %}<span>Performance</span></a>
     {% endif %}
 
     {% if user.is_leader %}
       <p class="nav-label">Administration</p>
       <a href="{% url 'users' %}"{% aria_current 'users' 'user_create' 'user_edit' %}>{% icon 'user-check' %}<span>People &amp; access</span></a>
-      <a href="{% url 'setup' %}"{% aria_current 'setup' 'setup_create' 'setup_edit' 'enrollment_create' %}>{% icon 'sliders' %}<span>Academic setup</span></a>
+      <a href="{% url 'setup' %}"{% aria_current 'setup' 'setup_create' 'setup_edit' 'enrollment_create' 'year_terms' %}>{% icon 'sliders' %}<span>Academic setup</span></a>
+      <a href="{% url 'promotion' %}"{% aria_current 'promotion' %}>{% icon 'trending-up' %}<span>Year-end promotion</span></a>
+      <a href="{% url 'grading_scale' %}"{% aria_current 'grading_scale' %}>{% icon 'award' %}<span>Grading scale</span></a>
       <a href="{% url 'audit' %}"{% aria_current 'audit' %}>{% icon 'clock' %}<span>Activity log</span></a>
     {% endif %}
   </nav>

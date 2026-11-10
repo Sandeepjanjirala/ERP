@@ -1,24 +1,26 @@
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.accounts.decorators import role_required
 from apps.accounts.models import User
 from apps.core.pagination import paginate
-from apps.students.selectors import roster
+from apps.students.selectors import students
 
-from .forms import ExamForm, MarkSheetForm
+from .forms import BandFormSet, ExamForm, MarkSheetForm
 from .models import Exam
-from .policies import can_mark, can_publish
-from .selectors import exams, mark_summary
-from .services import create_exam, save_marks, transition_exam
+from .policies import EXAM_AUTHORS, can_manage_grading, can_mark, exam_actions
+from .selectors import current_scale, exams, grading_scales, mark_sheet, mark_summary
+from .services import (
+    DEFAULT_BANDS,
+    create_exam,
+    save_grading_scale,
+    save_marks,
+    transition_exam,
+)
 
-# Roles that may create exams (teachers only for their own class and subject).
-EXAM_AUTHORS = (User.Role.SUPER, User.Role.ADMIN, User.Role.TEACHER)
 
-
-@login_required
+@role_required(*User.ACADEMIC)
 def exam_list(request):
     qs = exams(request.user)
     status = request.GET.get("status", "")
@@ -31,27 +33,29 @@ def exam_list(request):
             "title": "Exams & marks",
             "page_obj": paginate(request, qs),
             "status": status,
-            # Students only ever see published results, so they get no draft or review tabs.
+            # Families only ever see published results, so they get no draft or review tabs.
             "status_tabs": [
                 choice
                 for choice in Exam.Status.choices
-                if not request.user.is_student or choice[0] == Exam.Status.PUBLISHED
+                if not request.user.is_family or choice[0] == Exam.Status.PUBLISHED
             ],
             "can_create": request.user.role in EXAM_AUTHORS,
         },
     )
 
 
-@login_required
+@role_required(*User.ACADEMIC)
 def exam_detail(request, pk):
     exam = get_object_or_404(exams(request.user), pk=pk)
+    # The page shows the whole class's marks, so families see their own results instead.
     if request.user.role == User.Role.STUDENT:
         return redirect("student_report", pk=request.user.student_profile.pk)
-    enrolled = list(roster(exam.classroom, exam.date))
-    marks = {
-        m.enrollment_id: m for m in exam.marks.select_related("enrollment__student__user", "exam")
-    }
-    writer, publisher = can_mark(request.user, exam), can_publish(request.user, exam)
+    if request.user.is_parent:
+        child = students(request.user).filter(enrollments__marks__exam=exam).first()
+        return redirect("student_report", pk=child.pk)
+    sheet = mark_sheet(exam)
+    enrolled, marks = sheet["roster"], sheet["marks"]
+    writer = can_mark(request.user, exam)
     form = MarkSheetForm(
         request.POST if request.method == "POST" else None, roster=enrolled, marks=marks, exam=exam
     )
@@ -91,8 +95,8 @@ def exam_detail(request, pk):
                 return redirect("exam_detail", pk=pk)
         except ValidationError as exc:
             form.add_error(None, "; ".join(exc.messages))
-    writable = writer and exam.status == Exam.Status.DRAFT
-    if not writable:
+    actions = exam_actions(request.user, exam)
+    if not actions["can_edit_marks"]:
         for field in form.fields.values():
             field.disabled = True
     return render(
@@ -102,10 +106,10 @@ def exam_detail(request, pk):
             "title": exam.title,
             "exam": exam,
             "form": form,
-            "can_write": writable,
-            "can_submit": writer and exam.status == Exam.Status.DRAFT,
-            "can_publish": publisher and exam.status == Exam.Status.SUBMITTED,
-            "can_reopen": publisher and exam.status != Exam.Status.DRAFT,
+            "can_write": actions["can_edit_marks"],
+            "can_submit": actions["can_submit"],
+            "can_publish": actions["can_publish"],
+            "can_reopen": actions["can_reopen"],
             "summary": mark_summary(marks.values()),
         },
     )
@@ -125,5 +129,49 @@ def exam_create(request):
             "title": "Create exam",
             "form": form,
             "description": "Set the maximum and pass mark for this subject assessment.",
+        },
+    )
+
+
+@role_required(*User.LEADERS)
+def grading_scale(request):
+    """The grading scale and its versions. Super admins save a new version; leaders read it."""
+    current = current_scale()
+    can_edit = can_manage_grading(request.user)
+    if current:
+        initial = [{"label": b.label, "min_percent": b.min_percent} for b in current.bands.all()]
+    else:
+        initial = [{"label": label, "min_percent": minimum} for label, minimum in DEFAULT_BANDS]
+    formset = None
+    if can_edit:
+        # Starting values only for showing the form: on a submission, formsets skip extra rows that
+        # equal their initial values, and the posted bands would vanish.
+        formset = (
+            BandFormSet(request.POST) if request.method == "POST" else BandFormSet(initial=initial)
+        )
+    if request.method == "POST":
+        if not can_edit:
+            raise PermissionDenied
+        if formset.is_valid():
+            rows = [form.cleaned_data for form in formset if form.cleaned_data.get("label")]
+            try:
+                scale = save_grading_scale(request.user, rows)
+            except ValidationError as exc:
+                formset._non_form_errors = formset.error_class(exc.messages)
+            else:
+                messages.success(
+                    request,
+                    f"Version {scale.version} saved. Results already published keep the version "
+                    "they were published with.",
+                )
+                return redirect("grading_scale")
+    return render(
+        request,
+        "exams/grading_scale.html",
+        {
+            "title": "Grading scale",
+            "current": current,
+            "versions": grading_scales(),
+            "formset": formset,
         },
     )

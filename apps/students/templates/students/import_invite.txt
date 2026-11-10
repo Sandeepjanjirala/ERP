@@ -1,0 +1,11 @@
+{% autoescape off %}Hello {{ person.get_full_name|default:person.username }},
+
+{{ school }} has created an account for you{% if person.branch %} at {{ person.branch.name }}{% endif %}.
+
+Username: {{ person.username }}
+
+Set your password here (the link works for {{ days }} days):
+{{ link }}
+
+After that, sign in with your username and new password. If the link has expired, use "Forgot your password?" on the sign-in page.
+{% endautoescape %}

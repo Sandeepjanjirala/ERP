@@ -1,5 +1,10 @@
 {% extends "base.html" %}
-{% load ui %}
+{% load static ui money %}
+
+{% block scripts %}
+  <script defer src="{% static 'vendor/chartjs/chart.umd.js' %}"></script>
+  <script defer src="{% static 'js/charts.js' %}"></script>
+{% endblock %}
 
 {% block actions %}
   <span class="date-label">{% icon 'calendar' %}{{ today|date:"l, d M Y" }}</span>
@@ -26,6 +31,42 @@
     {% include "components/stat_card.html" with label="Today’s attendance" value=stats.attendance unit="%" hint="From recorded registers" only %}
     {% include "components/stat_card.html" with label="Results to review" value=stats.pending hint="Awaiting principal approval" only %}
   </div>
+
+  {% if todays_lessons is not None %}
+    <section class="card">
+      <div class="card-header">
+        <div><h2>Today's lessons</h2><p>From your timetable</p></div>
+        <a href="{% url 'my_timetable' %}">My timetable {% icon 'arrow-right' %}</a>
+      </div>
+      <div class="list">
+        {% for lesson in todays_lessons %}
+          <a class="list-item" href="{% url 'classroom_timetable' lesson.classroom_id %}">
+            <span class="subject-icon" aria-hidden="true">{{ lesson.period.number }}</span>
+            <span class="list-item-body"><strong>{{ lesson.subject.name }} · {{ lesson.classroom.grade }}–{{ lesson.classroom.section }}</strong><small>{{ lesson.period.starts_at|time:"H:i" }}–{{ lesson.period.ends_at|time:"H:i" }}</small></span>
+          </a>
+        {% empty %}
+          <p class="empty">No lessons in your timetable today.</p>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if fees %}
+    <section class="card">
+      <div class="card-header">
+        <div><h2>Fees</h2><p>Invoices not cancelled{% if selected_branch %}, {{ selected_branch.name }}{% endif %}</p></div>
+        <a href="{% url 'collections' %}">Collections {% icon 'arrow-right' %}</a>
+      </div>
+      <div class="breakdown">
+        <div><span>Billed</span><strong>{{ fees.billed|rupees }}</strong></div>
+        <div><span>Collected</span><strong>{{ fees.collected|rupees }}</strong></div>
+        <div><span>Outstanding</span><strong>{{ fees.outstanding|rupees }}</strong></div>
+        <div><span>Overdue invoices</span><strong>{{ fees.overdue }}</strong></div>
+        <div><span>Collected today</span><strong>{{ fees.collected_today|rupees }}</strong></div>
+        <div><span>Payments to check</span><strong>{{ fees.to_check }}</strong></div>
+      </div>
+    </section>
+  {% endif %}
 
   <div class="grid-main">
     <section class="card">
@@ -90,6 +131,89 @@
       <a class="card-footer-link" href="{% url 'exams' %}">View assessments {% icon 'arrow-right' %}</a>
     </section>
   </div>
+
+  <div class="grid-two">
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>Attendance, last 30 days</h2>
+          <p>Present and late, out of every student marked</p>
+        </div>
+      </div>
+      {% if has_trend %}
+        <div class="chart"><canvas id="attendance-trend" role="img" aria-label="Line chart of the daily attendance rate over the last 30 days"></canvas></div>
+      {% else %}
+        <p class="empty">No registers recorded in the last 30 days.</p>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>Waiting for you</h2>
+          <p>Mark sheets, approvals and leave requests</p>
+        </div>
+      </div>
+      <div class="list">
+        {% for exam in to_do.drafts %}
+          <a class="list-item" href="{% url 'exam_detail' exam.pk %}">
+            <span class="list-item-body"><strong>Enter marks: {{ exam.title }}</strong><small>{{ exam.subject.name }} · {{ exam.classroom.grade }}–{{ exam.classroom.section }}</small></span>
+            <span class="badge badge-draft">Draft</span>
+          </a>
+        {% endfor %}
+        {% for exam in to_do.awaiting %}
+          <a class="list-item" href="{% url 'exam_detail' exam.pk %}">
+            <span class="list-item-body"><strong>Review results: {{ exam.title }}</strong><small>{{ exam.subject.name }} · {{ exam.classroom.grade }}–{{ exam.classroom.section }}</small></span>
+            <span class="badge badge-submitted">Submitted</span>
+          </a>
+        {% endfor %}
+        {% for leave in to_do.leave %}
+          <a class="list-item" href="{% url 'leave_requests' %}?status=pending">
+            <span class="list-item-body"><strong>Leave: {{ leave.student.user.display_name }}</strong><small>{{ leave.starts_on|date:"d M" }} – {{ leave.ends_on|date:"d M" }}</small></span>
+            <span class="badge badge-info">Pending</span>
+          </a>
+        {% endfor %}
+        {% if not to_do.drafts and not to_do.awaiting and not to_do.leave %}
+          <p class="empty">Nothing is waiting for you.</p>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+  <div class="grid-two">
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>Attendance below 75%</h2>
+          <p>Lowest first, this academic year</p>
+        </div>
+      </div>
+      <div class="list">
+        {% for row in low_attendance %}
+          <a class="list-item" href="{% url 'student_report' row.student_id %}">
+            <span class="list-item-body"><strong>{{ row.name }}</strong><small>{{ row.admission_number }} · {{ row.classroom }}</small></span>
+            <span class="badge badge-warning">{{ row.rate }}%</span>
+          </a>
+        {% empty %}
+          <p class="empty">Every student is at 75% or above.</p>
+        {% endfor %}
+      </div>
+    </section>
+
+    {% if charts.branches %}
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h2>Branches compared</h2>
+            <p>Attendance over the last 30 days</p>
+          </div>
+        </div>
+        <div class="chart"><canvas id="branch-comparison" role="img" aria-label="Bar chart comparing each branch's attendance rate over the last 30 days"></canvas></div>
+      </section>
+    {% endif %}
+  </div>
+
+  {{ charts|json_script:"dashboard-charts" }}
 
   <div class="callout">
     {% icon 'info' %}

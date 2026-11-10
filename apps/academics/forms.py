@@ -1,11 +1,11 @@
 from django import forms
 
-from apps.accounts.models import User
+from apps.accounts.selectors import teachers
 from apps.core.forms import DateInput
 from apps.organization.selectors import branches
 
-from .models import AcademicYear, Classroom, Subject, TeachingAssignment
-from .selectors import classrooms
+from .models import AcademicYear, Classroom, Grade, Period, Subject, TeachingAssignment
+from .selectors import classrooms, grades, subjects
 
 
 class YearForm(forms.ModelForm):
@@ -13,6 +13,61 @@ class YearForm(forms.ModelForm):
         model = AcademicYear
         fields = ["name", "starts_on", "ends_on"]
         widgets = {"starts_on": DateInput(), "ends_on": DateInput()}
+
+
+class TermRowForm(forms.Form):
+    """One term in the year's list. A row left empty is ignored; ticking Remove drops a term."""
+
+    id = forms.IntegerField(required=False, widget=forms.HiddenInput)
+    name = forms.CharField(max_length=30, required=False)
+    starts_on = forms.DateField(required=False, widget=DateInput())
+    ends_on = forms.DateField(required=False, widget=DateInput())
+
+    def clean(self):
+        data = super().clean()
+        filled = [data.get(field) for field in ("name", "starts_on", "ends_on")]
+        if any(filled) and not all(filled):
+            raise forms.ValidationError("Give the term a name, a start date and an end date.")
+        return data
+
+    def row(self):
+        """The term as save_terms takes it, or None for an empty row."""
+        data = self.cleaned_data
+        if not data.get("name") or data.get("DELETE"):
+            return None
+        return {key: data[key] for key in ("id", "name", "starts_on", "ends_on")}
+
+
+TermFormSet = forms.formset_factory(TermRowForm, extra=2, can_delete=True)
+
+
+class PeriodForm(forms.ModelForm):
+    class Meta:
+        model = Period
+        fields = ["branch", "number", "starts_at", "ends_at"]
+        widgets = {
+            "starts_at": forms.TimeInput(attrs={"type": "time"}),
+            "ends_at": forms.TimeInput(attrs={"type": "time"}),
+        }
+        help_texts = {"number": "1 for the first lesson of the day."}
+
+    def __init__(self, *args, actor, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["branch"].queryset = branches(actor)
+        if not actor.system_admin:
+            self.fields["branch"].initial = actor.branch_id
+
+
+class GradeForm(forms.ModelForm):
+    class Meta:
+        model = Grade
+        fields = ["branch", "name", "order"]
+
+    def __init__(self, *args, actor, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["branch"].queryset = branches(actor)
+        if not actor.system_admin:
+            self.fields["branch"].initial = actor.branch_id
 
 
 class ClassroomForm(forms.ModelForm):
@@ -23,9 +78,9 @@ class ClassroomForm(forms.ModelForm):
     def __init__(self, *args, actor, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["branch"].queryset = branches(actor)
-        self.fields["homeroom_teacher"].queryset = User.objects.filter(
-            branch__in=branches(actor), role=User.Role.TEACHER, is_active=True
-        )
+        self.fields["grade"].queryset = grades(actor)
+        self.fields["grade"].help_text = "A grade of the classroom's branch."
+        self.fields["homeroom_teacher"].queryset = teachers(actor)
         if not actor.system_admin:
             self.fields["branch"].initial = actor.branch_id
 
@@ -49,8 +104,6 @@ class AssignmentForm(forms.ModelForm):
 
     def __init__(self, *args, actor, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["teacher"].queryset = User.objects.filter(
-            branch__in=branches(actor), role=User.Role.TEACHER, is_active=True
-        )
+        self.fields["teacher"].queryset = teachers(actor)
         self.fields["classroom"].queryset = classrooms(actor)
-        self.fields["subject"].queryset = Subject.objects.filter(branch__in=branches(actor))
+        self.fields["subject"].queryset = subjects(actor)

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load ui money %}
+
+{% block actions %}
+  <a class="btn" href="?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&amp;{% endif %}format=csv">{% icon 'download' %}Download CSV</a>
+{% endblock %}
+
+{% block content %}
+  <form class="filter-bar" method="get">
+    {% if form.non_field_errors %}<div class="errorlist">{{ form.non_field_errors }}</div>{% endif %}
+    <div><label for="id_start">From</label><input type="date" id="id_start" name="start" value="{{ start|date:'Y-m-d' }}"></div>
+    <div><label for="id_end">To</label><input type="date" id="id_end" name="end" value="{{ end|date:'Y-m-d' }}"></div>
+    {% if user.system_admin %}{% include "components/branch_select.html" %}{% endif %}
+    <button class="btn btn-secondary" type="submit">{% icon 'filter' %}Apply</button>
+  </form>
+
+  <div class="grid-stats">
+    {% include "components/stat_card.html" with label="Received" value=summary.received|rupees hint="All payments in the period" only %}
+    {% include "components/stat_card.html" with label="Applied to invoices" value=summary.applied|rupees hint="Reduced what families owe" only %}
+    {% include "components/stat_card.html" with label="Held for refund" value=summary.excess|rupees hint="More than was owed" only %}
+    {% include "components/stat_card.html" with label="Payments" value=summary.count hint="Receipts issued" only %}
+  </div>
+
+  <section class="card">
+    <div class="card-header"><div><h2>By method</h2><p>{{ start|date:"d M Y" }} – {{ end|date:"d M Y" }}</p></div></div>
+    <div class="breakdown">
+      {% for label, amount in summary.by_method %}
+        <div><span>{{ label }}</span><strong>{{ amount|rupees }}</strong></div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Receipt</th><th>Student</th><th>Invoice</th><th>Method</th><th class="num">Received</th></tr></thead>
+        <tbody>
+          {% for payment in page_obj %}
+            <tr>
+              <td><a href="{% url 'receipt_pdf' payment.receipt.pk %}">{{ payment.receipt.number }}</a><small>{{ payment.paid_at|date:"d M Y, H:i" }}</small></td>
+              <td>{{ payment.invoice.student.user.display_name }}<small>{{ payment.invoice.student.admission_number }}</small></td>
+              <td><a href="{% url 'invoice_detail' payment.invoice_id %}">#{{ payment.invoice_id }} {{ payment.invoice.title }}</a></td>
+              <td>{{ payment.get_method_display }}{% if payment.reference %}<small>{{ payment.reference }}</small>{% endif %}</td>
+              <td class="num">{{ payment.amount_paise|rupees }}{% if payment.excess_paise %}<small>{{ payment.excess_paise|rupees }} held for refund</small>{% endif %}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5" class="empty">No payments in this period.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% include "components/pagination.html" %}
+{% endblock %}

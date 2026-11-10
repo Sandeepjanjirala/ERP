@@ -9,6 +9,7 @@
     <p class="eyebrow">Welcome back</p>
     <h2>Sign in to {{ brand.name }}.</h2>
     <p>Use the account provided by your administrator.</p>
+    {% include "components/messages.html" %}
     {% if login_error %}<div class="alert alert-error" role="alert">{% icon 'alert' %}<span>{{ login_error }}</span></div>{% endif %}
     <form method="post" class="form-stack">
       {% csrf_token %}
@@ -18,5 +19,19 @@
     </form>
     <p class="footnote"><a href="{% url 'password_reset' %}">Forgot your password?</a></p>
     <p class="footnote">Need an account? Contact your branch administrator.</p>
+    {% if demo_logins %}
+      <section class="demo-logins" aria-labelledby="demo-logins-title">
+        <h3 id="demo-logins-title">Try the demo as</h3>
+        <p>Synthetic data only, reset every night. No password needed.</p>
+        <div class="demo-login-grid">
+          {% for role, label in demo_logins %}
+            <form method="post" action="{% url 'demo_login' role %}">
+              {% csrf_token %}
+              <button class="btn btn-secondary btn-block" type="submit">{{ label }}</button>
+            </form>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
   </div>
 {% endblock %}

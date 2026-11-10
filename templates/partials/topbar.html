@@ -8,10 +8,20 @@
     {% icon 'chevron-right' %}
     <span aria-current="page">{{ title }}</span>
   </nav>
+  {% if can_search %}
+    {# The global search. Ctrl+K or Cmd+K focuses it from anywhere (static/js/app.js). #}
+    <form class="topbar-search" action="{% url 'search' %}" method="get" role="search">
+      <label class="visually-hidden" for="global-search">Search students, people and invoices</label>
+      {% icon 'search' %}
+      <input id="global-search" name="q" type="search" placeholder="Search" aria-keyshortcuts="Control+K Meta+K">
+      <kbd aria-hidden="true">Ctrl K</kbd>
+    </form>
+  {% endif %}
   <div class="topbar-actions">
     <button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="Dark mode" aria-pressed="false">
       {% icon 'moon' css='icon-moon' %}{% icon 'sun' css='icon-sun' %}
     </button>
+    {% include "partials/bell.html" %}
     <a class="topbar-link" href="{% url 'password_change' %}">{% icon 'key' %}<span>Password</span></a>
     <form action="{% url 'logout' %}" method="post">
       {% csrf_token %}

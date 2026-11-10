@@ -19,7 +19,7 @@ class AcademicSetupTests(SchoolTestCase):
             Classroom.objects.create(
                 branch=self.a,
                 year=self.year,
-                grade="8",
+                grade=self.grade9,
                 section="A",
                 homeroom_teacher=self.foreign_teacher,
             )

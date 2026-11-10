@@ -39,9 +39,7 @@
           <strong>{{ subject.name }}</strong>
           <small>{{ subject.branch }} · {{ subject.count }} records</small>
         </div>
-        <div class="bar" role="meter" aria-label="{{ subject.name }} at {{ subject.branch }}" aria-valuenow="{{ subject.percentage|unlocalize }}" aria-valuemin="0" aria-valuemax="100">
-          <span style="width: {{ subject.percentage|unlocalize }}%"></span>
-        </div>
+        <meter class="bar" min="0" max="100" value="{{ subject.percentage|unlocalize }}" aria-label="{{ subject.name }} at {{ subject.branch }}">{{ subject.percentage }}%</meter>
         <strong>{{ subject.percentage }}%</strong>
         <small>{{ subject.passed }} passed</small>
       </div>

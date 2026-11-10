@@ -1,0 +1,108 @@
+# EduNexa on one Linux server: Caddy (HTTPS, certificates renewed automatically) in front of the
+# app, a Celery worker and scheduler, PostgreSQL and Redis. Only Caddy is reachable from outside
+# (ports 80 and 443); the database and Redis have no published ports.
+#
+# Settings and secrets come from deploy/.env (copied from env.production.example; never in Git).
+# Run from this folder: docker compose -f compose.production.yaml ... (see docs/DEPLOYMENT.md).
+name: ${COMPOSE_PROJECT_NAME:-edunexa}
+
+x-app: &app
+  image: edunexa:${EDUNEXA_VERSION:-local}
+  build: ..
+  env_file: ${EDUNEXA_ENV_FILE:-.env}
+  environment:
+    DJANGO_SETTINGS_MODULE: config.settings.prod
+    DATABASE_URL: postgresql://edunexa:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in deploy/.env}@db:5432/edunexa?sslmode=disable
+    REDIS_URL: redis://redis:6379/0
+    # Caddy sets X-Forwarded-Proto on every request, overwriting any value a client sent.
+    TRUST_PROXY: "1"
+  restart: unless-stopped
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  logging: &logging
+    driver: json-file
+    options: {max-size: "10m", max-file: "5"}
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?Set SITE_DOMAIN in deploy/.env}
+      CADDY_TLS: ${CADDY_TLS:?Set CADDY_TLS in deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+    logging: *logging
+
+  web:
+    <<: *app
+    # Healthy once /health/ answers (the image's HEALTHCHECK); Caddy waits for it.
+
+  worker:
+    <<: *app
+    command: celery -A config worker --loglevel=info --concurrency=${WORKER_CONCURRENCY:-2}
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A config inspect ping --destination celery@$$HOSTNAME --timeout 5"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
+
+  beat:
+    <<: *app
+    # Exactly one scheduler, or scheduled jobs run twice.
+    command: celery -A config beat --loglevel=info --schedule /tmp/celerybeat-schedule
+    # Healthy once beat has started and opened its schedule (if beat stops, so does the
+    # container). `up --wait` needs every service to have a health check.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, sys; sys.exit(not os.path.exists('/tmp/celerybeat-schedule'))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: edunexa
+      POSTGRES_USER: edunexa
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U edunexa -d edunexa"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    logging: *logging
+
+  redis:
+    # Job queue and cache only: nothing here needs to survive a restart (jobs are acknowledged
+    # only when finished, and safe to run twice).
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    logging: *logging
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

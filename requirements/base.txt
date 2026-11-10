@@ -1,4 +1,13 @@
 # Runtime dependencies shared by every environment.
+celery[redis]==5.7.0
 Django==5.2.18
+django-filter==26.2
+djangorestframework==3.18.3
+djangorestframework-simplejwt==5.5.1
+drf-spectacular==0.30.0
+# Swagger UI and ReDoc files, served from our own static files so the CSP stays strict.
+drf-spectacular-sidecar==2026.10.1
 psycopg[binary]==3.3.6
+redis==8.1.0
+reportlab==5.1.0
 whitenoise==6.12.0

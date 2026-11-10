@@ -19,5 +19,13 @@ STORAGES = {
 # Serve static files without requiring collectstatic first.
 WHITENOISE_AUTOREFRESH = True
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+# Jobs run inside the test, after the (captured) commit, and their errors fail the test.
+# A developer's REDIS_URL never matters here.
+CELERY_BROKER_URL = "memory://"
+CELERY_TASK_ALWAYS_EAGER = True
+CELERY_TASK_EAGER_PROPAGATES = True
+CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+# The API accepts JSON only, so DRF's test client sends JSON unless told otherwise.
+REST_FRAMEWORK = {**REST_FRAMEWORK, "TEST_REQUEST_DEFAULT_FORMAT": "json"}
 # A fast hash for test accounts only. Real environments keep Django's default PBKDF2.
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]

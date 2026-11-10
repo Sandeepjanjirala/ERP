@@ -1,3 +1,21 @@
+# The full local stack: the app, a Celery worker and scheduler, PostgreSQL, Redis, and Mailpit
+# (a fake mail server; read the emails EduNexa sends at http://localhost:8025).
+x-app: &app
+  build: .
+  env_file: .env
+  environment:
+    DJANGO_SETTINGS_MODULE: config.settings.dev
+    DATABASE_URL: postgresql://edunexa:${POSTGRES_PASSWORD}@db:5432/edunexa?sslmode=disable
+    REDIS_URL: redis://redis:6379/0
+    EMAIL_HOST: mailpit
+    EMAIL_PORT: "1025"
+    EMAIL_USE_TLS: "0"
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
 services:
   db:
     image: postgres:17-alpine
@@ -12,17 +30,49 @@ services:
       interval: 5s
       timeout: 5s
       retries: 15
+  redis:
+    image: redis:7.4-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "127.0.0.1:8025:8025"
   web:
-    build: .
-    env_file: .env
-    environment:
-      DJANGO_SETTINGS_MODULE: config.settings.dev
-      DATABASE_URL: postgresql://edunexa:${POSTGRES_PASSWORD}@db:5432/edunexa?sslmode=disable
-    depends_on:
-      db:
-        condition: service_healthy
+    <<: *app
     ports:
       - "127.0.0.1:8000:8000"
-    command: sh -c "python manage.py migrate && python manage.py collectstatic --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 60"
+    # Local only: migrations run at startup (production runs them as a release step).
+    command: sh -c "python manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 60"
+    # Healthy once the app answers /health/ (it checks the database), so `up --wait` waits for it.
+    healthcheck:
+      test: ["CMD", "python", "deploy/healthcheck.py"]
+      interval: 5s
+      timeout: 6s
+      retries: 30
+      start_period: 30s
+  worker:
+    <<: *app
+    command: celery -A config worker --loglevel=info --concurrency=2
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A config inspect ping --destination celery@$$HOSTNAME --timeout 5"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
+  beat:
+    <<: *app
+    command: celery -A config beat --loglevel=info --schedule /tmp/celerybeat-schedule
+    # Healthy once beat has started and opened its schedule (if beat stops, so does the
+    # container). `up --wait` needs every service to have a health check.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, sys; sys.exit(not os.path.exists('/tmp/celerybeat-schedule'))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 volumes:
   postgres_data:

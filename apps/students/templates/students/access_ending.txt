@@ -1,0 +1,13 @@
+{% autoescape off %}Hello {{ person.get_full_name|default:person.username }},
+
+None of your children is enrolled at {{ school }} any more, so your account will stop working after {{ ends_on|date:"j F Y" }}.
+
+Until then you can sign in to download each child's records (report cards, fee statement and receipts) from your overview page:
+{{ link }}
+{% if fees_owed %}
+Some fees are still unpaid. You can pay them online before that date:
+{{ fees_link }}
+After it, please pay at the school office.
+{% endif %}
+All records are kept by the school. If you need them after that date, please contact the school office.
+{% endautoescape %}

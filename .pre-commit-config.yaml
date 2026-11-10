@@ -1,4 +1,7 @@
 # Run `pre-commit install` once; these checks then run before every commit.
+# Vendored libraries stay byte-for-byte as published (their hashes are in static/vendor/README.md),
+# so no hook may "fix" them.
+exclude: ^static/vendor/
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% load static ui money %}
+
+{% block scripts %}
+  <script defer src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script defer src="{% static 'js/razorpay-checkout.js' %}"></script>
+{% endblock %}
+
+{% block content %}
+  <section class="card card-narrow">
+    <div class="callout" role="note">
+      {% icon 'info' %}
+      <div>
+        <strong>Razorpay test mode.</strong>
+        <p>Use Razorpay's test cards or UPI IDs. No real money moves.</p>
+      </div>
+    </div>
+    <p class="eyebrow">#{{ invoice.pk }} {{ invoice.title }} · {{ invoice.student.user.display_name }}</p>
+    <h2>{{ order.amount_paise|rupees }}</h2>
+    {{ checkout|json_script:"razorpay-options" }}
+    <form method="post" action="{% url 'razorpay_callback' order.pk %}" id="razorpay-result" class="form-actions">
+      {% csrf_token %}
+      <input type="hidden" name="razorpay_payment_id">
+      <input type="hidden" name="razorpay_signature">
+      <button class="btn" type="button" data-razorpay-open>{% icon 'credit-card' %}Pay with Razorpay</button>
+      <a href="{% url 'invoice_detail' invoice.pk %}">Back to the invoice</a>
+    </form>
+  </section>
+{% endblock %}

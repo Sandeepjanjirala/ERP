@@ -2,7 +2,16 @@
 {% load ui %}
 
 {% block actions %}
-  <button class="btn btn-secondary" type="button" data-print>{% icon 'printer' %}Print / Save PDF</button>
+  <a class="btn" href="{% url 'report_card' student.pk %}{% if selected_year %}?year={{ selected_year.pk }}{% endif %}">{% icon 'download' %}Report card (PDF)</a>
+  <a class="btn btn-secondary" href="{% url 'student_records' student.pk %}">{% icon 'download' %}All records (ZIP)</a>
+  <button class="btn btn-secondary" type="button" data-print>{% icon 'printer' %}Print</button>
+  {% if can_manage_guardians %}
+    {% for enrollment in enrollments %}
+      {% if not enrollment.left_on %}
+        <a class="btn btn-secondary" href="{% url 'enrollment_leave' enrollment.pk %}">{% icon 'log-out' %}Record leaving</a>
+      {% endif %}
+    {% endfor %}
+  {% endif %}
 {% endblock %}
 
 {% block content %}
@@ -12,7 +21,7 @@
       <p class="eyebrow">Student progress report</p>
       <h2>{{ student.user.display_name }}</h2>
       <p>
-        {{ student.admission_number }} · {{ student.user.branch.name }}{% for enrollment in enrollments %} · {{ enrollment.classroom.grade }}–{{ enrollment.classroom.section }}{% endfor %}
+        {{ student.admission_number }} · {{ student.user.branch.name }}{% for enrollment in enrollments %} · {{ enrollment.classroom.grade }}–{{ enrollment.classroom.section }}{% if enrollment.left_on %} (left {{ enrollment.left_on|date:"j M Y" }}){% endif %}{% endfor %}
       </p>
     </div>
     <form method="get" class="identity-filter">
@@ -28,9 +37,25 @@
     </form>
   </section>
 
+  {% if attendance_summary.below_minimum %}
+    <div class="callout callout-warning" role="note">
+      {% icon 'alert' %}
+      <div>
+        <strong>Attendance is below 75%.</strong>
+        <p>Regular attendance matters for results. Please speak to the class teacher.</p>
+      </div>
+    </div>
+  {% endif %}
+
   <div class="grid-stats">
     {% include "components/stat_card.html" with label="Published assessments" value=summary.count hint="Results available to the student" only %}
-    {% include "components/stat_card.html" with label="Overall percentage" value=summary.percentage unit="%" hint="Total marks earned ÷ maximum" only %}
+    {% if summary.grade %}
+      {% with grade_hint="Grade "|add:summary.grade|add:" · total earned ÷ maximum" %}
+        {% include "components/stat_card.html" with label="Overall percentage" value=summary.percentage unit="%" hint=grade_hint only %}
+      {% endwith %}
+    {% else %}
+      {% include "components/stat_card.html" with label="Overall percentage" value=summary.percentage unit="%" hint="Total marks earned ÷ maximum" only %}
+    {% endif %}
     {% with attendance_days=attendance_summary.total|stringformat:"s"|add:" days recorded" %}
       {% include "components/stat_card.html" with label="Attendance" value=attendance_summary.rate unit="%" hint=attendance_days only %}
     {% endwith %}
@@ -47,16 +72,18 @@
     <div class="table-wrap">
       <table class="table">
         <thead>
-          <tr><th>Subject</th><th>Assessment</th><th>Date</th><th class="num">Score</th><th class="num">Maximum</th><th>Result</th></tr>
+          <tr><th>Subject</th><th>Assessment</th><th>Term</th><th>Date</th><th class="num">Score</th><th class="num">Maximum</th><th>Grade</th><th>Result</th></tr>
         </thead>
         <tbody>
           {% for mark in marks %}
             <tr>
               <td><strong>{{ mark.exam.subject.name }}</strong></td>
               <td>{{ mark.exam.title }}</td>
+              <td>{{ mark.exam.term.name }}</td>
               <td>{{ mark.exam.date|date:"d M Y" }}</td>
               <td class="num">{% if mark.absent %}Absent{% else %}{{ mark.score }}{% endif %}</td>
               <td class="num">{{ mark.exam.max_marks }}</td>
+              <td>{{ mark.grade_label|default:"—" }}</td>
               <td>
                 {% if mark.passed %}
                   <span class="badge badge-success">Pass</span>
@@ -66,7 +93,7 @@
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="6" class="empty">Results will appear after the principal publishes them.</td></tr>
+            <tr><td colspan="8" class="empty">Results will appear after the principal publishes them.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -103,5 +130,46 @@
     </section>
   </div>
 
-  <p class="footnote">Only published results are included. Absent exam attempts count as zero. Overall percentage is weighted by each exam’s maximum marks. A teacher’s report is limited to their permitted classes and subjects.</p>
+  <section class="card">
+    <div class="card-header">
+      <div>
+        <h2>Parents and guardians</h2>
+        <p>The primary contact receives absence alerts and results first.</p>
+      </div>
+      {% if can_manage_guardians %}
+        <div class="row-actions">
+          <a href="{% url 'guardian_create' student.pk %}">{% icon 'plus' %} Add parent</a>
+          <a href="{% url 'guardian_link' student.pk %}">{% icon 'users' %} Link existing parent</a>
+        </div>
+      {% endif %}
+    </div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Name</th><th>Relationship</th><th>Contact</th><th></th></tr></thead>
+        <tbody>
+          {% for link in guardians %}
+            <tr>
+              <td><strong>{{ link.guardian.user.display_name }}</strong></td>
+              <td>{{ link.get_relationship_display }}</td>
+              <td>{{ link.guardian.user.email }}{% if link.guardian.user.phone %}<small>{{ link.guardian.user.phone }}</small>{% endif %}</td>
+              <td>
+                {% if link.is_primary %}
+                  <span class="badge badge-info">Primary contact</span>
+                {% elif can_manage_guardians %}
+                  <form method="post" action="{% url 'guardian_make_primary' student.pk link.pk %}">
+                    {% csrf_token %}
+                    <button class="link-button" type="submit">Make primary</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="empty">No parent accounts are linked yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <p class="footnote">Grades use the grading scale each exam was published with. Only published results are included. Absent exam attempts count as zero. Overall percentage is weighted by each exam’s maximum marks. A teacher’s report is limited to their permitted classes and subjects.</p>
 {% endblock %}

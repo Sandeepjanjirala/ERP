@@ -40,6 +40,12 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U edunexa -d edunexa"
           --health-interval 5s --health-timeout 5s --health-retries 15
+      redis:
+        image: redis:7.4-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 15
     env:
       DJANGO_SECRET_KEY: ci-only-test-key-never-for-a-deployed-environment-483920184
       DATABASE_URL: postgresql://edunexa:ci-local-only@localhost:5432/edunexa?sslmode=disable
@@ -57,15 +63,130 @@ jobs:
         run: python manage.py check --deploy --fail-level WARNING
         env:
           DJANGO_SETTINGS_MODULE: config.settings.prod
+          # Production refuses to start without a consistent site address, Redis and email.
           ALLOWED_HOSTS: edunexa.example.com
+          SITE_URL: https://edunexa.example.com
+          CSRF_TRUSTED_ORIGINS: https://edunexa.example.com
+          REDIS_URL: redis://localhost:6379/0
+          EMAIL_HOST: smtp.example.com
       - name: Static files build
         run: python manage.py collectstatic --noinput
+      - name: API schema is valid OpenAPI, with no warnings
+        run: python manage.py spectacular --validate --fail-on-warn --file openapi.yml
       - name: Tests, including concurrent writes on PostgreSQL
         run: pytest --cov --cov-report=term-missing:skip-covered --cov-report=xml --cov-fail-under=85
+      - name: A Celery worker runs jobs through Redis
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.dev
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          celery -A config worker --pool=solo --loglevel=info --detach --logfile=celery.log
+          python manage.py check_jobs --timeout 30 || { cat celery.log; exit 1; }
       - uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: coverage.xml
+      - uses: actions/upload-artifact@v7
+        with:
+          name: openapi-schema
+          path: openapi.yml
+
+  browser:
+    name: Browser tests (Playwright, Chromium)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements/*.txt
+      - run: pip install -r requirements/dev.txt
+      - run: python -m playwright install --with-deps chromium
+      - name: htmx, the bell, Ctrl+K search, dialogs, charts, keyboard and phone layout under the real CSP
+        run: pytest e2e/browser
+
+  stack:
+    name: Docker Compose stack, API end to end
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: A throwaway .env for the local stack
+        run: |
+          python -c "import secrets; print('DJANGO_SECRET_KEY=' + secrets.token_urlsafe(60)); print('POSTGRES_PASSWORD=' + secrets.token_urlsafe(24))" > .env
+      - run: docker compose up --detach --build --wait
+      - name: Seed demo data
+        run: docker compose exec -T web python manage.py seed_demo --size small | tee seed.txt
+      - name: 69 API checks over HTTP, with the worker and Mailpit
+        run: |
+          password="$(sed -n 's/^Demo password for all accounts: //p' seed.txt)"
+          python e2e/api_checks.py http://127.0.0.1:8000 "$password"
+      - if: failure()
+        run: docker compose logs
+
+  dependency-audit:
+    name: Known vulnerabilities in dependencies (pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install pip-audit==2.9.0
+      - run: pip-audit -r requirements/prod.txt -r requirements/dev.txt
+
+  deploy-rehearsal:
+    name: Production stack rehearsal (Caddy HTTPS, backup and restore)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements/*.txt
+      - run: pip install -r requirements/dev.txt
+      - run: python -m playwright install --with-deps chromium
+      - name: deploy/ under production settings, HTTPS checks, API and browser checks, restore drill
+        run: python e2e/rehearse_deploy.py
+
+  rehearsals:
+    name: Upgrade and migration rehearsals
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: edunexa
+          POSTGRES_PASSWORD: ci-local-only
+          POSTGRES_DB: edunexa
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U edunexa -d edunexa"
+          --health-interval 5s --health-timeout 5s --health-retries 15
+    env:
+      DJANGO_SECRET_KEY: ci-only-test-key-never-for-a-deployed-environment-483920184
+      PGPASSWORD: ci-local-only
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # the rehearsals check out older releases
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements/*.txt
+      - run: pip install -r requirements/dev.txt
+      - run: |
+          psql -h localhost -U edunexa -d edunexa -c "CREATE DATABASE upgrade" -c "CREATE DATABASE migrations"
+      - name: Single-app data upgraded, then the 154-check walkthrough
+        run: python e2e/rehearse_upgrade.py --database-url "postgresql://edunexa:ci-local-only@localhost:5432/upgrade?sslmode=disable" --walkthrough
+      - name: A v0.1.0 database migrated to this commit, every row compared
+        # v0.1.0 by its commit: version tags are pushed only after a release is approved.
+        run: python e2e/rehearse_migrations.py build --from 8f5e36b24db2e43b827a5bd97a9c3c425fca203f --database-url "postgresql://edunexa:ci-local-only@localhost:5432/migrations?sslmode=disable"
 
   docker:
     name: Docker image builds

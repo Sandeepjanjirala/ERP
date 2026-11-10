@@ -1,28 +1,35 @@
 """Shared test fixtures. Test code may import from any app; the layering rule is for app code."""
 
+import base64
+import re
+import zlib
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from decimal import Decimal
 from threading import Barrier
 from unittest import skipUnless
 
+from django.core.cache import cache
 from django.db import close_old_connections, connection, connections
 from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
+from rest_framework.test import APIClient
 
-from apps.academics.models import AcademicYear, Classroom, Subject, TeachingAssignment
+from apps.academics.models import AcademicYear, Classroom, Grade, Subject, TeachingAssignment
+from apps.academics.services import default_terms
 from apps.accounts.models import User
 from apps.core.exceptions import Conflict
 from apps.exams.models import Exam
 from apps.exams.services import save_marks, transition_exam
 from apps.organization.models import Branch, Organization
-from apps.students.models import Enrollment, Student
+from apps.students.models import Enrollment, Guardian, Student, StudentGuardian
 
 PASSWORD = "Testing-only-strong-password-892!"
 
 
 class SchoolTestCase(TestCase):
-    """Two branches, staff in every role, two students in one class, and three exams."""
+    """Two branches, staff in every role (and an accountant), two students in one class, a parent,
+    and three exams."""
 
     @classmethod
     def setUpTestData(cls):
@@ -39,6 +46,7 @@ class SchoolTestCase(TestCase):
             starts_on=cls.today - timedelta(days=90),
             ends_on=cls.today + timedelta(days=90),
         )
+        default_terms(cls.year)  # Term 1 and Term 2, as a new year gets them
         cls.root = User.objects.create_superuser("root", "root@example.com", PASSWORD)
 
         def user(name, role, branch):
@@ -57,13 +65,16 @@ class SchoolTestCase(TestCase):
         cls.teacher = user("teacher", "teacher", cls.a)
         cls.other_teacher = user("otherteacher", "teacher", cls.a)
         cls.foreign_teacher = user("foreignteacher", "teacher", cls.b)
+        # Grade "9" in each branch: grades belong to a branch.
+        cls.grade9 = Grade.objects.create(branch=cls.a, name="9", order=9)
+        cls.foreign_grade9 = Grade.objects.create(branch=cls.b, name="9", order=9)
         cls.c = Classroom.objects.create(
-            branch=cls.a, year=cls.year, grade="9", section="A", homeroom_teacher=cls.teacher
+            branch=cls.a, year=cls.year, grade=cls.grade9, section="A", homeroom_teacher=cls.teacher
         )
         cls.foreign_class = Classroom.objects.create(
             branch=cls.b,
             year=cls.year,
-            grade="9",
+            grade=cls.foreign_grade9,
             section="B",
             homeroom_teacher=cls.foreign_teacher,
         )
@@ -90,6 +101,15 @@ class SchoolTestCase(TestCase):
         cls.e1 = enroll("alice", cls.a, cls.c)
         cls.e2 = enroll("bob", cls.a, cls.c)
         cls.foreign_enrollment = enroll("charlie", cls.b, cls.foreign_class)
+        cls.accountant = user("accountant", "accountant", cls.a)
+        # Alice's mother. Bob has no guardian account.
+        cls.parent = user("parent", "parent", cls.a)
+        StudentGuardian.objects.create(
+            student=cls.e1.student,
+            guardian=Guardian.objects.create(user=cls.parent),
+            relationship=StudentGuardian.Relationship.MOTHER,
+            is_primary=True,
+        )
         cls.exam = Exam.objects.create(
             classroom=cls.c,
             subject=cls.math,
@@ -115,6 +135,11 @@ class SchoolTestCase(TestCase):
             pass_marks=35,
         )
 
+    def setUp(self):
+        super().setUp()
+        # The cache outlives each test's rolled-back database, so start every test empty.
+        cache.clear()
+
     def sign_in(self, user):
         self.client.force_login(user)
 
@@ -137,6 +162,27 @@ class SchoolTestCase(TestCase):
         transition_exam(self.principal, exam, "publish", exam.version)
         exam.refresh_from_db()
         return exam
+
+
+class ApiTestCase(SchoolTestCase):
+    """SchoolTestCase with DRF's test client, which sends and parses JSON."""
+
+    client_class = APIClient
+
+    def as_user(self, user):
+        """Authenticate every following request as `user`, skipping the token round trip."""
+        self.client.force_authenticate(user)
+
+    def sign_in_api(self, user, password=PASSWORD):
+        """Real sign-in through POST /api/v1/auth/token/; returns the token pair."""
+        response = self.client.post(
+            "/api/v1/auth/token/", {"username": user.username, "password": password}
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        return response.json()
+
+    def bearer(self, access):
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
 
 
 @skipUnless(
@@ -169,3 +215,17 @@ class ConcurrentTestCase(TransactionTestCase):
             futures = [pool.submit(worker, index) for index in range(2)]
             results = [f.result(timeout=30) for f in futures]
         self.assertEqual(sorted(results), ["conflict", "saved"])
+
+
+def pdf_text(content):
+    """The text drawn on the pages. ReportLab writes each page's drawing commands compressed
+    (zlib) and then as ASCII85 text, so both are undone here."""
+    streams = re.findall(rb"stream\r?\n(.*?)endstream", content, re.S)
+    text = b""
+    for stream in streams:
+        try:
+            text += zlib.decompress(base64.a85decode(stream.strip(), adobe=True))
+        except (ValueError, zlib.error):
+            continue  # fonts and other binary streams
+    # A line may be drawn as several runs, "(Sri <) Tj (Vidya) Tj": join them up.
+    return text.decode("latin-1").replace(") Tj (", "")

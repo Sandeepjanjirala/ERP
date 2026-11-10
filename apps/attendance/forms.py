@@ -4,8 +4,10 @@ from django.utils import timezone
 from apps.academics.models import Classroom
 from apps.academics.selectors import classrooms
 from apps.core.forms import DateInput
+from apps.students.selectors import students
 
-from .models import Attendance
+from .models import Attendance, LeaveRequest
+from .services import register_date_error
 
 
 class RegisterSelection(forms.Form):
@@ -18,14 +20,11 @@ class RegisterSelection(forms.Form):
 
     def clean(self):
         d = super().clean()
-        if d.get("date"):
-            if d["date"] > timezone.localdate():
-                self.add_error("date", "Future attendance is not allowed.")
-            elif (
-                d.get("classroom")
-                and not d["classroom"].year.starts_on <= d["date"] <= d["classroom"].year.ends_on
-            ):
-                self.add_error("date", "Select a date within the classroom academic year.")
+        if d.get("date") and d.get("classroom"):
+            if problem := register_date_error(d["classroom"], d["date"]):
+                self.add_error("date", problem)
+        elif d.get("date") and d["date"] > timezone.localdate():
+            self.add_error("date", "Future attendance is not allowed.")
         return d
 
 
@@ -41,8 +40,32 @@ class RegisterForm(forms.Form):
         self.rows = []
         for enrollment in roster:
             key = f"status_{enrollment.pk}"
+            # One tap per student: a button for each status (radio inputs, styled as a group).
             self.fields[key] = forms.ChoiceField(
-                choices=[("", "Choose status"), *Attendance.Status.choices],
+                choices=Attendance.Status.choices,
                 initial=initial_statuses.get(enrollment.pk),
+                widget=forms.RadioSelect(attrs={"class": "status-choice"}),
+                error_messages={"required": "Choose a status."},
             )
             self.rows.append((enrollment, self[key]))
+
+
+class LeaveRequestForm(forms.ModelForm):
+    class Meta:
+        model = LeaveRequest
+        fields = ["student", "starts_on", "ends_on", "reason"]
+        labels = {"student": "Child", "starts_on": "First day", "ends_on": "Last day"}
+        widgets = {
+            "starts_on": DateInput(),
+            "ends_on": DateInput(),
+            "reason": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, actor, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["student"].queryset = students(actor)
+
+
+class LeaveDecisionForm(forms.Form):
+    decision = forms.ChoiceField(choices=[("approve", "Approve"), ("reject", "Not approve")])
+    note = forms.CharField(max_length=250, required=False)

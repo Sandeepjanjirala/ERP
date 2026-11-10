@@ -9,9 +9,11 @@ Values come from environment variables. A local .env file fills in any that are 
 """
 
 import os
+from datetime import timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+from celery.schedules import crontab
 from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -38,7 +40,8 @@ def database_config(url, default_sslmode):
     if not url:
         return {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+            # SQLITE_PATH points a rehearsal or a test at another file (a copy, never the original).
+            "NAME": Path(os.getenv("SQLITE_PATH") or BASE_DIR / "db.sqlite3"),
             "OPTIONS": {"timeout": 20},
         }
     parsed = urlparse(url)
@@ -68,6 +71,8 @@ CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
 # Product identity: the one name in page titles, navigation, emails and docs. A school's own
 # name is data (the Organization record) and appears only where it belongs, such as reports.
 BRAND = {"name": "EduNexa", "tagline": "School ERP"}
+# The address people use to open EduNexa, for links in emails (no trailing slash).
+SITE_URL = os.getenv("SITE_URL", "http://localhost:8000").rstrip("/")
 
 INSTALLED_APPS = [
     "django.contrib.auth",
@@ -75,6 +80,11 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django_filters",
+    "drf_spectacular",
+    "drf_spectacular_sidecar",
+    "rest_framework",
+    "rest_framework_simplejwt.token_blacklist",
     # Domain apps, lowest layer first. An app may import only from apps above it in this list.
     "apps.core",
     "apps.organization",
@@ -82,12 +92,15 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.academics",
     "apps.students",
+    "apps.communication",
+    "apps.fees",
     "apps.attendance",
     "apps.exams",
     "apps.reports",
     "apps.demo",
 ]
 MIDDLEWARE = [
+    "apps.core.request_id.RequestIDMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -113,6 +126,9 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "apps.core.context_processors.brand",
                 "apps.organization.context_processors.workspace",
+                "apps.communication.context_processors.notifications",
+                "apps.reports.context_processors.search",
+                "apps.demo.context_processors.demo",
             ]
         },
     }
@@ -138,6 +154,72 @@ TIME_ZONE = "Asia/Kolkata"
 USE_TZ = True
 USE_I18N = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Background jobs (Celery) and the cache. With REDIS_URL (Docker, production), jobs go to a
+# Celery worker and every process shares one cache. Without it (the quick local run on Windows,
+# where Celery isn't supported), jobs run straight away inside the request, after the database
+# commit, and each process keeps its own cache.
+REDIS_URL = os.getenv("REDIS_URL", "")
+CELERY_BROKER_URL = REDIS_URL or "memory://"
+CELERY_TASK_ALWAYS_EAGER = not REDIS_URL
+CELERY_TASK_IGNORE_RESULT = True
+# A job is acknowledged only when it finishes, so a worker that crashes mid-job doesn't lose it.
+# Jobs must therefore be safe to run twice.
+CELERY_TASK_ACKS_LATE = True
+CELERY_TASK_REJECT_ON_WORKER_LOST = True
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_TASK_TIME_LIMIT = 5 * 60
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_BEAT_SCHEDULE = {
+    "flush-expired-api-tokens": {
+        "task": "apps.accounts.tasks.flush_expired_tokens",
+        "schedule": crontab(hour=3, minute=15),
+    },
+    "remind-overdue-fees": {
+        "task": "apps.fees.tasks.remind_overdue_invoices",
+        "schedule": crontab(hour=9, minute=0),
+    },
+    "review-account-access": {
+        "task": "apps.students.tasks.review_account_access",
+        "schedule": crontab(hour=2, minute=30),
+    },
+}
+# Days a parent can still sign in after their last child leaves, to download records, and the
+# longer limit while fees are owed (to pay online). Students lose access the day after they leave.
+# See docs/adr/0013-leaving-and-access.md.
+LEAVER_GRACE_DAYS = int(os.getenv("LEAVER_GRACE_DAYS", "30"))
+LEAVER_FEES_GRACE_DAYS = max(int(os.getenv("LEAVER_FEES_GRACE_DAYS", "90")), LEAVER_GRACE_DAYS)
+# Online fee payments. Razorpay runs in test mode only; without its keys the built-in Sandbox
+# gateway takes payments, so tests and the demo never depend on Razorpay or on real money.
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "")
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
+RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
+if RAZORPAY_KEY_ID and not RAZORPAY_KEY_ID.startswith("rzp_test_"):
+    raise ImproperlyConfigured(
+        "EduNexa runs Razorpay in test mode only: RAZORPAY_KEY_ID must start with rzp_test_."
+    )
+PAYMENT_GATEWAY = "razorpay" if RAZORPAY_KEY_ID else "sandbox"
+
+# Demo mode: a public showcase on synthetic data (docs/adr/0014-demo-mode.md). One-click role
+# logins and a banner; the data is reset every night; emails are never really sent; payments
+# use the Sandbox only. The reset also refuses any database seed_demo didn't create.
+DEMO_MODE = os.getenv("DEMO_MODE", "0") == "1"
+DEMO_SIZE = os.getenv("DEMO_SIZE", "full")
+if DEMO_MODE and RAZORPAY_KEY_ID:
+    raise ImproperlyConfigured("Demo mode takes payments in the Sandbox only: remove RAZORPAY_*.")
+if DEMO_MODE:
+    CELERY_BEAT_SCHEDULE["reset-demo"] = {
+        "task": "apps.demo.tasks.reset_demo_nightly",
+        "schedule": crontab(hour=3, minute=45),
+    }
+
+CACHES = {
+    "default": (
+        {"BACKEND": "django.core.cache.backends.redis.RedisCache", "LOCATION": REDIS_URL}
+        if REDIS_URL
+        else {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}
+    )
+}
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
@@ -173,6 +255,110 @@ EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "1") == "1"
 EMAIL_TIMEOUT = 15
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "EduNexa <noreply@example.com>")
+if DEMO_MODE:
+    # Demo emails are written to the log, never sent: the addresses are made up.
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+# REST API (/api/v1/). Apps and scripts send a JWT; the browsable API in development uses the
+# normal sign-in session. Errors share one JSON shape (apps/core/api/exceptions.py).
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": ["apps.core.api.permissions.IsSignedIn"],
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+    "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
+    "DEFAULT_PAGINATION_CLASS": "apps.core.api.pagination.PageNumberPagination",
+    "DEFAULT_FILTER_BACKENDS": [
+        "django_filters.rest_framework.DjangoFilterBackend",
+        "rest_framework.filters.SearchFilter",
+        "apps.core.api.filters.StableOrderingFilter",
+    ],
+    "DEFAULT_SCHEMA_CLASS": "apps.core.api.schema.EduNexaAutoSchema",
+    "EXCEPTION_HANDLER": "apps.core.api.exceptions.exception_handler",
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {"anon": "60/minute", "user": "600/minute"},
+}
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    # Each refresh returns a new refresh token and blacklists the old one, so a stolen refresh
+    # token stops working as soon as the real app uses it.
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    # Tokens carry a fingerprint of the password hash: changing a password revokes them all.
+    "CHECK_REVOKE_TOKEN": True,
+    "UPDATE_LAST_LOGIN": True,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
+SPECTACULAR_SETTINGS = {
+    "TITLE": f"{BRAND['name']} API",
+    "DESCRIPTION": (
+        "REST API for the EduNexa school ERP. Sign in with `POST /api/v1/auth/token/`, then send "
+        "`Authorization: Bearer <access token>`. Every list is limited to the records the signed-in "
+        "user may see; records outside that scope return 404."
+    ),
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SCHEMA_PATH_PREFIX": "/api/v1",
+    "POSTPROCESSING_HOOKS": [
+        "drf_spectacular.hooks.postprocess_schema_enums",
+        "apps.core.api.schema.tag_display_names",
+    ],
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SWAGGER_UI_DIST": "SIDECAR",
+    "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
+    "REDOC_DIST": "SIDECAR",
+    # Two models have a "status" field; give each set of choices its own name in the docs.
+    "ENUM_NAME_OVERRIDES": {
+        "AttendanceStatusEnum": "apps.attendance.models.Attendance.Status",
+        "ExamStatusEnum": "apps.exams.models.Exam.Status",
+        "InvoiceStatusEnum": "apps.fees.models.Invoice.Status",
+        "PaymentOrderStatusEnum": "apps.fees.models.PaymentOrder.Status",
+    },
+}
+
+# Logs go to standard output (Docker and the host collect them), one line each, with the id of
+# the web request that wrote them: the same id as the X-Request-ID header and the activity log.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "request_id": {"()": "apps.core.request_id.RequestIDLogFilter"},
+        "require_debug_false": {"()": "django.utils.log.RequireDebugFalse"},
+    },
+    "formatters": {
+        "line": {"format": "%(asctime)s %(levelname)s %(name)s [%(request_id)s] %(message)s"},
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "filters": ["request_id"],
+            "formatter": "line",
+        },
+        # Optional error monitoring without another service: ERROR_EMAILS gets an email for
+        # every server error (Django hides passwords and other sensitive values in it).
+        "mail_admins": {
+            "class": "django.utils.log.AdminEmailHandler",
+            "level": "ERROR",
+            "filters": ["require_debug_false"],
+        },
+    },
+    "root": {"handlers": ["console"], "level": os.getenv("LOG_LEVEL", "INFO")},
+    "loggers": {
+        "django.request": {
+            "handlers": ["console", "mail_admins"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+    },
+}
+ADMINS = [(email, email) for email in env_list("ERROR_EMAILS")]
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 3000
 DATA_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024

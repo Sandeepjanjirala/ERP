@@ -1,4 +1,6 @@
 .env
+# Database backups made by deploy/backup.sh: personal data, never in Git.
+deploy/backups/
 .venv/
 __pycache__/
 *.py[cod]
@@ -11,3 +13,5 @@ demo-accounts.txt
 .coverage
 htmlcov/
 coverage.xml
+# Generated from the code by `manage.py spectacular`; the live copy is at /api/schema/.
+openapi.yml

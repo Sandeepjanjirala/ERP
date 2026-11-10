@@ -11,8 +11,14 @@
   <link rel="stylesheet" href="{% static 'css/components.css' %}">
   <script src="{% static 'js/theme.js' %}"></script>
   <script defer src="{% static 'js/app.js' %}"></script>
+  {% if user.is_authenticated %}
+    {# htmx: no eval, no inline scripts or styles, same-origin requests only (see static/vendor/README.md). #}
+    <meta name="htmx-config" content='{"allowEval": false, "allowScriptTags": false, "includeIndicatorStyles": false, "selfRequestsOnly": true, "historyCacheSize": 0}'>
+    <script defer src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
+  {% endif %}
+  {% block scripts %}{% endblock %}
 </head>
-<body>
+<body{% if user.is_authenticated %} hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'{% endif %}>
   <a class="skip-link" href="#main">Skip to content</a>
 
   {% if user.is_authenticated %}
@@ -28,6 +34,8 @@
           <div class="page-actions">{% block actions %}{% endblock %}</div>
         </header>
         {% include "components/messages.html" %}
+        {% include "components/access_ending.html" %}
+        {% include "components/demo_banner.html" %}
         {% block content %}{% endblock %}
         <footer class="app-footer">
           <span>{{ brand.name }} · {{ brand.tagline }}</span>

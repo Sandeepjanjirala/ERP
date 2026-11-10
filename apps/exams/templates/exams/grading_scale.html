@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block content %}
+  <div class="callout" role="note">
+    {% icon 'info' %}
+    <div>
+      <strong>Grades follow the result's percentage.</strong>
+      <p>Saving creates a new version. Results already published keep the version they were published with, so report cards never change afterwards. Drafts and results awaiting approval use the newest version.</p>
+    </div>
+  </div>
+
+  <div class="grid-two">
+    <section class="card">
+      <div class="card-header"><div><h2>Current scale</h2><p>{% if current %}Version {{ current.version }}, saved {{ current.created_at|date:"d M Y" }} by {{ current.created_by.display_name }}{% else %}None yet: results show no grade until a scale is saved.{% endif %}</p></div></div>
+      {% if current %}
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Grade</th><th>Percentage</th></tr></thead>
+            <tbody>
+              {% for label, low, high in current.ranges %}
+                <tr><td><strong>{{ label }}</strong></td><td>{{ low|floatformat:"-2" }}% {% if high %}to below {{ high|floatformat:"-2" }}%{% else %}to 100%{% endif %}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    </section>
+
+    {% if formset %}
+      <section class="card">
+        <h2>Save a new version</h2>
+        <p class="form-intro">{% if current %}Starts from the current scale.{% else %}Starts from the CBSE bands; change them as you need.{% endif %} The lowest band must start at 0%.</p>
+        <form method="post" class="form-stack">
+          {% csrf_token %}
+          {{ formset.management_form }}
+          {% if formset.non_form_errors %}
+            <div class="callout callout-warning" role="alert">{% icon 'alert' %}<div>{% for error in formset.non_form_errors %}<p>{{ error }}</p>{% endfor %}</div></div>
+          {% endif %}
+          <div class="table-wrap">
+            <table class="table">
+              <thead><tr><th>Grade</th><th>From (%)</th></tr></thead>
+              <tbody>
+                {% for form in formset %}
+                  <tr>
+                    <td><label class="visually-hidden" for="{{ form.label.id_for_label }}">Grade label</label>{{ form.label }}{% if form.non_field_errors %}<small class="errorlist">{{ form.non_field_errors|join:" " }}</small>{% endif %}</td>
+                    <td><label class="visually-hidden" for="{{ form.min_percent.id_for_label }}">Starts at percentage</label>{{ form.min_percent }}{{ form.min_percent.errors }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="form-actions"><button class="btn" type="submit">{% icon 'check' %}Save as a new version</button></div>
+        </form>
+      </section>
+    {% endif %}
+  </div>
+
+  <section class="card">
+    <h2>Versions</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Version</th><th>Bands</th><th>Saved</th><th class="num">Exams published with it</th></tr></thead>
+        <tbody>
+          {% for scale in versions %}
+            <tr>
+              <td><strong>v{{ scale.version }}</strong>{% if scale == current %} <span class="badge badge-success">Current</span>{% endif %}</td>
+              <td>{% for label, low, high in scale.ranges %}{{ label }} {{ low|floatformat:"-2" }}%{% if not forloop.last %}, {% endif %}{% endfor %}</td>
+              <td>{{ scale.created_at|date:"d M Y" }}<small>{{ scale.created_by.display_name }}</small></td>
+              <td class="num">{{ scale.exam_count }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="empty">No versions yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

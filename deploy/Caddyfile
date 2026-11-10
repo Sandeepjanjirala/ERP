@@ -1,0 +1,14 @@
+# Caddy terminates HTTPS and passes requests to the app. With CADDY_TLS set to an email address
+# it gets and renews a Let's Encrypt certificate for SITE_DOMAIN; with "internal" it uses its own
+# local certificate authority (the local rehearsal). Plain HTTP redirects to HTTPS.
+{$SITE_DOMAIN} {
+	tls {$CADDY_TLS}
+	encode zstd gzip
+	# Uploads are at most 2 MB (CSV imports); refuse anything far larger before it reaches the app.
+	request_body {
+		max_size 5MB
+	}
+	header -Server
+	reverse_proxy web:8000
+	log
+}

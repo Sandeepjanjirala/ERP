@@ -14,25 +14,32 @@ if (sidebar && menuButton) {
   });
 }
 
-// Ask before actions with lasting effects, such as publishing results or deactivating accounts.
-document.querySelectorAll("form[data-confirm]").forEach((form) => {
-  form.addEventListener("submit", (event) => {
-    if (!window.confirm(form.dataset.confirm)) event.preventDefault();
+// Ctrl+K (Cmd+K on a Mac) jumps to the global search in the top bar.
+const globalSearch = document.getElementById("global-search");
+if (globalSearch) {
+  document.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      globalSearch.focus();
+      globalSearch.select();
+    }
   });
-});
+}
+
+// Ask before actions with lasting effects, such as publishing results or deactivating accounts.
+// Listened for on the document, so forms that htmx swaps in later are covered too.
+document.addEventListener(
+  "submit",
+  (event) => {
+    const form = event.target.closest("form[data-confirm]");
+    if (form && !window.confirm(form.dataset.confirm)) event.preventDefault();
+  },
+  true,
+);
 
 // Print / Save as PDF for student reports.
-document.querySelectorAll("[data-print]").forEach((button) => {
-  button.addEventListener("click", () => window.print());
-});
-
-// "Mark all present" sets every editable status on the attendance register.
-document.querySelectorAll("[data-mark-all]").forEach((button) => {
-  button.addEventListener("click", () => {
-    document.querySelectorAll('select[name^="status_"]:not(:disabled)').forEach((select) => {
-      select.value = button.dataset.markAll;
-    });
-  });
+document.addEventListener("click", (event) => {
+  if (event.target.closest("[data-print]")) window.print();
 });
 
 // Light/dark toggle. The choice is remembered in this browser only.
