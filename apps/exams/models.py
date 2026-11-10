@@ -179,6 +179,8 @@ class Mark(ValidatedModel):
             raise ValidationError("Absent students cannot also have a score.")
         if not self.absent and self.score is None:
             raise ValidationError("Enter a score or mark the student absent.")
+        if self.score is not None and self.score < 0:
+            raise ValidationError("A score cannot be negative.")
         if self.score is not None and self.exam_id and self.score > self.exam.max_marks:
             raise ValidationError("Score cannot exceed the exam maximum.")
 

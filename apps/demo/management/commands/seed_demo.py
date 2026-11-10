@@ -208,9 +208,9 @@ class Command(BaseCommand):
         self.history_start = max(
             self.year.starts_on, self.today - timedelta(days=self.size.history_days)
         )
-        # Every row goes through the real services and model validation, so the full size takes
-        # about a minute: slower than bulk inserts, but the data can never break a business rule.
-        self.stdout.write("Creating a synthetic school group; the full size takes about a minute.")
+        # Every row goes through the real services and model validation, so the data can never
+        # break a business rule; the full size takes about 15 seconds (longer in Docker Desktop).
+        self.stdout.write("Creating a synthetic school group; the full size takes under a minute.")
         # Months of history are recorded at once: that must not send today's families an alert
         # for every past absence and published result.
         self.branches = []

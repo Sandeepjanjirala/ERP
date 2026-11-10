@@ -28,24 +28,42 @@ def save_marks(actor, exam, entries, expected_version):
         raise ValidationError(
             "Marks are locked after submission. Ask the principal to reopen this exam."
         )
-    eligible = set(roster(exam.classroom, exam.date).values_list("pk", flat=True))
-    if set(entries) != eligible:
+    students = {enrollment.pk: enrollment for enrollment in roster(exam.classroom, exam.date)}
+    if set(entries) != set(students):
         raise ValidationError("The student roster changed. Reload this page.")
+    existing = {mark.enrollment_id: mark for mark in exam.marks.all()}
     before = {
         str(m.enrollment_id): {
             "score": str(m.score) if m.score is not None else None,
             "absent": m.absent,
         }
-        for m in exam.marks.all()
+        for m in existing.values()
     }
-    for enrollment_id, entry in entries.items():
-        score, absent = entry
+    # Written in bulk (a few queries, not several per student), each mark checked first by the
+    # same rules as Mark.save(): score range, a score or absent, the exam's class. The exam and
+    # enrollment are rows just loaded under lock, so their existence isn't queried again.
+    new, changed, cleared = [], [], []
+    for enrollment_id, (score, absent) in entries.items():
+        mark = existing.get(enrollment_id)
         if score is None and not absent:
-            Mark.objects.filter(exam=exam, enrollment_id=enrollment_id).delete()
+            if mark:
+                cleared.append(mark.pk)
+            continue
+        if mark is None:
+            mark = Mark(exam=exam, enrollment_id=enrollment_id)
+            new.append(mark)
+        elif (mark.score, mark.absent) != (score, absent):
+            changed.append(mark)
         else:
-            Mark.objects.update_or_create(
-                exam=exam, enrollment_id=enrollment_id, defaults={"score": score, "absent": absent}
-            )
+            continue
+        mark.exam, mark.enrollment = exam, students[enrollment_id]
+        mark.score, mark.absent = score, absent
+        mark.full_clean(
+            exclude=["exam", "enrollment"], validate_unique=False, validate_constraints=False
+        )
+    Mark.objects.filter(pk__in=cleared).delete()
+    Mark.objects.bulk_create(new)
+    Mark.objects.bulk_update(changed, ["score", "absent"])
     exam.version += 1
     exam.save()
     audit(

@@ -58,10 +58,19 @@ def save_register(actor, classroom, day, statuses, expected_version, reason=""):
         session.save()
     else:
         session = AttendanceSession.objects.create(classroom=classroom, date=day, recorded_by=actor)
+    # Every row was checked above (each enrollment is on this class's roster, each status is
+    # valid), so the register is written in bulk: a few queries, not several per student.
+    existing = {record.enrollment_id: record for record in session.records.all()} if old else {}
+    new, changed = [], []
     for enrollment_id, status in statuses.items():
-        Attendance.objects.update_or_create(
-            session=session, enrollment_id=enrollment_id, defaults={"status": status}
-        )
+        record = existing.get(enrollment_id)
+        if record is None:
+            new.append(Attendance(session=session, enrollment_id=enrollment_id, status=status))
+        elif record.status != status:
+            record.status = status
+            changed.append(record)
+    Attendance.objects.bulk_create(new)
+    Attendance.objects.bulk_update(changed, ["status"])
     audit(
         actor,
         classroom.branch,

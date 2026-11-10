@@ -58,7 +58,7 @@ You need **Python 3.12**. These commands are for Windows PowerShell; on macOS or
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements\dev.txt
 .\.venv\Scripts\python.exe setup_local.py        # creates .env and the local SQLite database
-.\.venv\Scripts\python.exe manage.py seed_demo   # about a minute; prints the demo password
+.\.venv\Scripts\python.exe manage.py seed_demo   # under a minute; prints the demo password
 .\run_server.bat                                 # or: .\.venv\Scripts\python.exe manage.py runserver
 ```
 
