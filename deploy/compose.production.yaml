@@ -64,8 +64,14 @@ services:
     <<: *app
     # Exactly one scheduler, or scheduled jobs run twice.
     command: celery -A config beat --loglevel=info --schedule /tmp/celerybeat-schedule
+    # Healthy once beat has started and opened its schedule (if beat stops, so does the
+    # container). `up --wait` needs every service to have a health check.
     healthcheck:
-      disable: true
+      test: ["CMD", "python", "-c", "import os, sys; sys.exit(not os.path.exists('/tmp/celerybeat-schedule'))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   db:
     image: postgres:17-alpine

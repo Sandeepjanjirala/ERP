@@ -63,7 +63,12 @@ jobs:
         run: python manage.py check --deploy --fail-level WARNING
         env:
           DJANGO_SETTINGS_MODULE: config.settings.prod
+          # Production refuses to start without a consistent site address, Redis and email.
           ALLOWED_HOSTS: edunexa.example.com
+          SITE_URL: https://edunexa.example.com
+          CSRF_TRUSTED_ORIGINS: https://edunexa.example.com
+          REDIS_URL: redis://localhost:6379/0
+          EMAIL_HOST: smtp.example.com
       - name: Static files build
         run: python manage.py collectstatic --noinput
       - name: API schema is valid OpenAPI, with no warnings
@@ -180,7 +185,8 @@ jobs:
       - name: Single-app data upgraded, then the 154-check walkthrough
         run: python e2e/rehearse_upgrade.py --database-url "postgresql://edunexa:ci-local-only@localhost:5432/upgrade?sslmode=disable" --walkthrough
       - name: A v0.1.0 database migrated to this commit, every row compared
-        run: python e2e/rehearse_migrations.py build --from v0.1.0 --database-url "postgresql://edunexa:ci-local-only@localhost:5432/migrations?sslmode=disable"
+        # v0.1.0 by its commit: version tags are pushed only after a release is approved.
+        run: python e2e/rehearse_migrations.py build --from 8f5e36b24db2e43b827a5bd97a9c3c425fca203f --database-url "postgresql://edunexa:ci-local-only@localhost:5432/migrations?sslmode=disable"
 
   docker:
     name: Docker image builds
