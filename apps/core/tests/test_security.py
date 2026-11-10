@@ -1,8 +1,14 @@
+from datetime import timedelta
+
 from django.contrib.auth.models import AnonymousUser
 from django.http import HttpResponse
 from django.test import Client, RequestFactory, TestCase
 from django.urls import reverse
+from django.utils import timezone
 
+from apps.accounts.models import LoginAttempt
+from apps.accounts.tasks import flush_expired_tokens
+from apps.accounts.throttling import throttle
 from apps.core.middleware import SecurityHeadersMiddleware
 from apps.core.testing import SchoolTestCase
 
@@ -101,3 +107,14 @@ class ContentSecurityPolicyTests(TestCase):
         for name in ("object-src", "frame-ancestors"):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 self.policy({name: ["*"]})
+
+
+class SignInCounterCleanupTests(TestCase):
+    def test_the_nightly_job_drops_old_sign_in_counters(self):
+        throttle("portal-login", "made-up-user-1")
+        throttle("portal-login", "made-up-user-2")
+        LoginAttempt.objects.filter(pk=throttle("portal-login", "made-up-user-1")[1]).update(
+            started_at=timezone.now() - timedelta(days=2)
+        )
+        flush_expired_tokens()
+        self.assertEqual(LoginAttempt.objects.count(), 1)  # the recent one still limits
