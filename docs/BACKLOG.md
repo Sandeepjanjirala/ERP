@@ -2,6 +2,16 @@
 
 Known limitations and follow-ups that were left out of a phase on purpose. Each item says where it came from and, where it fits, which phase is likely to take it on. When an item is done, remove it in the same commit.
 
+## From Phase 6 (release)
+
+| Item | Why it was left | Possible fix | Likely phase |
+|---|---|---|---|
+| Sign-in and password-reset limits are per account, not per IP address | Caddy's standard image has no rate limiting; per-account limits stop guessing one password | Rate limiting at the host's firewall or a CDN before a public launch, or a Caddy build with a rate-limit module | Before launch |
+| Backups are copied off the server by hand-configured tooling, not by EduNexa | The storage provider is the school's choice | Add an `rclone` step to `backup.sh` once a provider is chosen | Before launch |
+| PostgreSQL and Redis traffic inside the Docker network is not encrypted | One host, ports not published | TLS for both if they move to separate machines or a managed service | Later |
+| A demo visitor can switch demo accounts off or change their data until the nightly reset | By design: the demo shows every feature, and the reset undoes it ([ADR 0014](adr/0014-demo-mode.md)) | Make the one-click accounts read-only for account settings, if it becomes a problem | None planned |
+| Swagger UI groups use the raw tag names (`fee-plans`); ReDoc shows readable ones | Swagger UI ignores `x-displayName` | Rename the tags themselves | Later |
+
 ## From Phase 5 (academic operations)
 
 | Item | Why it was left | Possible fix | Likely phase |
@@ -32,7 +42,6 @@ Known limitations and follow-ups that were left out of a phase on purpose. Each 
 | A parent account belongs to one branch, so siblings in different branches need two accounts | Every scope rule is per branch; a cross-branch parent needs a reviewed design | Let a guardian's children span branches, with selectors scoped by child, not by account branch | Later |
 | An absence corrected on a later day sends no correction | Phase 5 sends corrections for same-day changes only, matching the alerts | Send corrections for recent days too, if schools ask | Later |
 | Names in cached dashboard lists can be up to an hour old (the numbers never are) | The cache key carries a register fingerprint, not a fingerprint of names | Add a version for student names to the key, or shorten the timeout | Later |
-| The full demo seed takes about 4 minutes under Docker on Windows (about 1 minute without Docker) | Every row goes through the real services, and Docker Desktop adds latency to each query | Batch the history inside one register per day, or seed inside the container network only | 6 |
 | GitHub CI has not yet run Phases 2 to 6 (including the new browser, deploy-rehearsal and dependency-audit jobs) | Nothing is pushed until the owner approves the release | Push the release branch, open the pull request and watch CI | After approval |
 
 ## Carried over from Phases 1 and 2

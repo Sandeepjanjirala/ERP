@@ -57,7 +57,7 @@ EduNexa runs the daily work of a school group: branches, classrooms and teachers
 | Production ready, and rehearsed | Caddy (automatic HTTPS) in front of Gunicorn, Celery and PostgreSQL in [`deploy/`](deploy/). Production refuses to start with incomplete settings. A script builds that stack locally under production settings and checks HTTPS, headers and cookies, runs the API checks, crawls every role's pages in a real browser, and runs a backup and restore drill that compares every table. See [DEPLOYMENT.md](docs/DEPLOYMENT.md). |
 | Tested in a real browser | Playwright drives Chromium against the real Content-Security-Policy: one-tap attendance, timetable editing, live filters, Ctrl+K search, the bell, dialogs, charts, keyboard use and phone layouts. A crawl opens every page for every role and fails on any console error. |
 | Saves that scale | A register or mark sheet is checked row by row, then written in bulk, in the same number of queries for 5 students or 50 (a test checks this). |
-| Tested | 446 tests (plus 938 table-driven cases, such as every API endpoint for every role) with 95% branch coverage. CI runs them on PostgreSQL along with lint, a migration check, an OpenAPI schema check, a real Celery worker taking a job through Redis, and a Docker build. |
+| Tested | 515 tests (plus 1,182 table-driven cases, such as every API endpoint for every role) with 95% branch coverage, run on PostgreSQL. CI also runs lint, a migration check, an OpenAPI schema check, a dependency vulnerability scan, the browser tests, the Docker Compose stack with 69 API checks, the upgrade and migration rehearsals, and the production rehearsal. |
 
 ## Run it on your computer
 
@@ -100,7 +100,7 @@ Compose runs the full stack: PostgreSQL, Redis, the web app (gunicorn and WhiteN
 ## Tests and code quality
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest                 # 2 concurrency tests skip on SQLite
+.\.venv\Scripts\python.exe -m pytest                 # includes the browser tests; 6 concurrency tests skip on SQLite
 .\.venv\Scripts\python.exe -m pytest --cov           # with a coverage report
 .\.venv\Scripts\ruff.exe check . ; .\.venv\Scripts\ruff.exe format --check .
 .\.venv\Scripts\pre-commit.exe install               # run ruff and file checks before each commit
@@ -168,4 +168,4 @@ Initial passwords must be shared privately, and everyone must change theirs at f
 
 ## Status
 
-Phases 1 to 5 are complete: the foundation and rebrand, the REST API, background jobs with the parent portal, fees with online payments (test mode), and academic operations (grades and terms, a versioned grading scale, timetables, CSV import and year-end promotion). Next is a live demo. See the [roadmap](docs/DESIGN.md#14-roadmap).
+All six phases are built: the foundation and rebrand, the REST API, background jobs with the parent portal, fees with online payments (test mode), academic operations (grades and terms, a versioned grading scale, timetables, CSV import and year-end promotion), and the release (deployment, leavers' access, demo mode, search, real-browser tests and a security review). The production stack is rehearsed locally; going live on a server is the next step. See the [roadmap](docs/DESIGN.md#14-roadmap) and the [backlog](docs/BACKLOG.md).
