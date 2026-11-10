@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load ui money %}
+
+{% block content %}
+  <section class="card">
+    {# Live search: htmx asks for this same page and swaps in only #results. #}
+    <form class="filter-bar" method="get" role="search" hx-get="{{ request.path }}" hx-trigger="input delay:300ms, submit" hx-target="#results" hx-select="#results" hx-swap="outerHTML" hx-push-url="true">
+      <div>
+        <label for="search-page-q">Search</label>
+        <input id="search-page-q" name="q" value="{{ query }}" type="search" placeholder="A name, admission number or invoice number" autofocus>
+      </div>
+      <button class="btn btn-secondary" type="submit">{% icon 'search' %}Search</button>
+    </form>
+
+    <div id="results" aria-live="polite">
+      {% if query|length < 2 %}
+        <p class="empty">Type at least two letters. Press Ctrl+K (⌘K on a Mac) on any page to search.</p>
+      {% else %}
+        {% if found.students is not None %}
+          <h2 class="section-title">Students</h2>
+          {% for student in found.students %}
+            {% if forloop.first %}<ul class="search-results">{% endif %}
+            <li><a href="{% url 'student_report' student.pk %}"><strong>{{ student.user.display_name }}</strong></a> <small>{{ student.admission_number }} · {{ student.user.branch.name }}</small></li>
+            {% if forloop.last %}</ul>{% if found.students|length == limit %}<p><a href="{% url 'students' %}?q={{ query|urlencode }}">All matching students</a></p>{% endif %}{% endif %}
+          {% empty %}
+            <p class="empty">No students match.</p>
+          {% endfor %}
+        {% endif %}
+
+        {% if found.people is not None %}
+          <h2 class="section-title">People</h2>
+          {% for person in found.people %}
+            {% if forloop.first %}<ul class="search-results">{% endif %}
+            <li>{% if person.can_edit %}<a href="{% url 'user_edit' person.pk %}"><strong>{{ person.display_name }}</strong></a>{% else %}<strong>{{ person.display_name }}</strong>{% endif %} <small>{{ person.get_role_display }}{% if person.branch %} · {{ person.branch.name }}{% endif %}{% if not person.is_active %} · switched off{% endif %}</small></li>
+            {% if forloop.last %}</ul>{% endif %}
+          {% empty %}
+            <p class="empty">No people match.</p>
+          {% endfor %}
+        {% endif %}
+
+        {% if found.invoices is not None %}
+          <h2 class="section-title">Invoices</h2>
+          {% for invoice in found.invoices %}
+            {% if forloop.first %}<ul class="search-results">{% endif %}
+            <li><a href="{% url 'invoice_detail' invoice.pk %}"><strong>#{{ invoice.pk }} {{ invoice.title }}</strong></a> <small>{{ invoice.student.user.display_name }} · {{ invoice.total_paise|rupees }} · {{ invoice.get_status_display }}</small></li>
+            {% if forloop.last %}</ul>{% if found.invoices|length == limit %}<p><a href="{% url 'fees' %}?show=all&amp;q={{ query|urlencode }}">All matching invoices</a></p>{% endif %}{% endif %}
+          {% empty %}
+            <p class="empty">No invoices match.</p>
+          {% endfor %}
+        {% endif %}
+      {% endif %}
+    </div>
+  </section>
+{% endblock %}

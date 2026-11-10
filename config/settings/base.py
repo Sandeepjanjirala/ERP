@@ -127,6 +127,7 @@ TEMPLATES = [
                 "apps.core.context_processors.brand",
                 "apps.organization.context_processors.workspace",
                 "apps.communication.context_processors.notifications",
+                "apps.reports.context_processors.search",
             ]
         },
     }

@@ -199,6 +199,22 @@ class FilterAndDialogTests(BrowserTestCase):
         self.assertIn("q=alice", page.url)  # the address follows, so it can be shared
         self.assert_not_reloaded(page)
 
+    def test_ctrl_k_searches_from_any_page(self):
+        page = self.open_as(self.admin, f"/timetable/{self.c.pk}/")
+        page.keyboard.press("Control+k")
+        expect(page.locator("#global-search")).to_be_focused()
+        page.keyboard.type("alice")
+        page.keyboard.press("Enter")
+        alice = page.locator(f"#results a[href='/students/{self.e1.student_id}/report/']")
+        bob = page.locator(f"#results a[href='/students/{self.e2.student_id}/report/']")
+        expect(alice).to_be_visible()
+        # The results page searches as you type, swapping in only the results.
+        page.evaluate("window.notReloaded = true")
+        page.fill("#search-page-q", "bob")
+        expect(bob).to_be_visible()
+        expect(alice).to_have_count(0)
+        self.assert_not_reloaded(page)
+
     def test_confirmation_dialogs_can_be_cancelled(self):
         next_year = AcademicYear.objects.create(
             name="Next", starts_on=self.year.ends_on + timedelta(days=1), ends_on=self.year.ends_on + timedelta(days=300)

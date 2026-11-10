@@ -14,6 +14,18 @@ if (sidebar && menuButton) {
   });
 }
 
+// Ctrl+K (Cmd+K on a Mac) jumps to the global search in the top bar.
+const globalSearch = document.getElementById("global-search");
+if (globalSearch) {
+  document.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      globalSearch.focus();
+      globalSearch.select();
+    }
+  });
+}
+
 // Ask before actions with lasting effects, such as publishing results or deactivating accounts.
 // Listened for on the document, so forms that htmx swaps in later are covered too.
 document.addEventListener(

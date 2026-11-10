@@ -10,6 +10,7 @@ from django.utils import timezone
 from apps.academics.models import AcademicYear, TeachingAssignment
 from apps.academics.selectors import classrooms
 from apps.accounts.models import User
+from apps.accounts.selectors import people
 from apps.attendance.models import Attendance, AttendanceSession, LeaveRequest
 from apps.attendance.selectors import (
     MINIMUM_ATTENDANCE,
@@ -21,6 +22,8 @@ from apps.communication.selectors import announcements
 from apps.core.cache import cached
 from apps.exams.models import Exam, Mark
 from apps.exams.selectors import exams, mark_summary, overall_grade, with_grades
+from apps.fees.selectors import invoices
+from apps.fees.selectors import search as search_invoices
 from apps.students.selectors import enrollments, students
 
 
@@ -288,3 +291,45 @@ def family_overview(user, student):
         "announcements": list(announcements(user)[:3]),
         "leave": list(leave_requests(user).filter(student=student)[:3]),
     }
+
+
+SEARCH_LIMIT = 8
+
+
+def can_search(user):
+    """Who has the top-bar search: everyone with students, people or invoices to find."""
+    return user.role in User.STAFF or user.is_finance or user.is_parent
+
+
+def search_everything(user, text):
+    """The global search (Ctrl+K): students, people and invoices matching `text`, each limited
+    to what `user` may see and to SEARCH_LIMIT rows. A group is None when the user can't search
+    it at all, so the page can tell "none found" from "not yours to search"."""
+    text = text.strip()
+    found = {"students": None, "people": None, "invoices": None}
+    if len(text) < 2:
+        return found
+    if user.role in User.STAFF:
+        found["students"] = list(
+            students(user)
+            .filter(
+                Q(user__first_name__icontains=text)
+                | Q(user__last_name__icontains=text)
+                | Q(admission_number__icontains=text)
+            )
+            .order_by("user__first_name", "admission_number")[:SEARCH_LIMIT]
+        )
+    if user.role in User.LEADERS:
+        found["people"] = list(
+            people(user).filter(
+                Q(first_name__icontains=text)
+                | Q(last_name__icontains=text)
+                | Q(username__icontains=text)
+                | Q(email__icontains=text)
+            )[:SEARCH_LIMIT]
+        )
+    if user.is_finance or user.is_parent:
+        found["invoices"] = list(
+            search_invoices(invoices(user), text).order_by("-issued_on", "-pk")[:SEARCH_LIMIT]
+        )
+    return found

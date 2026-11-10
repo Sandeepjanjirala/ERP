@@ -23,6 +23,7 @@ Permissions are enforced in Django views, filtered querysets, and write services
 | Apply for leave | No | No | No | No | No | Own children | No |
 | Approve / refuse leave | All | Own branch | No | Own homeroom | No | No | No |
 | View student reports and report cards | All | Own branch | Own branch | Assigned scope | Self only | Own children | No |
+| Global search (Ctrl+K) | Students, people, invoices | Students, people, invoices | Students, people | Students they teach | No | Own children's invoices | Invoices |
 | Download all records (ZIP) | All | Own branch | Own branch | Assigned scope (no fees) | Self only (no fees) | Own children | No |
 | Create exams | All | Own branch | No | Assigned class+subject | No | No | No |
 | Enter draft marks | All | No | No | Assigned class+subject | No | No | No |

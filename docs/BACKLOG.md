@@ -11,7 +11,6 @@ Known limitations and follow-ups that were left out of a phase on purpose. Each 
 | The CSV import covers students and guardians only, not staff or marks | Out of scope for Phase 5 | The same check-then-confirm pattern for staff and mark sheets | Later |
 | A promotion can't be undone with one click | Rare, and undoing must not lose attendance or marks recorded since | A reviewed reverse operation (delete untouched new enrollments, reopen old ones) | Later |
 | The import's check is as slow as the import (each row is saved, then undone) | Exactness over speed; fine at 500 rows | Profile if larger files are needed | Later |
-| Ctrl+K global search (DESIGN.md) | Not part of the approved Phase 5 plan | Search students, staff and invoices from the top bar | 6 |
 
 ## From Phase 4 (fees and payments)
 

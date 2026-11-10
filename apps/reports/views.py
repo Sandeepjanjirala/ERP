@@ -1,6 +1,7 @@
 from datetime import date
 
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
@@ -9,6 +10,7 @@ from apps.academics.models import AcademicYear
 from apps.academics.selectors import teacher_lessons
 from apps.accounts.decorators import role_required
 from apps.accounts.models import User
+from apps.accounts.policies import can_manage_account
 from apps.audit.selectors import event_areas, events, filter_events
 from apps.core.pagination import paginate
 from apps.exams.selectors import mark_summary
@@ -19,12 +21,15 @@ from apps.students.selectors import guardian_links, students
 from .forms import ActivityFilterForm
 from .pdf import render_report_card, report_card_filename
 from .selectors import (
+    SEARCH_LIMIT,
     attendance_trend,
     branch_comparison,
+    can_search,
     family_overview,
     low_attendance,
     overview,
     published_marks,
+    search_everything,
     subject_performance,
     to_do,
 )
@@ -152,6 +157,24 @@ def student_report(request, pk):
             "can_manage_guardians": request.user.is_manager,
             "attendance_page": paginate(request, report["attendance_rows"], 15),
         },
+    )
+
+
+@login_required
+def search(request):
+    """The global search: students, people and invoices in your scope. htmx swaps in only the
+    results as you type; Ctrl+K (or Cmd+K) in the top bar jumps here."""
+    if not can_search(request.user):
+        raise PermissionDenied
+    query = request.GET.get("q", "")
+    found = search_everything(request.user, query)
+    # People link to their edit page only where the same policy as the service allows it.
+    for person in found["people"] or []:
+        person.can_edit = can_manage_account(request.user, person)
+    return render(
+        request,
+        "reports/search.html",
+        {"title": "Search", "query": query, "found": found, "limit": SEARCH_LIMIT},
     )
 
 
