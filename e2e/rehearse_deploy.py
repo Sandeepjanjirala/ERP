@@ -11,8 +11,8 @@ generated for the run and thrown away. Then:
 2. HTTPS and headers: HTTP redirects to HTTPS, a certificate chain that verifies, HSTS, the
    CSP, secure cookies, no Server header, a request id;
 3. the 69 API checks (e2e/api_checks.py) over HTTPS, with the worker and Mailpit;
-4. a real browser signs in as every role and opens their pages: no console errors or CSP
-   violations;
+4. a real browser signs in as every role and opens every page they can reach: no console
+   errors or CSP violations;
 5. the backup and restore drill: deploy/backup.sh, data lost, deploy/restore.sh, and every
    table compared with the backup row for row.
 
@@ -44,15 +44,6 @@ PROJECT = "edunexa-rehearsal"
 DOMAIN = "edunexa.localhost"
 SITE = f"https://{DOMAIN}"
 MAILPIT = "http://127.0.0.1:18025"
-ROLES = {
-    "superadmin": ["/", "/activity/", "/setup/", "/users/", "/search/?q=ra"],
-    "admin.madhapur": ["/", "/students/", "/fees/", "/timetable/", "/students/promotion/"],
-    "principal.madhapur": ["/", "/exams/", "/reports/", "/leave/"],
-    "teacher.madhapur": ["/", "/attendance/", "/timetable/mine/", "/exams/"],
-    "accountant.madhapur": ["/", "/fees/", "/fees/collections/", "/fees/review/"],
-    "student1.madhapur": ["/", "/timetable/", "/announcements/"],
-    "parent1.madhapur": ["/", "/fees/", "/leave/", "/notifications/"],
-}
 failures = []
 
 
@@ -271,34 +262,22 @@ def api_checks(password):
 
 
 def browser_checks(password):
-    step("A real browser, every role, under the production CSP")
+    step("A real browser, every role, every page they can reach (e2e/crawl.py)")
     from playwright.sync_api import sync_playwright
+
+    sys.path.insert(0, str(ROOT / "e2e"))
+    from crawl import USERS, crawl
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
-        for username, paths in ROLES.items():
+        for username in USERS:
             # Chromium resolves *.localhost itself; Caddy's local CA isn't in its store.
-            context = browser.new_context(ignore_https_errors=True)
-            page = context.new_page()
-            problems = []
-            page.on("console", lambda m, p=problems: m.type == "error" and p.append(m.text))
-            page.on("pageerror", lambda e, p=problems: p.append(str(e)))
-            page.goto(f"{SITE}/accounts/login/")
-            page.fill("#id_username", username)
-            page.fill("#id_password", password)
-            page.click("button[type=submit]")
-            page.wait_for_load_state("networkidle")
-            statuses = []
-            for path in paths:
-                response = page.goto(SITE + path)
-                page.wait_for_load_state("networkidle")
-                statuses.append(response.status)
+            seen, problems = crawl(browser, SITE, username, password, ignore_https_errors=True)
             check(
-                statuses == [200] * len(paths) and not problems,
-                f"{username}: {len(paths)} pages, statuses {sorted(set(statuses))}, "
-                f"{len(problems)} console problems {problems[:2]}",
+                not problems,
+                f"{username}: {len(seen)} pages, no errors or CSP violations"
+                + (f"; {problems[:2]}" if problems else ""),
             )
-            context.close()
         browser.close()
 
 

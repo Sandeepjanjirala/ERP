@@ -4,7 +4,7 @@ class SecurityHeadersMiddleware:
     # Directive -> allowed sources. Directives not listed fall back to default-src.
     CSP = {
         "default-src": ("'self'",),
-        "style-src": ("'self'", "'unsafe-inline'"),
+        "style-src": ("'self'",),
         "script-src": ("'self'",),
         "img-src": ("'self'", "data:"),
         "object-src": ("'none'",),

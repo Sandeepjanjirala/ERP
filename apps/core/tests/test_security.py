@@ -60,7 +60,7 @@ class SecurityTests(SchoolTestCase):
 
 class ContentSecurityPolicyTests(TestCase):
     BASE = (
-        "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; "
+        "default-src 'self'; style-src 'self'; script-src 'self'; "
         "img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; "
         "frame-ancestors 'none'"
     )
@@ -89,6 +89,18 @@ class ContentSecurityPolicyTests(TestCase):
         for url in ("/api/docs/", "/accounts/login/"):
             with self.subTest(url=url):
                 self.assertNotIn("worker-src", self.client.get(url)["Content-Security-Policy"])
+
+    def test_only_the_api_docs_allow_inline_styles(self):
+        """Every page of the app is styled from static files; the third-party API docs
+        pages write their own <style> tags and attributes."""
+        for url, allowed in (
+            ("/api/redoc/", True),
+            ("/api/docs/", True),
+            ("/accounts/login/", False),
+        ):
+            with self.subTest(url=url):
+                policy = self.directives(self.client.get(url)["Content-Security-Policy"])
+                self.assertEqual("'unsafe-inline'" in policy["style-src"], allowed)
 
     def test_a_page_adds_sources_to_a_directive_once(self):
         """One script-src with both sources: a second copy would be ignored by browsers."""
