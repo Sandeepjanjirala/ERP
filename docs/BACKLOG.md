@@ -43,6 +43,4 @@ Known limitations and follow-ups that were left out of a phase on purpose. Each 
 |---|---|---|
 | Layouts were checked by screenshot, not on real phones | Test on a real Android and iOS device | 6 |
 | Nothing has run on a real host with HTTPS yet | Deploy with managed PostgreSQL and Redis | 6 |
-| ReDoc shows operation ids (such as `activity_list`) where a written summary would read better | Add short summaries with `extend_schema(summary=...)` | 6 |
-| ReDoc's "API docs by Redocly" logo is blocked by the CSP (on purpose: no third-party requests) | Hide the badge with CSS, or leave as is | 6 |
 | Upgrading a database made before Phase 1 is three manual commands | Documented in [UPGRADING.md](UPGRADING.md); only matters for pre-Phase-1 data | None planned |
