@@ -2,7 +2,7 @@
 
 from django.conf import settings
 from django.core.management import call_command
-from django.db import transaction
+from django.db import connection, transaction
 
 from apps.accounts.models import User
 
@@ -48,5 +48,10 @@ def reset_demo(size=None, stdout=None):
             raise NotADemoDatabase(
                 "This database was not created by seed_demo; the demo reset will not touch it."
             )
+        if connection.vendor == "postgresql":
+            # PostgreSQL won't TRUNCATE tables with foreign-key checks still pending in this
+            # transaction (rows written earlier in it); run those checks now.
+            with connection.cursor() as cursor:
+                cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
         call_command("flush", interactive=False, verbosity=0)
         call_command("seed_demo", size=size or settings.DEMO_SIZE, stdout=stdout)
