@@ -6,6 +6,7 @@ The id is always made here: one sent by the client is ignored, so it can't be fo
 someone else's request to a log entry.
 """
 
+import logging
 import uuid
 from contextvars import ContextVar
 
@@ -15,6 +16,14 @@ _current = ContextVar("request_id", default="")
 def current_request_id():
     """The id of the request being handled, or "" outside one (a background job, a command)."""
     return _current.get()
+
+
+class RequestIDLogFilter(logging.Filter):
+    """Adds `request_id` to every log record: the current request's id, or "-" outside one."""
+
+    def filter(self, record):
+        record.request_id = current_request_id() or "-"
+        return True
 
 
 class RequestIDMiddleware:

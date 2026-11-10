@@ -33,6 +33,7 @@ from apps.attendance.services import decide_leave, request_leave, save_register
 from apps.communication.models import Announcement
 from apps.communication.services import publish_announcement
 from apps.core.jobs import jobs_paused
+from apps.demo.models import DemoMarker
 from apps.exams.models import Exam
 from apps.exams.services import (
     DEFAULT_BANDS,
@@ -177,12 +178,14 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, size, **options):
-        if not settings.DEBUG:
-            raise CommandError("Demo seeding is disabled outside development mode.")
+        if not (settings.DEBUG or settings.DEMO_MODE):
+            raise CommandError("Demo seeding runs only in development or with DEMO_MODE=1.")
         if User.objects.exists() or Branch.objects.exists():
             raise CommandError(
                 "Demo seeding requires an empty database. Existing records were not changed."
             )
+        # First, so even a seed that stops halfway leaves a database the demo reset may clear.
+        DemoMarker.objects.create()
         self.size = SIZES[size]
         self.rng = random.Random(2026)
         self.password = secrets.token_urlsafe(18)

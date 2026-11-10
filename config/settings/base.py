@@ -128,6 +128,7 @@ TEMPLATES = [
                 "apps.organization.context_processors.workspace",
                 "apps.communication.context_processors.notifications",
                 "apps.reports.context_processors.search",
+                "apps.demo.context_processors.demo",
             ]
         },
     }
@@ -199,6 +200,19 @@ if RAZORPAY_KEY_ID and not RAZORPAY_KEY_ID.startswith("rzp_test_"):
     )
 PAYMENT_GATEWAY = "razorpay" if RAZORPAY_KEY_ID else "sandbox"
 
+# Demo mode: a public showcase on synthetic data (docs/adr/0014-demo-mode.md). One-click role
+# logins and a banner; the data is reset every night; emails are never really sent; payments
+# use the Sandbox only. The reset also refuses any database seed_demo didn't create.
+DEMO_MODE = os.getenv("DEMO_MODE", "0") == "1"
+DEMO_SIZE = os.getenv("DEMO_SIZE", "full")
+if DEMO_MODE and RAZORPAY_KEY_ID:
+    raise ImproperlyConfigured("Demo mode takes payments in the Sandbox only: remove RAZORPAY_*.")
+if DEMO_MODE:
+    CELERY_BEAT_SCHEDULE["reset-demo"] = {
+        "task": "apps.demo.tasks.reset_demo_nightly",
+        "schedule": crontab(hour=3, minute=45),
+    }
+
 CACHES = {
     "default": (
         {"BACKEND": "django.core.cache.backends.redis.RedisCache", "LOCATION": REDIS_URL}
@@ -241,6 +255,9 @@ EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "1") == "1"
 EMAIL_TIMEOUT = 15
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "EduNexa <noreply@example.com>")
+if DEMO_MODE:
+    # Demo emails are written to the log, never sent: the addresses are made up.
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # REST API (/api/v1/). Apps and scripts send a JWT; the browsable API in development uses the
 # normal sign-in session. Errors share one JSON shape (apps/core/api/exceptions.py).
@@ -304,6 +321,44 @@ SPECTACULAR_SETTINGS = {
         "PaymentOrderStatusEnum": "apps.fees.models.PaymentOrder.Status",
     },
 }
+
+# Logs go to standard output (Docker and the host collect them), one line each, with the id of
+# the web request that wrote them: the same id as the X-Request-ID header and the activity log.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "request_id": {"()": "apps.core.request_id.RequestIDLogFilter"},
+        "require_debug_false": {"()": "django.utils.log.RequireDebugFalse"},
+    },
+    "formatters": {
+        "line": {"format": "%(asctime)s %(levelname)s %(name)s [%(request_id)s] %(message)s"},
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "filters": ["request_id"],
+            "formatter": "line",
+        },
+        # Optional error monitoring without another service: ERROR_EMAILS gets an email for
+        # every server error (Django hides passwords and other sensitive values in it).
+        "mail_admins": {
+            "class": "django.utils.log.AdminEmailHandler",
+            "level": "ERROR",
+            "filters": ["require_debug_false"],
+        },
+    },
+    "root": {"handlers": ["console"], "level": os.getenv("LOG_LEVEL", "INFO")},
+    "loggers": {
+        "django.request": {
+            "handlers": ["console", "mail_admins"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+    },
+}
+ADMINS = [(email, email) for email in env_list("ERROR_EMAILS")]
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 3000
 DATA_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
