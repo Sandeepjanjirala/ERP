@@ -1,4 +1,6 @@
 .env
+# Database backups made by deploy/backup.sh: personal data, never in Git.
+deploy/backups/
 .venv/
 __pycache__/
 *.py[cod]

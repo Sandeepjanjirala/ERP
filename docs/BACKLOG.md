@@ -33,13 +33,12 @@ Known limitations and follow-ups that were left out of a phase on purpose. Each 
 | An absence corrected on a later day sends no correction | Phase 5 sends corrections for same-day changes only, matching the alerts | Send corrections for recent days too, if schools ask | Later |
 | Names in cached dashboard lists can be up to an hour old (the numbers never are) | The cache key carries a register fingerprint, not a fingerprint of names | Add a version for student names to the key, or shorten the timeout | Later |
 | The full demo seed takes about 4 minutes under Docker on Windows (about 1 minute without Docker) | Every row goes through the real services, and Docker Desktop adds latency to each query | Batch the history inside one register per day, or seed inside the container network only | 6 |
-| Production needs `REDIS_URL`, `SITE_URL`, one worker and exactly one `beat` | New processes and settings from Phase 3; documented in [DEPLOYMENT.md](DEPLOYMENT.md) | Set them up and check with `manage.py check_jobs` when deploying | 6 |
-| GitHub CI has not yet run Phases 2 to 5, including the new Redis worker step | Nothing is pushed until after Phase 6 | Push and watch CI | 6 |
+| GitHub CI has not yet run Phases 2 to 6 (including the new browser, deploy-rehearsal and dependency-audit jobs) | Nothing is pushed until the owner approves the release | Push the release branch, open the pull request and watch CI | After approval |
 
 ## Carried over from Phases 1 and 2
 
 | Item | Possible fix | Likely phase |
 |---|---|---|
 | Layouts were checked by screenshot, not on real phones | Test on a real Android and iOS device | 6 |
-| Nothing has run on a real host with HTTPS yet | Deploy with managed PostgreSQL and Redis | 6 |
+| Nothing has run on a real host yet. The production stack is rehearsed locally with HTTPS (`e2e/rehearse_deploy.py`) | Hosting needs the owner's approval | Choose a VPS, deploy with `deploy/`, and run the pilot checklist in DEPLOYMENT.md | After approval |
 | Upgrading a database made before Phase 1 is three manual commands | Documented in [UPGRADING.md](UPGRADING.md); only matters for pre-Phase-1 data | None planned |

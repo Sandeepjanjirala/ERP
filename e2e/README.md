@@ -11,6 +11,7 @@ runs all of them (`.github/workflows/ci.yml`).
 | `walkthrough.py` | 154 checks through Django's full request stack on data upgraded from the single-app version: every page for every role, then every workflow of Phases 1 to 5. | Run by `rehearse_upgrade.py --walkthrough` |
 | `rehearse_upgrade.py` | The upgrade from the single-app version works end to end (docs/UPGRADING.md): the old code's data, exported, converted and loaded. | `python e2e/rehearse_upgrade.py --database-url postgresql://.../empty --walkthrough` |
 | `rehearse_migrations.py` | Every migration since a release keeps every row: build a database with an older release (or copy a real one), migrate it, compare every table. | `python e2e/rehearse_migrations.py build --from v0.1.0 --database-url postgresql://.../empty` or `check --database-url <a copy>` |
+| `rehearse_deploy.py` | The production stack in `deploy/` works: built and started under production settings with Caddy's HTTPS, the deployment checklist, HTTP→HTTPS, certificate and security headers, secure cookies, the 69 API checks over HTTPS, a real browser for every role, and the backup and restore drill (every table compared with the backup). | `python e2e/rehearse_deploy.py` (Docker, ports 80 and 443 free; `--keep` leaves it running at https://edunexa.localhost) |
 | `db_snapshot.py`, `db_compare.py` | The row snapshots the rehearsals compare. | Used by the rehearsals |
 
 All of them change data: point them at throwaway databases, never at a real school's.

@@ -1,5 +1,8 @@
 .git
-.env
+# Secrets and backups (personal data) never go into the image.
+**/.env
+**/.env.*
+deploy/backups
 .venv
 **/__pycache__
 db.sqlite3*

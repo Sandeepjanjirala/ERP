@@ -122,6 +122,32 @@ jobs:
       - if: failure()
         run: docker compose logs
 
+  dependency-audit:
+    name: Known vulnerabilities in dependencies (pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install pip-audit==2.9.0
+      - run: pip-audit -r requirements/prod.txt -r requirements/dev.txt
+
+  deploy-rehearsal:
+    name: Production stack rehearsal (Caddy HTTPS, backup and restore)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements/*.txt
+      - run: pip install -r requirements/dev.txt
+      - run: python -m playwright install --with-deps chromium
+      - name: deploy/ under production settings, HTTPS checks, API and browser checks, restore drill
+        run: python e2e/rehearse_deploy.py
+
   rehearsals:
     name: Upgrade and migration rehearsals
     runs-on: ubuntu-latest
