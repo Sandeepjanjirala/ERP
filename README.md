@@ -61,9 +61,11 @@ EduNexa runs the daily work of a school group: branches, classrooms and teachers
 
 ## Run it on your computer
 
-You need **Python 3.12**. These commands are for Windows PowerShell; on macOS or Linux use `python3.12` and `.venv/bin/python`.
+You need **Git** and **Python 3.12**. These commands are for Windows PowerShell; on macOS or Linux use `python3.12` and `.venv/bin/python`.
 
 ```powershell
+git clone https://github.com/Sandeepjanjirala/edunexa.git
+cd edunexa
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements\dev.txt
 .\.venv\Scripts\python.exe setup_local.py        # creates .env and the local SQLite database
@@ -71,7 +73,11 @@ py -3.12 -m venv .venv
 .\run_server.bat                                 # or: .\.venv\Scripts\python.exe manage.py runserver
 ```
 
-Open **http://127.0.0.1:8000/** and sign in with the password that `seed_demo` printed. For a smaller dataset that seeds in seconds, use `seed_demo --size small`.
+Open **http://127.0.0.1:8000/** and sign in with the password that `seed_demo` printed. For a smaller dataset that seeds in seconds, use `seed_demo --size small`. To sign in with one click instead, as on the public demo, set `DEMO_MODE=1` in `.env` before starting the server.
+
+To get the latest version later, run `git pull`, then `.\.venv\Scripts\python.exe -m pip install -r requirements\dev.txt` and `.\.venv\Scripts\python.exe manage.py migrate`. Your `.env` and database are never in Git, so a pull doesn't touch them.
+
+The browser tests need Chromium once: `.\.venv\Scripts\python.exe -m playwright install chromium`. Without it they are skipped.
 
 | Role | Username |
 |---|---|
