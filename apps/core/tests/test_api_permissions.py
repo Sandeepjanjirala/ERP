@@ -91,6 +91,8 @@ class ApiPermissionMatrixTests(ApiTestCase):
             ("/api/v1/payment-orders/", FEES),
             (f"/api/v1/receipts/{self.receipt.pk}/pdf/", FEES),
             ("/api/v1/fee-heads/", FINANCE),
+            ("/api/v1/reports/collections/", FINANCE),
+            ("/api/v1/reports/collections/export/", FINANCE),
             ("/api/v1/fee-plans/", FINANCE),
         ]
 

@@ -18,5 +18,11 @@ urlpatterns = [
         name="api-payment-webhook",
     ),
     path("receipts/<int:pk>/pdf/", views.ReceiptPDFView.as_view(), name="api-receipt-pdf"),
+    path("reports/collections/", views.CollectionsView.as_view(), name="api-collections"),
+    path(
+        "reports/collections/export/",
+        views.CollectionsExportView.as_view(),
+        name="api-collections-export",
+    ),
     *router.urls,
 ]

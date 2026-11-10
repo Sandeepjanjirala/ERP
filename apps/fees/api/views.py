@@ -12,15 +12,26 @@ from rest_framework.views import APIView
 
 from apps.accounts.models import User
 from apps.core.api.permissions import role_in
-from apps.core.api.renderers import PDFRenderer
+from apps.core.api.renderers import CSVRenderer, PDFRenderer
+from apps.organization.selectors import selected_branch
 
 from ..gateways import GATEWAYS, GatewayError
 from ..models import FeeHead, FeePlan, Invoice, Payment, PaymentOrder
 from ..pdf import receipt_filename, render_receipt
-from ..selectors import fee_heads, fee_plans, invoices, payment_orders, payments, receipts
+from ..selectors import (
+    collection_totals,
+    collections,
+    fee_heads,
+    fee_plans,
+    invoices,
+    payment_orders,
+    payments,
+    receipts,
+)
 from ..services import (
     InvalidSignature,
     cancel_invoice,
+    export_collections_csv,
     grant_concession,
     issue_invoices,
     receive_webhook,
@@ -32,6 +43,8 @@ from ..services import (
 from .filters import InvoiceFilter, PaymentFilter, PaymentOrderFilter
 from .serializers import (
     CancelSerializer,
+    CollectionsQuerySerializer,
+    CollectionsSerializer,
     ConcessionCreateSerializer,
     CounterPaymentSerializer,
     FeeHeadSerializer,
@@ -167,6 +180,63 @@ class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         return payments(self.request.user)
+
+
+def collection_rows(request):
+    """The validated ?start=&end=&branch= of a collection report, and its payments."""
+    query = CollectionsQuerySerializer(data=request.query_params)
+    query.is_valid(raise_exception=True)
+    start, end = query.validated_data["start"], query.validated_data["end"]
+    branch = selected_branch(request.user, request.query_params.get("branch"))
+    return start, end, branch, collections(request.user, start, end, branch)
+
+
+class CollectionsView(generics.GenericAPIView):
+    """Money received between two dates: totals overall and per method (as on the web page)."""
+
+    serializer_class = CollectionsSerializer
+    permission_classes = [role_in(*User.FINANCE)]
+
+    @extend_schema(summary="Fee collections", parameters=[CollectionsQuerySerializer])
+    def get(self, request):
+        start, end, _, rows = collection_rows(request)
+        summary = collection_totals(rows)
+        data = {
+            "start": start,
+            "end": end,
+            "count": summary["count"],
+            "received_paise": summary["received"],
+            "applied_paise": summary["applied"],
+            "excess_paise": summary["excess"],
+            "by_method": [
+                {"method": label, "received_paise": paise} for label, paise in summary["by_method"]
+            ],
+        }
+        return Response(self.get_serializer(data).data)
+
+
+class CollectionsExportView(generics.GenericAPIView):
+    """The collection report as CSV, one row per payment: the same file as the web export.
+    Audited."""
+
+    permission_classes = [role_in(*User.FINANCE)]
+    renderer_classes = [renderers.JSONRenderer, CSVRenderer]
+
+    @extend_schema(
+        summary="Download fee collections (CSV)",
+        parameters=[CollectionsQuerySerializer],
+        responses={(200, "text/csv"): OpenApiTypes.STR},
+    )
+    def get(self, request):
+        start, end, branch, rows = collection_rows(request)
+        response = HttpResponse(content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = (
+            f'attachment; filename="collections-{start:%Y%m%d}-{end:%Y%m%d}.csv"'
+        )
+        export_collections_csv(
+            request.user, branch, start, end, rows.select_related("invoice__year"), response
+        )
+        return response
 
 
 class PaymentOrderViewSet(viewsets.ReadOnlyModelViewSet):

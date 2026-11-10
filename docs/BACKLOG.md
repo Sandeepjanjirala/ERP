@@ -23,7 +23,6 @@ Known limitations and follow-ups that were left out of a phase on purpose. Each 
 | INR only | Out of scope for Phase 4; another currency is held for review, never counted | A currency per branch, with amounts stored in that currency's minor units | Later |
 | Payments run in test mode only; the Sandbox stays enabled | Requirement: no real money and no production credentials | Before going live: live keys, a reviewed change to the `rzp_test_` guard, disable the Sandbox, legal and finance sign-off | Later |
 | The Razorpay checkout page's Content-Security-Policy has not been checked live | No Razorpay test keys were used; the page was tested with HTTP mocked | Open the checkout with test keys and adjust the page's `csp_add` if the browser blocks anything | 6 |
-| No collection report endpoint in the API | `/api/v1/payments/` with filters covers the data | Add `/api/v1/reports/collections/` with totals and CSV | 6 |
 | Seeded payment dates are spread across the term by a direct update after the service records them | Services stamp the current time, which is right for real payments | Leave as is (demo only), or let the seed pass a clock | None planned |
 
 ## From Phase 3 (background jobs and parent portal)

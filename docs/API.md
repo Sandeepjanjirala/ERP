@@ -61,7 +61,7 @@ Password reset by email stays a web flow (`/accounts/password/reset/`), because 
 
 ## Conventions
 
-**JSON only.** Requests and responses are JSON. The one exception is `GET /api/v1/reports/performance/export/`, which returns CSV. In development, opening an endpoint in the browser while signed in to the web app shows DRF's browsable API; production serves JSON only.
+**JSON only.** Requests and responses are JSON. The exceptions are the CSV exports (`GET /api/v1/reports/performance/export/` and `.../collections/export/`) and the PDFs. In development, opening an endpoint in the browser while signed in to the web app shows DRF's browsable API; production serves JSON only.
 
 **Lists are paginated:**
 
@@ -141,6 +141,7 @@ Roles: **S** super admin, **A** branch admin, **P** principal, **T** teacher, **
 | `/api/v1/payments/` (`?excess=true`), `/api/v1/payment-orders/` (`?status=review`) | GET | S A Ac · Pa (own children) |
 | `/api/v1/receipts/{id}/pdf/` | GET (PDF) | S A Ac · Pa (own children) |
 | `/api/v1/fee-heads/`, `/api/v1/fee-plans/` | GET · POST, PATCH | S A Ac · S A |
+| `/api/v1/reports/collections/` (`?start=&end=&branch=`), `.../export/` (CSV, audited) | GET | S A Ac |
 | `/api/v1/fee-plans/{id}/issue/` | POST | S A Ac |
 | `/api/v1/payments/webhook/{gateway}/` | POST | The payment provider: no sign-in, but every body must carry a valid `X-Razorpay-Signature` |
 

@@ -254,3 +254,36 @@ class FeePlanUpdateSerializer(serializers.Serializer):
     keep their own amounts."""
 
     items = FeePlanItemWriteSerializer(many=True)
+
+
+class CollectionsQuerySerializer(serializers.Serializer):
+    """The collection report's period (default: this month so far) and branch."""
+
+    start = serializers.DateField(required=False, help_text="First day (default: the 1st)")
+    end = serializers.DateField(required=False, help_text="Last day (default: today)")
+    branch = serializers.IntegerField(required=False, help_text="Branch id (404 outside scope)")
+
+    def validate(self, attrs):
+        today = timezone.localdate()
+        attrs.setdefault("start", today.replace(day=1))
+        attrs.setdefault("end", today)
+        if attrs["start"] > attrs["end"]:
+            raise serializers.ValidationError(
+                {"start": "The start date must be on or before the end date."}
+            )
+        return attrs
+
+
+class MethodTotalSerializer(serializers.Serializer):
+    method = serializers.CharField()
+    received_paise = serializers.IntegerField()
+
+
+class CollectionsSerializer(serializers.Serializer):
+    start = serializers.DateField()
+    end = serializers.DateField()
+    count = serializers.IntegerField(help_text="Payments received")
+    received_paise = serializers.IntegerField()
+    applied_paise = serializers.IntegerField(help_text="Applied to invoices")
+    excess_paise = serializers.IntegerField(help_text="Held for refund")
+    by_method = MethodTotalSerializer(many=True)
